@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState } from "react";
-import { Album, CHAINS, ChainKey, Track } from "@/lib/albums";
+import { useEffect, useRef, useState } from "react";
+import { Album, ALBUMS, CHAINS, ChainKey, Track } from "@/lib/albums";
 import { recordStream } from "@/lib/streams";
 import ConsolePanel from "./ConsolePanel";
 import BioSection from "./BioSection";
@@ -28,6 +28,7 @@ export default function Landing({
   const activeChain = CHAINS.find((c) => c.key === chain)!;
   const titleTrack = album.tracks[album.tracks.length - 1];
 
+  const innerRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
@@ -35,6 +36,16 @@ export default function Landing({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [clock, setClock] = useState<string | null>(null);
+
+  useEffect(() => {
+    function tick() {
+      setClock(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
+    }
+    tick();
+    const id = setInterval(tick, 15000);
+    return () => clearInterval(id);
+  }, []);
 
   function ensureAudioGraph() {
     const audio = audioRef.current;
@@ -94,6 +105,7 @@ export default function Landing({
           playingTrackId={playingTrack?.id ?? null}
           isPlaying={isPlaying}
           onTrackClick={toggleTrack}
+          avoidRef={innerRef}
         />
         <audio
           ref={audioRef}
@@ -104,7 +116,7 @@ export default function Landing({
           onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
         />
 
-        <div className="landing-inner">
+        <div className="landing-inner" ref={innerRef}>
           <div className="landing-content">
             <Image
               src="/brand/dyl-logo-white.png"
@@ -151,12 +163,20 @@ export default function Landing({
 
           <div className="landing-art">
             <ConsolePanel
-              album={album}
+              albums={ALBUMS}
               previewPlaying={isPlaying && playingTrack?.id === titleTrack.id}
               previewTitle={titleTrack.title}
               onTogglePreview={() => toggleTrack(titleTrack)}
             />
           </div>
+        </div>
+
+        <div className="landing-taskbar">
+          <span className="taskbar-start">
+            <span className="chain-dot" style={{ background: activeChain.color }} />
+            dyl.sys
+          </span>
+          <span className="taskbar-clock">{clock ?? "--:--"}</span>
         </div>
       </div>
 

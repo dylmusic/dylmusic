@@ -1,0 +1,105 @@
+"use client";
+
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useAccount, useDisconnect } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useSolanaWallet } from "@/lib/solana";
+import { usePersistedChain } from "@/lib/useChain";
+import { PlayerProvider, usePlayer } from "@/components/PlayerContext";
+import { AppShellContext } from "@/components/AppShellContext";
+import ChainSwitcher from "@/components/ChainSwitcher";
+import WalletPill from "@/components/WalletPill";
+import NicknameEditor from "@/components/NicknameEditor";
+import MiniPlayer from "@/components/MiniPlayer";
+
+function AppShellInner({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [chain, setChain] = usePersistedChain();
+
+  const { address: evmAddress } = useAccount();
+  const { disconnect: disconnectEvm } = useDisconnect();
+  const { openConnectModal } = useConnectModal();
+  const sol = useSolanaWallet();
+
+  const activeWallet = chain === "solana" ? sol.address : evmAddress ?? null;
+
+  function requestConnect() {
+    if (chain === "solana") sol.connect();
+    else openConnectModal?.();
+  }
+
+  const player = usePlayer();
+  const onMusic = pathname === "/music" || pathname.startsWith("/music/");
+  const onDashboard = pathname === "/dashboard";
+
+  return (
+    <div className="app-shell">
+      <header className="app-header">
+        <div className="app-header-left">
+          <button className="app-logo-btn" onClick={() => router.push("/")} aria-label="Back to home">
+            <Image
+              src="/brand/dyl-logo-white.png"
+              alt="Dyl"
+              width={40}
+              height={32}
+              className="app-logo-img"
+            />
+          </button>
+          <div className="view-switch" role="tablist" aria-label="Select view">
+            <Link href="/music" className={`view-tab${onMusic ? " active" : ""}`}>
+              Music
+            </Link>
+            <Link href="/dashboard" className={`view-tab${onDashboard ? " active" : ""}`}>
+              Dashboard
+            </Link>
+          </div>
+        </div>
+        <ChainSwitcher selected={chain} onSelect={setChain} />
+        <div className="wallet-pill-group">
+          {activeWallet && <NicknameEditor wallet={activeWallet} />}
+          <WalletPill
+            chain={chain}
+            evmAddress={evmAddress}
+            solAddress={sol.address}
+            onConnectEvm={() => openConnectModal?.()}
+            onConnectSol={() => sol.connect()}
+            onDisconnectEvm={() => disconnectEvm()}
+            onDisconnectSol={() => sol.disconnect()}
+          />
+        </div>
+      </header>
+
+      <main>
+        <AppShellContext.Provider value={{ chain, walletAddress: activeWallet, requestConnect }}>
+          {children}
+        </AppShellContext.Provider>
+      </main>
+
+      {player.playingTrack && (
+        <MiniPlayer
+          track={player.playingTrack}
+          chain={chain}
+          walletAddress={activeWallet}
+          isPlaying={player.isPlaying}
+          currentTime={player.currentTime}
+          duration={player.duration}
+          onToggle={() => player.toggleTrack(player.playingTrack!)}
+          onClose={player.closePlayer}
+          onRequestConnect={requestConnect}
+          onSeek={player.seek}
+        />
+      )}
+    </div>
+  );
+}
+
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <PlayerProvider>
+      <AppShellInner>{children}</AppShellInner>
+    </PlayerProvider>
+  );
+}

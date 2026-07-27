@@ -37,6 +37,7 @@ export interface Album {
   year: number;
   coverImage: string;
   tracks: Track[];
+  comingSoon?: boolean;
 }
 
 function track(index: number, title: string, priceUsd = 0.99): Track {
@@ -81,7 +82,27 @@ export const CRYPTO_RICH_DELUXE: Album = {
   ],
 };
 
-export const ALBUMS: Album[] = [CRYPTO_RICH_DELUXE];
+export const INTERNET_LEGEND: Album = {
+  slug: "internet-legend",
+  title: "Internet Legend",
+  artist: "Dyl",
+  year: 2022,
+  coverImage: "/covers/internet-legend.jpg",
+  tracks: [],
+  comingSoon: true,
+};
+
+export const LOST_ANGELES_FILES: Album = {
+  slug: "lost-angeles-files",
+  title: "lost angeles files",
+  artist: "Dyl",
+  year: 2025,
+  coverImage: "/covers/lost-angeles-files.png",
+  tracks: [],
+  comingSoon: true,
+};
+
+export const ALBUMS: Album[] = [CRYPTO_RICH_DELUXE, INTERNET_LEGEND, LOST_ANGELES_FILES];
 
 // Simple seeded pseudo-random baseline mint count per chain+track, stable
 // across reloads without needing a backend. Purely cosmetic "this is live"

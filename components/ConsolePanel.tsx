@@ -4,15 +4,13 @@ import { useRef, useState } from "react";
 import { Album } from "@/lib/albums";
 import { platformOverview } from "@/lib/platformStats";
 
-const DECORATIVE_BARS = Array.from({ length: 20 }, (_, i) => i);
-
 export default function ConsolePanel({
-  album,
+  albums,
   previewPlaying,
   previewTitle,
   onTogglePreview,
 }: {
-  album: Album;
+  albums: Album[];
   previewPlaying: boolean;
   previewTitle: string;
   onTogglePreview: () => void;
@@ -20,7 +18,9 @@ export default function ConsolePanel({
   const stageRef = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
-  const overview = platformOverview(album);
+  const liveAlbum = albums[0];
+  const liveCount = albums.filter((a) => !a.comingSoon).length;
+  const overview = platformOverview(liveAlbum);
 
   function handleMove(e: React.PointerEvent<HTMLDivElement>) {
     const el = stageRef.current;
@@ -69,22 +69,29 @@ export default function ConsolePanel({
           </button>
         </div>
 
-        <div className="console-eq">
-          {DECORATIVE_BARS.map((i) => (
-            <span
-              key={i}
-              className="eq-bar"
-              style={{
-                animationDelay: `${(i % 7) * 0.09}s`,
-                animationDuration: `${0.9 + (i % 5) * 0.15}s`,
-              }}
-            />
-          ))}
-        </div>
-
-        <div className="console-readout">
-          <div className="console-readout-num">{Math.round(overview.totalPct)}%</div>
-          <div className="console-readout-label">sold across all chains</div>
+        <div className="console-log">
+          <div className="console-log-prompt">
+            <span className="console-log-caret">$</span> dyl.sys --status
+          </div>
+          <div className="console-log-row">
+            <span>catalog</span>
+            <span>
+              {albums.length} albums ({liveCount} live)
+            </span>
+          </div>
+          <div className="console-log-row">
+            <span>tracks</span>
+            <span>{liveAlbum.tracks.length} indexed</span>
+          </div>
+          <div className="console-log-row">
+            <span>chains</span>
+            <span>{overview.perChain.map((c) => c.chain.shortLabel.toLowerCase()).join(" · ")}</span>
+          </div>
+          <div className="console-log-row">
+            <span>sold</span>
+            <span>{Math.round(overview.totalPct)}% across all chains</span>
+          </div>
+          <div className="console-log-cursor" />
         </div>
 
         <div className="console-chains">
@@ -106,9 +113,9 @@ export default function ConsolePanel({
         </div>
 
         <div className="console-footer">
-          <span>{album.tracks.length} TRACKS</span>
+          <span>{albums.length} ALBUMS</span>
           <span>·</span>
-          <span>100 NFTS / SONG</span>
+          <span>{liveAlbum.tracks.length} TRACKS</span>
           <span>·</span>
           <span>3 CHAINS</span>
         </div>

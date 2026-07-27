@@ -24,6 +24,7 @@ export default function AlbumView({
   playingTrackId,
   isPlaying,
   onTogglePlay,
+  onBack,
 }: {
   album: Album;
   chain: ChainKey;
@@ -32,6 +33,7 @@ export default function AlbumView({
   playingTrackId: string | null;
   isPlaying: boolean;
   onTogglePlay: (track: Track) => void;
+  onBack?: () => void;
 }) {
   const [tick, setTick] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -158,6 +160,12 @@ export default function AlbumView({
 
   return (
     <div className="album-wrap">
+      {onBack && (
+        <button className="album-back" onClick={onBack}>
+          ← Music
+        </button>
+      )}
+
       <div className="album-header">
         <div className="album-cover">
           <Image
