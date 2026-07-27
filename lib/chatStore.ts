@@ -54,6 +54,27 @@ export async function readMessages(limit = 100): Promise<ChatMessage[]> {
     .reverse();
 }
 
+// Admin moderation — the list has no per-item key to target, so this reads
+// the whole thing, drops the one entry, and rewrites it in the same
+// newest-first order the original lpush calls built.
+export async function deleteMessage(id: string): Promise<boolean> {
+  const redis = getRedis();
+  if (!redis) return false;
+  const raw = await redis.lrange(CHAT_KEY, 0, -1);
+  const kept = raw.filter((r) => {
+    try {
+      const parsed = typeof r === "string" ? (JSON.parse(r) as ChatMessage) : (r as unknown as ChatMessage);
+      return parsed.id !== id;
+    } catch {
+      return true;
+    }
+  });
+  if (kept.length === raw.length) return false;
+  await redis.del(CHAT_KEY);
+  if (kept.length > 0) await redis.rpush(CHAT_KEY, ...kept);
+  return true;
+}
+
 export function chatConfigured(): boolean {
   return getRedis() !== null;
 }

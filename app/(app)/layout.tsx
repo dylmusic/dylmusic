@@ -37,6 +37,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const onDashboard = pathname === "/dashboard";
   const onChat = pathname === "/chat";
   const onSwap = pathname === "/swap";
+  const onBeats = pathname === "/beats";
   const accentColor = CHAINS.find((c) => c.key === chain)?.color ?? "#CCFF00";
 
   return (
@@ -64,6 +65,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             </Link>
             <Link href="/swap" className={`view-tab${onSwap ? " active" : ""}`}>
               Swap
+            </Link>
+            <Link href="/beats" className={`view-tab${onBeats ? " active" : ""}`}>
+              Beats
             </Link>
           </div>
         </div>

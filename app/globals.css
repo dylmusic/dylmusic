@@ -2787,3 +2787,167 @@ input {
 .buy-confirm-dot.done {
   background: var(--accent);
 }
+
+/* ---------- Admin ---------- */
+
+.admin-wrap {
+  min-height: 100vh;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 40px 24px 100px;
+}
+
+.admin-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 40px;
+}
+
+.admin-logo {
+  font-size: 22px;
+  font-weight: 700;
+  color: #eef2ee;
+}
+
+.admin-badge {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.admin-gate {
+  background: #12161a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 32px 24px;
+  text-align: center;
+  color: #cfd9d2;
+}
+
+.admin-gate-sub {
+  color: #7c8a80;
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.admin-body {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.admin-section {
+  background: #12161a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.admin-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.admin-section-head h2 {
+  font-size: 15px;
+  margin: 0;
+  color: #eef2ee;
+}
+
+.admin-refresh {
+  font-size: 12px;
+  color: #7c8a80;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+
+.admin-refresh:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.admin-status-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13.5px;
+  color: #8b978f;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.admin-status-row:last-child {
+  border-bottom: none;
+}
+
+.admin-status-val {
+  color: #cfd9d2;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+}
+
+.admin-status-val.ok {
+  color: var(--accent);
+}
+
+.admin-status-val.warn {
+  color: #ff8a7a;
+}
+
+.admin-empty {
+  color: #7c8a80;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.admin-chat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-chat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+}
+
+.admin-chat-row-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: #cfd9d2;
+  word-break: break-word;
+}
+
+.admin-chat-row-text strong {
+  color: var(--accent);
+}
+
+.admin-delete-btn {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: #ff8a7a;
+  background: rgba(255, 138, 122, 0.1);
+  border: 1px solid rgba(255, 138, 122, 0.3);
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+
+.admin-delete-btn:hover:not(:disabled) {
+  background: rgba(255, 138, 122, 0.2);
+}
+
+.admin-delete-btn:disabled {
+  opacity: 0.5;
+}

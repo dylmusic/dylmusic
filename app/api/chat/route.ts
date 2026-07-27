@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { postMessage, readMessages, chatConfigured } from "@/lib/chatStore";
+import { postMessage, readMessages, deleteMessage, chatConfigured } from "@/lib/chatStore";
+import { isAdminWallet } from "@/lib/admin";
 
 export async function GET() {
   if (!chatConfigured()) {
@@ -33,4 +34,18 @@ export async function POST(req: NextRequest) {
   // verification is the natural next step once editions are real NFTs.
   const message = await postMessage({ wallet, chain, text });
   return NextResponse.json({ message });
+}
+
+export async function DELETE(req: NextRequest) {
+  const body = await req.json().catch(() => null);
+  const id = typeof body?.id === "string" ? body.id : "";
+  const wallet = typeof body?.wallet === "string" ? body.wallet : "";
+  if (!isAdminWallet(wallet)) {
+    return NextResponse.json({ error: "Not authorized." }, { status: 403 });
+  }
+  if (!id) {
+    return NextResponse.json({ error: "Missing message id." }, { status: 400 });
+  }
+  const ok = await deleteMessage(id);
+  return NextResponse.json({ ok });
 }
