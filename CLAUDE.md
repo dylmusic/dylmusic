@@ -236,6 +236,50 @@ royalty logic into any contract — don't default to assuming ERC-2981 alone
 
 ---
 
+## Deployment minting strategy — editions #1–10 pre-minted, priced by rarity
+
+Dylan's plan, to be part of the deploy flow for every track (not built
+yet): **auto-mint editions #1 through #10 to Dylan's own wallet at deploy
+time**, then **auto-list them on secondary at an inverse price scale** —
+the lower the edition number, the higher the price:
+
+| Edition # | List price |
+|-----------|-----------|
+| 10        | $10       |
+| 9         | $20       |
+| 8         | $30       |
+| 7         | $40       |
+| 6         | $50       |
+| 5         | $60       |
+| 4         | $70       |
+| 3         | $80       |
+| 2         | $90       |
+| 1         | $100      |
+
+(pattern: price = `(11 − editionNumber) × $10`)
+
+**Public/site minting for that track then starts at edition #11**, at the
+normal flat mint price ($0.99). Editions 1–10 are never available at the
+base mint price to the public — they're pre-claimed by Dylan and only
+reachable via secondary purchase at the scaled price above.
+
+Open items for whoever builds this:
+- Confirm this applies to **every track** (assumed default — Dylan didn't
+  carve out exceptions) or only specific ones.
+- "Auto-list on secondary" needs a real target: dylmusic's own order book
+  (already built, trivial to seed) is the easy part; if the intent is
+  also listing on **OpenSea** itself (the actual target marketplace per
+  the single-collection mandate above), that needs either manual listing
+  through OpenSea's own UI (10 clicks × however many tracks, no code
+  required) or real Seaport protocol integration to automate it — decide
+  which before assuming "auto-list" means both.
+- This needs to be a scripted step in the deploy/init flow (mint N editions
+  to a specific address, then create N listings at specific prices) — not
+  something done by hand per track after the fact, given the catalog will
+  keep growing per the upgradability requirement above.
+
+---
+
 ## Admin — `/admin`
 
 Wallet-gated (client-side check, not a signature — fine for today's low

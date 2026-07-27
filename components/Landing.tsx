@@ -107,40 +107,52 @@ export default function Landing({
               </div>
             </div>
 
-            <button className="aim-bubble" onClick={() => router.push("/chat")}>
-              <Image
-                src="/brand/dyl-pfp.png"
-                alt="Dyl"
-                width={36}
-                height={36}
-                className="aim-bubble-avatar"
-              />
-              <span className="aim-bubble-body">
-                <span className="aim-bubble-name">
-                  Dyl <span className="aim-bubble-dot" />
-                </span>
-                <span className="aim-bubble-text">
-                  no more relying on garbage platforms...i built this myself
-                </span>
-              </span>
-            </button>
+            <div className="aim-mini-window">
+              <div className="aim-mini-titlebar">
+                <span className="aim-titlebar-dot" />
+                Dyl
+              </div>
+              <div className="aim-mini-body">
+                <button className="aim-msg" onClick={() => router.push("/chat")}>
+                  <Image
+                    src="/brand/dyl-pfp.png"
+                    alt="Dyl"
+                    width={32}
+                    height={32}
+                    className="aim-msg-avatar"
+                  />
+                  <span className="aim-msg-body">
+                    <span className="aim-msg-name">
+                      Dyl <span className="aim-msg-dot" />
+                    </span>
+                    <span className="aim-msg-text">
+                      no more relying on garbage platforms...i built this myself
+                    </span>
+                  </span>
+                </button>
 
-            <button className="aim-bubble" onClick={() => router.push("/chat")}>
-              <Image
-                src="/brand/dyl-pfp.png"
-                alt="Dyl"
-                width={36}
-                height={36}
-                className="aim-bubble-avatar"
-              />
-              <span className="aim-bubble-body">
-                <span className="aim-bubble-name">
-                  Dyl <span className="aim-bubble-dot" />
-                </span>
-                <span className="aim-bubble-text">
-                  if you had any of my old NFTs, burn them and get free mints
-                </span>
-              </span>
+                <button className="aim-msg" onClick={() => router.push("/chat")}>
+                  <Image
+                    src="/brand/dyl-pfp.png"
+                    alt="Dyl"
+                    width={32}
+                    height={32}
+                    className="aim-msg-avatar"
+                  />
+                  <span className="aim-msg-body">
+                    <span className="aim-msg-name">
+                      Dyl <span className="aim-msg-dot" />
+                    </span>
+                    <span className="aim-msg-text">
+                      if you had any of my old NFTs, burn them and get free mints
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <button className="btn-burn" onClick={() => router.push("/burn")}>
+              Burn Old NFTs &amp; $Dyl Coin
             </button>
 
             <button className="btn-connect" onClick={onConnect}>

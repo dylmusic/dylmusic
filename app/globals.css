@@ -505,6 +505,7 @@ input {
   letter-spacing: 0.01em;
   white-space: nowrap;
   color: #cfd9d2;
+  margin-bottom: 16px;
 }
 
 .landing-price {
@@ -512,24 +513,24 @@ input {
   font-size: 15px;
   letter-spacing: 0.01em;
   color: #cfd9d2;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .landing-price:last-of-type {
-  margin-bottom: 72px;
+  margin-bottom: 28px;
 }
 
 .landing-chain-select {
   margin-bottom: 20px;
 }
 
-.aim-bubble {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
+/* Same window chrome as the /chat AIM window, sized to content instead of
+   a fixed viewport-driven height (this sits inline in the hero, not a
+   standalone page). */
+.aim-mini-window {
+  width: 100%;
   max-width: 340px;
   margin: 0 0 20px;
-  padding: 10px 12px;
   background: #0a0e0c;
   border-top: 2px solid rgba(255, 255, 255, 0.4);
   border-left: 2px solid rgba(255, 255, 255, 0.4);
@@ -539,27 +540,57 @@ input {
   text-align: left;
 }
 
-.aim-bubble:hover {
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 32px color-mix(in srgb, var(--accent) 30%, transparent);
+.aim-mini-titlebar {
+  background: var(--accent);
+  color: #04140a;
+  font-weight: 700;
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
 }
 
-.aim-bubble-avatar {
+.aim-mini-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.aim-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.aim-msg:first-child {
+  border-top: none;
+}
+
+.aim-msg:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.aim-msg-avatar {
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid var(--accent);
 }
 
-.aim-bubble-body {
+.aim-msg-body {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
 
-.aim-bubble-name {
+.aim-msg-name {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -569,7 +600,7 @@ input {
   color: var(--accent);
 }
 
-.aim-bubble-dot {
+.aim-msg-dot {
   width: 6px;
   height: 6px;
   border-radius: 999px;
@@ -577,7 +608,7 @@ input {
   box-shadow: 0 0 6px var(--accent);
 }
 
-.aim-bubble-text {
+.aim-msg-text {
   font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
   font-size: 12.5px;
   line-height: 1.5;
@@ -621,6 +652,29 @@ input {
   transform: translateY(-1px);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent),
     0 10px 34px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.btn-burn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 340px;
+  background: linear-gradient(160deg, #ff8a3d 0%, #ff5b1f 100%);
+  color: #2a0e00;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 13px 20px;
+  border-radius: 999px;
+  margin-bottom: 20px;
+  box-shadow: 0 0 0 1px rgba(255, 107, 40, 0.4), 0 8px 26px rgba(255, 91, 31, 0.3);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-burn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 1px rgba(255, 107, 40, 0.6), 0 10px 32px rgba(255, 91, 31, 0.45);
 }
 
 .landing-art {
@@ -3202,4 +3256,103 @@ input {
 .desktop-bg .desktop-files {
   position: absolute;
   inset: 0;
+}
+
+/* ---------- Burn page ---------- */
+
+.burn-notice {
+  background: rgba(255, 107, 40, 0.08);
+  border: 1px solid rgba(255, 107, 40, 0.3);
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 13.5px;
+  color: #cfd9d2;
+  line-height: 1.6;
+  margin-bottom: 28px;
+}
+
+.burn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.burn-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: #12161a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.burn-row-info {
+  min-width: 0;
+}
+
+.burn-row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.burn-row-chain {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.burn-row-kind {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.burn-row-kind-nft {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+.burn-row-kind-token {
+  background: rgba(255, 255, 255, 0.08);
+  color: #8b978f;
+}
+
+.burn-row-name {
+  font-weight: 600;
+  color: #eef2ee;
+  font-size: 14.5px;
+}
+
+.burn-row-addr {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12px;
+  color: #7c8a80;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.burn-row-note {
+  color: #5c6b62;
+}
+
+.burn-row-btn {
+  flex-shrink: 0;
+  background: rgba(255, 107, 40, 0.12);
+  color: #ff8a3d;
+  border: 1px solid rgba(255, 107, 40, 0.35);
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  opacity: 0.6;
+  cursor: not-allowed;
 }
