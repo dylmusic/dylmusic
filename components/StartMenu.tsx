@@ -5,6 +5,7 @@ import { ChainKey, Track } from "@/lib/albums";
 import { useTrackCommerce } from "@/lib/useTrackCommerce";
 import ListingsModal from "./ListingsModal";
 import OrderBookModal from "./OrderBookModal";
+import BuyConfirmModal from "./BuyConfirmModal";
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -33,7 +34,7 @@ export default function StartMenu({
   onRequestConnect: () => void;
   playingTrackId: string | null;
   isPlaying: boolean;
-  onTogglePlay: (t: Track) => void;
+  onTogglePlay: (t: Track, queue?: Track[]) => void;
   onClose: () => void;
 }) {
   const [mode, setMode] = useState<PicksMode>("top");
@@ -98,7 +99,7 @@ export default function StartMenu({
               <div key={t.id} className={`start-menu-row${active ? " active" : ""}`}>
                 <button
                   className="start-menu-play"
-                  onClick={() => onTogglePlay(t)}
+                  onClick={() => onTogglePlay(t, picked)}
                   aria-label={`Play ${t.title}`}
                 >
                   {active ? (
@@ -114,7 +115,7 @@ export default function StartMenu({
                   )}
                 </button>
 
-                <div className="start-menu-title" onClick={() => onTogglePlay(t)}>
+                <div className="start-menu-title" onClick={() => onTogglePlay(t, picked)}>
                   {t.title}
                 </div>
 
@@ -128,7 +129,7 @@ export default function StartMenu({
                       <button
                         className="btn-buy"
                         disabled={busy}
-                        onClick={() => commerce.buyFloor(t, onRequestConnect)}
+                        onClick={() => commerce.requestBuyFloor(t, onRequestConnect)}
                       >
                         {busy ? "…" : `Buy $${floor.priceUsd.toFixed(2)}`}
                       </button>
@@ -186,10 +187,23 @@ export default function StartMenu({
           }
           onBuyMint={() => {
             const mintEntry = commerce.books[bookTrack.id]?.find((e) => e.type === "mint");
-            if (mintEntry) commerce.buyFromBook(bookTrack, mintEntry, onRequestConnect);
+            if (mintEntry) commerce.requestBuyFromBook(bookTrack, mintEntry, onRequestConnect);
           }}
-          onBuyResale={(entry) => commerce.buyFromBook(bookTrack, entry, onRequestConnect)}
+          onBuyResale={(entry) => commerce.requestBuyFromBook(bookTrack, entry, onRequestConnect)}
           onClose={() => setBookTrackId(null)}
+        />
+      )}
+
+      {commerce.pendingBuy && (
+        <BuyConfirmModal
+          track={commerce.pendingBuy.track}
+          entry={commerce.pendingBuy.entry}
+          chain={chain}
+          defaultPayToken={commerce.defaultPayToken}
+          buyStep={commerce.buyStep}
+          busy={commerce.busyKey !== null}
+          onConfirm={commerce.confirmPendingBuy}
+          onCancel={commerce.cancelPendingBuy}
         />
       )}
     </div>

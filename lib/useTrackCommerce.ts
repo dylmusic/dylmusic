@@ -12,15 +12,31 @@ import {
 } from "./holdings";
 import { buildOrderBook, OrderBookEntry } from "./orderbook";
 import { recordActivity } from "./activity";
+import { getNativePayToken, isNativePayToken } from "./swapTokens";
+import type { DylToken } from "./dylTokens";
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
+export interface PendingBuy {
+  track: Track;
+  entry: OrderBookEntry;
+}
+
 // Shared buy/sell/order-book logic — used anywhere a track needs full
-// commerce functionality (AlbumView's track list, the Start Menu's random
-// picks) without re-deriving the same mint-vs-resale-floor math twice.
+// commerce functionality (AlbumView, MiniPlayer, the Start Menu's random
+// picks) without re-deriving the same mint-vs-resale-floor math three times.
+//
+// Clicking Buy no longer purchases instantly — it opens a "Pay With"
+// confirmation (pendingBuy) defaulting to the chain's native currency.
+// Nothing here is wired to a real payment yet (no NFTs are actually for
+// sale), so a non-native currency choice just plays a cosmetic 1/2 -> 2/2
+// "swap then buy" animation (buyStep) before the same simulated purchase
+// that a native-currency buy already does — no real signing either way.
 export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress: string | null) {
   const [tick, setTick] = useState(0);
   const [busyKey, setBusyKey] = useState<string | null>(null); // `${trackId}:${entryKey}`
+  const [pendingBuy, setPendingBuy] = useState<PendingBuy | null>(null);
+  const [buyStep, setBuyStep] = useState<1 | 2 | null>(null);
 
   const minted = useMemo(() => {
     const m: Record<string, number> = {};
@@ -85,33 +101,49 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     });
   }
 
-  async function buyFloor(t: Track, onRequestConnect?: () => void) {
+  function requestBuyFloor(t: Track, onRequestConnect?: () => void) {
     if (!walletAddress) {
       onRequestConnect?.();
       return;
     }
-    if (busyKey) return;
+    if (busyKey || pendingBuy) return;
     const floor = books[t.id]?.[0];
     if (!floor) return;
-    setBusyKey(`${t.id}:${floor.type === "mint" ? "mint" : floor.editionNumber}`);
-    await delay(450);
-    if (floor.type === "mint") await mintTrack(t);
-    else await buyResaleEntry(t, floor);
-    setBusyKey(null);
-    refresh();
+    setPendingBuy({ track: t, entry: floor });
   }
 
-  async function buyFromBook(t: Track, entry: OrderBookEntry, onRequestConnect?: () => void) {
+  function requestBuyFromBook(t: Track, entry: OrderBookEntry, onRequestConnect?: () => void) {
     if (!walletAddress) {
       onRequestConnect?.();
       return;
     }
-    if (busyKey) return;
-    setBusyKey(`${t.id}:${entry.type === "mint" ? "mint" : entry.editionNumber}`);
-    await delay(450);
+    if (busyKey || pendingBuy) return;
+    setPendingBuy({ track: t, entry });
+  }
+
+  function cancelPendingBuy() {
+    if (busyKey) return; // don't yank the modal mid-animation
+    setPendingBuy(null);
+  }
+
+  async function confirmPendingBuy(payToken: DylToken) {
+    if (!pendingBuy || !walletAddress) return;
+    const { track: t, entry } = pendingBuy;
+    const entryKey = entry.type === "mint" ? "mint" : `${entry.editionNumber}`;
+    setBusyKey(`${t.id}:${entryKey}`);
+    if (!isNativePayToken(payToken)) {
+      setBuyStep(1);
+      await delay(900);
+      setBuyStep(2);
+      await delay(900);
+    } else {
+      await delay(450);
+    }
     if (entry.type === "mint") await mintTrack(t);
     else await buyResaleEntry(t, entry);
     setBusyKey(null);
+    setBuyStep(null);
+    setPendingBuy(null);
     refresh();
   }
 
@@ -141,8 +173,13 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     listings,
     books,
     busyKey,
-    buyFloor,
-    buyFromBook,
+    pendingBuy,
+    buyStep,
+    defaultPayToken: getNativePayToken(chain),
+    requestBuyFloor,
+    requestBuyFromBook,
+    confirmPendingBuy,
+    cancelPendingBuy,
     setEditionPrice,
     cancelEditionListing,
     refresh,

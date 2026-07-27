@@ -1,21 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChainKey, Track, baselineMinted } from "@/lib/albums";
-import {
-  getOwnedEditions,
-  getListings,
-  localMintedCount,
-  recordMint,
-  setListingForEdition,
-  buyListedEdition,
-} from "@/lib/holdings";
-import { buildOrderBook, OrderBookEntry } from "@/lib/orderbook";
-import { recordActivity } from "@/lib/activity";
+import { useState } from "react";
+import { ChainKey, Track } from "@/lib/albums";
+import { useTrackCommerce } from "@/lib/useTrackCommerce";
 import ListingsModal from "./ListingsModal";
 import OrderBookModal from "./OrderBookModal";
-
-const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
+import BuyConfirmModal from "./BuyConfirmModal";
 
 function formatTime(s: number): string {
   if (!isFinite(s) || s < 0) return "0:00";
@@ -31,10 +21,13 @@ export default function MiniPlayer({
   isPlaying,
   currentTime,
   duration,
+  canGoPrev,
   onToggle,
   onClose,
   onRequestConnect,
   onSeek,
+  onPrev,
+  onNext,
 }: {
   track: Track;
   chain: ChainKey;
@@ -42,111 +35,44 @@ export default function MiniPlayer({
   isPlaying: boolean;
   currentTime: number;
   duration: number;
+  canGoPrev?: boolean;
   onToggle: () => void;
   onClose: () => void;
   onRequestConnect: () => void;
   onSeek: (time: number) => void;
+  onPrev?: () => void;
+  onNext?: () => void;
 }) {
-  const [tick, setTick] = useState(0);
-  const [busyKey, setBusyKey] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [bookOpen, setBookOpen] = useState(false);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const minted = Math.min(
-    track.editionCap,
-    baselineMinted(track, chain) + localMintedCount(chain, track.id)
-  );
-  const ownedEditions = walletAddress ? getOwnedEditions(chain, walletAddress, track.id) : [];
-  const listings = walletAddress ? getListings(chain, walletAddress, track.id) : {};
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const book = useMemo(() => buildOrderBook(track, chain), [track, chain, tick]);
+  const commerce = useTrackCommerce([track], chain, walletAddress);
+  const { minted, ownedEditions, listings, books } = commerce;
+  const trackMinted = minted[track.id] ?? 0;
+  const trackOwned = ownedEditions[track.id] ?? [];
+  const trackListings = listings[track.id] ?? {};
+  const book = books[track.id] ?? [];
   const floor = book[0] ?? null;
-  void tick;
 
-  const listedPrices = Object.values(listings);
+  const listedPrices = Object.values(trackListings);
   const sellDisplayPrice = listedPrices.length ? Math.min(...listedPrices) : track.priceUsd;
-
-  async function mint() {
-    if (!walletAddress) return;
-    const current = baselineMinted(track, chain) + localMintedCount(chain, track.id);
-    if (current < track.editionCap) {
-      recordMint(chain, walletAddress, track.id, current + 1);
-      recordActivity({
-        type: "buy",
-        chain,
-        wallet: walletAddress,
-        trackTitle: track.title,
-        editionNumber: current + 1,
-        priceUsd: track.priceUsd,
-      });
-    }
-  }
-
-  async function buyResale(entry: OrderBookEntry) {
-    if (!walletAddress || entry.type !== "resale") return;
-    buyListedEdition(chain, track.id, entry.seller!, walletAddress, entry.editionNumber!);
-    recordActivity({
-      type: "buy",
-      chain,
-      wallet: walletAddress,
-      trackTitle: track.title,
-      editionNumber: entry.editionNumber!,
-      priceUsd: entry.priceUsd,
-    });
-  }
-
-  async function buyFloor() {
-    if (!walletAddress) {
-      onRequestConnect();
-      return;
-    }
-    if (busyKey || !floor) return;
-    setBusyKey(floor.type === "mint" ? "mint" : `${floor.editionNumber}`);
-    await delay(450);
-    if (floor.type === "mint") await mint();
-    else await buyResale(floor);
-    setBusyKey(null);
-    setTick((n) => n + 1);
-  }
-
-  async function buyFromBook(entry: OrderBookEntry) {
-    if (!walletAddress) {
-      onRequestConnect();
-      return;
-    }
-    if (busyKey) return;
-    setBusyKey(entry.type === "mint" ? "mint" : `${entry.editionNumber}`);
-    await delay(450);
-    if (entry.type === "mint") await mint();
-    else await buyResale(entry);
-    setBusyKey(null);
-    setTick((n) => n + 1);
-  }
-
-  function setEditionPrice(editionNumber: number, price: number) {
-    if (!walletAddress) return;
-    setListingForEdition(chain, walletAddress, track.id, editionNumber, price);
-    recordActivity({
-      type: "sell",
-      chain,
-      wallet: walletAddress,
-      trackTitle: track.title,
-      editionNumber,
-      priceUsd: price,
-    });
-    setTick((n) => n + 1);
-  }
-
-  function cancelEditionListing(editionNumber: number) {
-    if (!walletAddress) return;
-    setListingForEdition(chain, walletAddress, track.id, editionNumber, null);
-    setTick((n) => n + 1);
-  }
+  const busy = commerce.busyKey?.startsWith(`${track.id}:`) ?? false;
 
   return (
     <div className="mini-player">
       <div className="mini-player-top">
+        <button
+          className="mini-player-skip"
+          onClick={onPrev}
+          disabled={!onPrev || !canGoPrev}
+          aria-label="Previous track"
+        >
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="currentColor">
+            <rect x="2" y="1" width="2" height="12" rx="0.6" />
+            <path d="M12.5 1.5c.6-.4 1.3.1 1.3.8v9.4c0 .7-.7 1.2-1.3.8l-7-4.7c-.5-.4-.5-1.1 0-1.5l7-4.8Z" />
+          </svg>
+        </button>
+
         <button
           className="mini-player-toggle"
           onClick={onToggle}
@@ -164,6 +90,13 @@ export default function MiniPlayer({
           )}
         </button>
 
+        <button className="mini-player-skip" onClick={onNext} disabled={!onNext} aria-label="Next track">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="currentColor">
+            <path d="M1.5 1.5c-.6-.4-1.3.1-1.3.8v9.4c0 .7.7 1.2 1.3.8l7-4.7c.5-.4.5-1.1 0-1.5l-7-4.8Z" />
+            <rect x="10" y="1" width="2" height="12" rx="0.6" />
+          </svg>
+        </button>
+
         <div className="mini-player-info">
           <span className={`track-eq mini${isPlaying ? " playing" : ""}`}>
             <span />
@@ -174,9 +107,7 @@ export default function MiniPlayer({
             <span className="mini-player-artist">Dyl</span>
             <span className="mini-player-title">{track.title}</span>
             <span className="mini-player-sub">
-              {ownedEditions.length > 0
-                ? `You own ${ownedEditions.length}`
-                : `${minted}/${track.editionCap} minted`}
+              {trackOwned.length > 0 ? `You own ${trackOwned.length}` : `${trackMinted}/${track.editionCap} minted`}
             </span>
           </div>
         </div>
@@ -222,8 +153,12 @@ export default function MiniPlayer({
           </button>
         ) : (
           <div className="btn-buy-split">
-            <button className="btn-buy" onClick={buyFloor} disabled={!!busyKey}>
-              {busyKey ? "Buying…" : `Buy $${floor.priceUsd.toFixed(2)}`}
+            <button
+              className="btn-buy"
+              onClick={() => commerce.requestBuyFloor(track, onRequestConnect)}
+              disabled={busy}
+            >
+              {busy ? "Buying…" : `Buy $${floor.priceUsd.toFixed(2)}`}
             </button>
             <button
               className="btn-buy-expand"
@@ -249,12 +184,12 @@ export default function MiniPlayer({
       {modalOpen && (
         <ListingsModal
           track={track}
-          editions={ownedEditions.map((editionNumber) => ({
+          editions={trackOwned.map((editionNumber) => ({
             editionNumber,
-            listedPrice: listings[editionNumber] ?? null,
+            listedPrice: trackListings[editionNumber] ?? null,
           }))}
-          onSetPrice={setEditionPrice}
-          onCancelListing={cancelEditionListing}
+          onSetPrice={(editionNumber, price) => commerce.setEditionPrice(track, editionNumber, price)}
+          onCancelListing={(editionNumber) => commerce.cancelEditionListing(track, editionNumber)}
           onClose={() => setModalOpen(false)}
         />
       )}
@@ -263,13 +198,26 @@ export default function MiniPlayer({
         <OrderBookModal
           track={track}
           book={book}
-          busyKey={busyKey}
+          busyKey={commerce.busyKey?.startsWith(`${track.id}:`) ? commerce.busyKey.split(":")[1] : null}
           onBuyMint={() => {
             const mintEntry = book.find((e) => e.type === "mint");
-            if (mintEntry) buyFromBook(mintEntry);
+            if (mintEntry) commerce.requestBuyFromBook(track, mintEntry, onRequestConnect);
           }}
-          onBuyResale={(entry) => buyFromBook(entry)}
+          onBuyResale={(entry) => commerce.requestBuyFromBook(track, entry, onRequestConnect)}
           onClose={() => setBookOpen(false)}
+        />
+      )}
+
+      {commerce.pendingBuy && (
+        <BuyConfirmModal
+          track={commerce.pendingBuy.track}
+          entry={commerce.pendingBuy.entry}
+          chain={chain}
+          defaultPayToken={commerce.defaultPayToken}
+          buyStep={commerce.buyStep}
+          busy={commerce.busyKey !== null}
+          onConfirm={commerce.confirmPendingBuy}
+          onCancel={commerce.cancelPendingBuy}
         />
       )}
     </div>

@@ -11,6 +11,8 @@ import MiniPlayer from "./MiniPlayer";
 import DesktopFiles from "./DesktopFiles";
 import StartMenu from "./StartMenu";
 
+const ALL_TRACKS: Track[] = ALBUMS.flatMap((a) => a.tracks);
+
 // Same pixel-note shape as the desktop file icons, reused on the taskbar
 // Start button so the "menu" and the "files" read as one icon family.
 const STAR_ICON_PIXELS: [number, number][] = [
@@ -51,6 +53,8 @@ export default function Landing({
   const [duration, setDuration] = useState(0);
   const [clock, setClock] = useState<string | null>(null);
   const [startOpen, setStartOpen] = useState(false);
+  const [queue, setQueue] = useState<Track[]>([]);
+  const [history, setHistory] = useState<Track[]>([]);
 
   useEffect(() => {
     function tick() {
@@ -77,21 +81,50 @@ export default function Landing({
     setAnalyser(node);
   }
 
-  function toggleTrack(t: Track) {
+  function playTrack(t: Track, newQueue: Track[], pushHistory: boolean) {
     const audio = audioRef.current;
     if (!audio) return;
     ensureAudioGraph();
     if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
+    if (pushHistory && playingTrack) setHistory((h) => [...h, playingTrack]);
+    audio.src = t.audioSrc;
+    audio.play().catch(() => {});
+    setPlayingTrack(t);
+    setQueue(newQueue);
+    recordStream(t);
+  }
 
+  function toggleTrack(t: Track, q?: Track[]) {
+    const audio = audioRef.current;
+    if (!audio) return;
     if (playingTrack?.id === t.id) {
+      ensureAudioGraph();
+      if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
       if (isPlaying) audio.pause();
       else audio.play().catch(() => {});
       return;
     }
-    audio.src = t.audioSrc;
-    audio.play().catch(() => {});
-    setPlayingTrack(t);
-    recordStream(t);
+    playTrack(t, q && q.length ? q : [t], true);
+  }
+
+  function playNext() {
+    if (!playingTrack) return;
+    const idx = queue.findIndex((x) => x.id === playingTrack.id);
+    if (idx >= 0 && idx < queue.length - 1) {
+      playTrack(queue[idx + 1], queue, true);
+      return;
+    }
+    const pool = ALL_TRACKS.filter((x) => x.id !== playingTrack.id);
+    if (pool.length === 0) return;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    playTrack(pick, [pick], true);
+  }
+
+  function playPrev() {
+    if (history.length === 0) return;
+    const last = history[history.length - 1];
+    setHistory((h) => h.slice(0, -1));
+    playTrack(last, queue.some((x) => x.id === last.id) ? queue : [last], false);
   }
 
   function seek(time: number) {
@@ -218,10 +251,13 @@ export default function Landing({
           isPlaying={isPlaying}
           currentTime={currentTime}
           duration={duration}
+          canGoPrev={history.length > 0}
           onToggle={() => toggleTrack(playingTrack)}
           onClose={closePlayer}
           onRequestConnect={onConnect}
           onSeek={seek}
+          onPrev={playPrev}
+          onNext={playNext}
         />
       )}
     </div>

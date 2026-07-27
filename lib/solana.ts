@@ -12,6 +12,13 @@ interface PhantomProvider {
   publicKey?: { toString(): string } | null;
   connect: (opts?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey: { toString(): string } }>;
   disconnect: () => Promise<void>;
+  // Phantom's own documented method for signing + broadcasting a
+  // transaction in one prompt — this is exactly the shape Relay's
+  // @reservoir0x/relay-svm-wallet-adapter needs for adaptSolanaWallet.
+  signAndSendTransaction: (
+    transaction: unknown,
+    options?: unknown
+  ) => Promise<{ signature: string }>;
 }
 
 function getPhantom(): PhantomProvider | undefined {
@@ -44,5 +51,5 @@ export function useSolanaWallet() {
     setAddress(null);
   }, []);
 
-  return { address, connect, disconnect, hasPhantom: !!getPhantom() };
+  return { address, connect, disconnect, hasPhantom: !!getPhantom(), getProvider: getPhantom };
 }
