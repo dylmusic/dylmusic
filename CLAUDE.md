@@ -132,6 +132,28 @@ old NFT collection does.**
   Polygon — plausible via a deterministic CREATE2 deploy, not re-verified)
 - Solana: `DTUW2CFo71KnTNSFYX95jQ8P8aJVQVr8MEF1AGMm5WGm`
 
+**Old Dyl NFT collection (Tezos)** — `KT1EcBQkN7vuVxg3gDZBbVb7qnBD6kDdS14K`.
+Verified for real via TzKT's public API (`api.tzkt.io`, no auth/rate-limit
+trouble unlike Solscan/Magic Eden): a real FA2 contract, `metadata.name:
+"Dyl"`, `description: "Dyl . Music NFTs . itslit.org/nft . @famous_dyl"`,
+minted through objkt.com's minting factory, 69 tokens total (only 2 showing
+an active/nonzero holder balance right now via TzKT's own indexing — most
+of the edition likely already burned/dispersed, same pattern as the Solana
+collection). Sold/listed on **objkt.com** (Tezos' primary NFT marketplace,
+equivalent role to Magic Eden/OpenSea).
+
+**New requirement this adds: Tezos wallet support.** Burn-to-mint
+eligibility checking for this collection means the site needs to support
+connecting a Tezos wallet — **Temple Wallet** (the standard Tezos browser
+extension, plays the role RainbowKit/MetaMask play for EVM) and **Trust
+Wallet** (multi-chain, has Tezos support). This is a real third wallet
+stack beyond the existing EVM (wagmi/RainbowKit) and Solana (Phantom via
+`window.solana`) connections — Tezos wallet connections go through the
+Beacon SDK (`@airgap/beacon-sdk`) with Taquito for the actual chain calls,
+neither of which exist in this codebase yet. Scope this as its own real
+integration when the burn-to-mint feature actually gets built, not a
+drop-in extra chain on the existing EVM/Solana wiring.
+
 Open questions to resolve before building this (don't guess): does
 "burning" mean sending to a dead/burn address on the ORIGINAL chain the old
 asset lives on (Ethereum/Polygon for the old contracts, separate from
