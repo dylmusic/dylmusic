@@ -1,0 +1,497 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  background: #05070a;
+  color: #eef2ee;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+input {
+  font-family: inherit;
+}
+
+.mono {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+}
+
+/* ---------- Landing ---------- */
+
+.landing {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 24px;
+}
+
+.landing-grid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(
+      to right,
+      rgba(124, 255, 107, 0.06) 1px,
+      transparent 1px
+    ),
+    linear-gradient(to bottom, rgba(124, 255, 107, 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 60% 55% at 50% 45%, black, transparent);
+}
+
+.landing-content {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  max-width: 480px;
+}
+
+.landing-mark {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 13px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #7cff6b;
+  margin-bottom: 28px;
+  opacity: 0.9;
+}
+
+.landing-content h1 {
+  font-size: clamp(2.4rem, 7vw, 4rem);
+  margin: 0 0 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  background: linear-gradient(180deg, #ffffff 0%, #a8b3ab 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.landing-content p {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #8b978f;
+  margin: 0 0 36px;
+}
+
+.btn-connect {
+  background: #7cff6b;
+  color: #04140a;
+  font-weight: 600;
+  font-size: 15px;
+  padding: 14px 32px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(124, 255, 107, 0.3),
+    0 8px 30px rgba(124, 255, 107, 0.18);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-connect:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 1px rgba(124, 255, 107, 0.5),
+    0 10px 34px rgba(124, 255, 107, 0.28);
+}
+
+.landing-sol-link {
+  display: block;
+  margin: 18px auto 0;
+  font-size: 13px;
+  color: #5c6b62;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.landing-sol-link:hover {
+  color: #9945ff;
+}
+
+/* ---------- App shell ---------- */
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+  background: rgba(5, 7, 10, 0.85);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.app-logo {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 14px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: #7cff6b;
+}
+
+/* ---------- Chain switcher ---------- */
+
+.chain-switch {
+  display: flex;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 999px;
+  padding: 4px;
+}
+
+.chain-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #7c8a80;
+  padding: 7px 14px;
+  border-radius: 999px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.chain-pill:hover {
+  color: #cfd9d2;
+}
+
+.chain-pill.active {
+  background: color-mix(in srgb, var(--chain-color) 16%, transparent);
+  color: #f2f6f3;
+}
+
+.chain-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+/* ---------- Wallet pill ---------- */
+
+.wallet-pill {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #cfd9d2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.wallet-pill.connected {
+  background: rgba(124, 255, 107, 0.08);
+  border-color: rgba(124, 255, 107, 0.25);
+  color: #cdf7c5;
+}
+
+.wallet-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #7cff6b;
+  box-shadow: 0 0 6px #7cff6b;
+}
+
+/* ---------- Album ---------- */
+
+.album-wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 48px 24px 100px;
+}
+
+.album-header {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 36px;
+  align-items: end;
+  margin-bottom: 44px;
+}
+
+.album-cover {
+  aspect-ratio: 1 / 1;
+  border-radius: 18px;
+  background: radial-gradient(120% 140% at 20% 15%, #163024 0%, #05070a 60%),
+    linear-gradient(155deg, #0f2a1c 0%, #05070a 70%);
+  border: 1px solid rgba(124, 255, 107, 0.18);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5),
+    inset 0 0 60px rgba(124, 255, 107, 0.05);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.album-cover-badge {
+  align-self: flex-start;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: #7cff6b;
+  border: 1px solid rgba(124, 255, 107, 0.35);
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
+.album-cover-title {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: #eef2ee;
+}
+
+.album-eyebrow {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: #7c8a80;
+  margin-bottom: 6px;
+}
+
+.album-meta h1 {
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  margin: 0 0 6px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.album-artist {
+  color: #8b978f;
+  font-size: 15px;
+  margin-bottom: 22px;
+}
+
+.album-stats {
+  display: flex;
+  gap: 28px;
+  margin-bottom: 24px;
+}
+
+.album-stats > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-num {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 18px;
+  color: #eef2ee;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: #6b7a70;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+
+.btn-sweep {
+  background: #7cff6b;
+  color: #04140a;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 13px 24px;
+  border-radius: 12px;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.btn-sweep:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn-sweep:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---------- Track list ---------- */
+
+.track-list {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.track-row {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.track-num {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 13px;
+  color: #566159;
+}
+
+.track-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: #eef2ee;
+  margin-bottom: 3px;
+}
+
+.track-edition {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12px;
+  color: #6b7a70;
+}
+
+.edition-owned {
+  color: #7cff6b;
+}
+
+.track-action {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-buy {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 9px 16px;
+  border-radius: 8px;
+  background: rgba(124, 255, 107, 0.12);
+  border: 1px solid rgba(124, 255, 107, 0.3);
+  color: #7cff6b;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+}
+
+.btn-buy:hover:not(:disabled) {
+  background: rgba(124, 255, 107, 0.2);
+}
+
+.btn-buy:disabled {
+  opacity: 0.45;
+  cursor: default;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #6b7a70;
+}
+
+.btn-ghost {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #9fada4;
+  white-space: nowrap;
+}
+
+.btn-ghost:hover {
+  color: #eef2ee;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.listing-active {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12px;
+  color: #cdb85c;
+}
+
+.listing-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.listing-dollar {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12px;
+  color: #6b7a70;
+}
+
+.listing-form input {
+  width: 52px;
+  background: none;
+  border: none;
+  outline: none;
+  color: #eef2ee;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 13px;
+}
+
+.btn-sell {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #7cff6b;
+  color: #04140a;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 640px) {
+  .album-header {
+    grid-template-columns: 1fr;
+  }
+
+  .album-cover {
+    max-width: 220px;
+  }
+
+  .app-header {
+    padding: 12px 16px;
+  }
+
+  .chain-switch {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .track-row {
+    grid-template-columns: 26px 1fr;
+    row-gap: 10px;
+  }
+
+  .track-action {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
