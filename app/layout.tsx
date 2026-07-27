@@ -3,9 +3,9 @@ import "./globals.css";
 import Providers from "@/components/Providers";
 
 export const metadata: Metadata = {
-  title: "dylmusic — own the track",
+  title: "dyl — Own the Drop",
   description:
-    "Buy limited numbered editions of dyl's music, any wallet, any chain. 100 editions per track.",
+    "Only 100 NFTs per song, on each chain. Every mint starts at $0.99 — buy with any coin from any chain. dyl's Crypto Rich (Deluxe), owned by the fans.",
 };
 
 export default function RootLayout({

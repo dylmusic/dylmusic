@@ -10,6 +10,7 @@ import {
   recordMint,
   setListingPrice,
 } from "@/lib/holdings";
+import { recordActivity } from "@/lib/activity";
 import TrackRow from "./TrackRow";
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
@@ -80,6 +81,14 @@ export default function AlbumView({
     const current = baselineMinted(t, chain) + localMintedCount(chain, t.id);
     if (current < t.editionCap) {
       recordMint(chain, walletAddress, t.id, current + 1);
+      recordActivity({
+        type: "buy",
+        chain,
+        wallet: walletAddress,
+        trackTitle: t.title,
+        editionNumber: current + 1,
+        priceUsd: t.priceUsd,
+      });
     }
     setBusyId(null);
     setTick((n) => n + 1);
@@ -97,6 +106,14 @@ export default function AlbumView({
       const current = baselineMinted(t, chain) + localMintedCount(chain, t.id);
       if (current < t.editionCap) {
         recordMint(chain, walletAddress, t.id, current + 1);
+        recordActivity({
+          type: "buy",
+          chain,
+          wallet: walletAddress,
+          trackTitle: t.title,
+          editionNumber: current + 1,
+          priceUsd: t.priceUsd,
+        });
       }
     }
     setBusyId(null);
@@ -105,7 +122,16 @@ export default function AlbumView({
 
   function list(trackId: string, price: number) {
     if (!walletAddress) return;
+    const t = album.tracks.find((x) => x.id === trackId)!;
     setListingPrice(chain, walletAddress, trackId, price);
+    recordActivity({
+      type: "sell",
+      chain,
+      wallet: walletAddress,
+      trackTitle: t.title,
+      editionNumber: holdings[trackId]?.editionNumber ?? null,
+      priceUsd: price,
+    });
     setTick((n) => n + 1);
   }
 
@@ -134,7 +160,18 @@ export default function AlbumView({
         <div className="album-meta">
           <div className="album-eyebrow">Album · {album.year}</div>
           <h1>{album.title}</h1>
-          <div className="album-artist">{album.artist}</div>
+          <div className="album-artist-row">
+            <div className="album-artist">{album.artist}</div>
+            <a
+              className="spotify-link"
+              href="https://dylmusic.com/crypto-rich-deluxe"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span className="spotify-dot" />
+              Listen on Spotify
+            </a>
+          </div>
 
           <div className="album-stats">
             <div>

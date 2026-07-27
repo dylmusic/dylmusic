@@ -6,18 +6,21 @@ import { useAccount, useDisconnect } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { ChainKey, CRYPTO_RICH_DELUXE, Track } from "@/lib/albums";
 import { useSolanaWallet } from "@/lib/solana";
+import { recordStream } from "@/lib/streams";
 import Landing from "@/components/Landing";
 import ChainSwitcher from "@/components/ChainSwitcher";
 import WalletPill from "@/components/WalletPill";
 import AlbumView from "@/components/AlbumView";
 import MultichainOverview from "@/components/MultichainOverview";
 import MiniPlayer from "@/components/MiniPlayer";
+import NicknameEditor from "@/components/NicknameEditor";
 
 type View = "album" | "dashboard";
 
 export default function Home() {
-  const [chain, setChain] = useState<ChainKey>("base");
+  const [chain, setChain] = useState<ChainKey>("robinhood");
   const [view, setView] = useState<View>("album");
+  const [showHome, setShowHome] = useState(false);
 
   const { address: evmAddress } = useAccount();
   const { disconnect: disconnectEvm } = useDisconnect();
@@ -43,6 +46,7 @@ export default function Home() {
     audio.src = t.audioSrc;
     audio.play().catch(() => {});
     setPlayingTrack(t);
+    recordStream(t);
   }
 
   function closePlayer() {
@@ -56,12 +60,18 @@ export default function Home() {
     else openConnectModal?.();
   }
 
-  if (!connected) {
+  function handleLandingConnect() {
+    if (connected) setShowHome(false);
+    else requestConnect();
+  }
+
+  if (!connected || showHome) {
     return (
       <Landing
         chain={chain}
         onSelectChain={setChain}
-        onConnect={requestConnect}
+        onConnect={handleLandingConnect}
+        alreadyConnected={connected}
         album={CRYPTO_RICH_DELUXE}
       />
     );
@@ -78,13 +88,15 @@ export default function Home() {
 
       <header className="app-header">
         <div className="app-header-left">
-          <Image
-            src="/brand/dyl-logo-white.png"
-            alt="dyl"
-            width={40}
-            height={32}
-            className="app-logo-img"
-          />
+          <button className="app-logo-btn" onClick={() => setShowHome(true)} aria-label="Back to home">
+            <Image
+              src="/brand/dyl-logo-white.png"
+              alt="dyl"
+              width={40}
+              height={32}
+              className="app-logo-img"
+            />
+          </button>
           <div className="view-switch" role="tablist" aria-label="Select view">
             <button
               role="tab"
@@ -114,6 +126,7 @@ export default function Home() {
           onDisconnectEvm={() => disconnectEvm()}
           onDisconnectSol={() => sol.disconnect()}
         />
+        {activeWallet && <NicknameEditor wallet={activeWallet} />}
       </header>
 
       <main>
@@ -132,12 +145,15 @@ export default function Home() {
         )}
       </main>
 
-      {view === "dashboard" && playingTrack && (
+      {playingTrack && (
         <MiniPlayer
           track={playingTrack}
+          chain={chain}
+          walletAddress={activeWallet}
           isPlaying={isPlaying}
           onToggle={() => toggleTrack(playingTrack)}
           onClose={closePlayer}
+          onRequestConnect={requestConnect}
         />
       )}
     </div>

@@ -6,7 +6,17 @@ import { platformOverview } from "@/lib/platformStats";
 
 const DECORATIVE_BARS = Array.from({ length: 20 }, (_, i) => i);
 
-export default function ConsolePanel({ album }: { album: Album }) {
+export default function ConsolePanel({
+  album,
+  previewPlaying,
+  previewTitle,
+  onTogglePreview,
+}: {
+  album: Album;
+  previewPlaying: boolean;
+  previewTitle: string;
+  onTogglePreview: () => void;
+}) {
   const stageRef = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
@@ -40,7 +50,23 @@ export default function ConsolePanel({ album }: { album: Album }) {
           <span className="console-status">
             <span className="console-status-dot" /> LIVE
           </span>
-          <span className="console-id">DYL.SYS</span>
+          <button
+            className={`console-preview-btn${previewPlaying ? " playing" : ""}`}
+            onClick={onTogglePreview}
+            title={previewPlaying ? "Pause preview" : `Play a preview of "${previewTitle}"`}
+          >
+            {previewPlaying ? (
+              <svg width="9" height="9" viewBox="0 0 14 14" fill="currentColor">
+                <rect x="2" y="1" width="4" height="12" rx="1" />
+                <rect x="8" y="1" width="4" height="12" rx="1" />
+              </svg>
+            ) : (
+              <svg width="9" height="9" viewBox="0 0 14 14" fill="currentColor">
+                <path d="M2.5 1.2c0-.9 1-1.4 1.7-.9l9 5.8c.7.4.7 1.4 0 1.8l-9 5.8c-.7.5-1.7 0-1.7-.9V1.2Z" />
+              </svg>
+            )}
+            {previewPlaying ? "Playing" : "Preview"}
+          </button>
         </div>
 
         <div className="console-eq">
@@ -82,7 +108,7 @@ export default function ConsolePanel({ album }: { album: Album }) {
         <div className="console-footer">
           <span>{album.tracks.length} TRACKS</span>
           <span>·</span>
-          <span>100 / EDITION</span>
+          <span>100 NFTS / SONG</span>
           <span>·</span>
           <span>3 CHAINS</span>
         </div>

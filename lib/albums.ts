@@ -13,9 +13,9 @@ export interface ChainInfo {
 }
 
 export const CHAINS: ChainInfo[] = [
-  { key: "base", label: "Base", shortLabel: "BASE", color: "#0052FF", live: true },
-  { key: "robinhood", label: "Robinhood Chain", shortLabel: "RH", color: "#00C805", live: true },
-  { key: "solana", label: "Solana", shortLabel: "SOL", color: "#9945FF", live: true },
+  { key: "robinhood", label: "Robinhood Chain", shortLabel: "Robinhood", color: "#00C805", live: true },
+  { key: "base", label: "Base", shortLabel: "Base", color: "#0052FF", live: true },
+  { key: "solana", label: "Solana", shortLabel: "Solana", color: "#9945FF", live: true },
 ];
 
 export interface Track {
@@ -39,7 +39,7 @@ export interface Album {
   tracks: Track[];
 }
 
-function track(index: number, title: string, priceUsd = 5): Track {
+function track(index: number, title: string, priceUsd = 0.99): Track {
   return {
     id: `track-${index}`,
     index,

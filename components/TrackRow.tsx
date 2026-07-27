@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Track } from "@/lib/albums";
 import { HoldingRecord } from "@/lib/holdings";
+import { formatStreams, getStreamCount } from "@/lib/streams";
 
 export default function TrackRow({
   track,
@@ -85,6 +86,15 @@ export default function TrackRow({
       </div>
 
       <div className="track-actions" onClick={(e) => e.stopPropagation()}>
+        <span className="track-streams" title="Streams">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path
+              d="M2.5 1.5v9l7-4.5-7-4.5Z"
+              fill="currentColor"
+            />
+          </svg>
+          {formatStreams(getStreamCount(track))}
+        </span>
         {soldOut && !owned ? (
           <button className="btn-buy" disabled>
             Sold Out
