@@ -37,7 +37,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const onDashboard = pathname === "/dashboard";
   const onChat = pathname === "/chat";
   const onSwap = pathname === "/swap";
-  const accentColor = CHAINS.find((c) => c.key === chain)?.color ?? "#00C805";
+  const accentColor = CHAINS.find((c) => c.key === chain)?.color ?? "#CCFF00";
 
   return (
     <div className="app-shell" style={{ "--accent": accentColor } as React.CSSProperties}>

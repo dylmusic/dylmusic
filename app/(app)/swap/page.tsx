@@ -7,7 +7,8 @@ export default function SwapPage() {
     <div className="dash-wrap">
       <div className="dash-page-head">
         <div className="dash-eyebrow">Swap</div>
-        <h1>Swap</h1>
+        <h1>Dyl Swap</h1>
+        <p className="swap-page-sub">Swap Any Token Cross-Chain</p>
       </div>
       <SwapCard />
     </div>

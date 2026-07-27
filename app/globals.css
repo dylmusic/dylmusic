@@ -6,7 +6,7 @@
   /* Real Robinhood-chain neon green by default — overridden per-element via
      inline style when Base/Solana is the selected chain, so the whole app's
      accent actually follows chain selection instead of staying green. */
-  --accent: #00c805;
+  --accent: #ccff00;
 }
 
 html,
@@ -1396,6 +1396,12 @@ input {
   font-weight: 600;
 }
 
+.swap-page-sub {
+  font-size: 14px;
+  color: #8b978f;
+  margin: 8px 0 0;
+}
+
 .dash-section {
   margin-bottom: 48px;
   padding-bottom: 40px;
@@ -2118,115 +2124,131 @@ input {
 
 /* ---------- Chat ---------- */
 
-.chat-wrap {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 48px 24px 160px;
+.chat-page-wrap {
+  min-height: calc(100vh - 200px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 24px 100px;
 }
 
-.chat-list {
+/* AIM-room vibe: a real "window" — tall and narrow, not a wide feed. */
+.aim-window {
+  width: 100%;
+  max-width: 380px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-bottom: 24px;
+  background: #0a0e0c;
+  border-top: 2px solid rgba(255, 255, 255, 0.4);
+  border-left: 2px solid rgba(255, 255, 255, 0.4);
+  border-right: 2px solid rgba(0, 0, 0, 0.6);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.6);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
-.chat-empty {
-  padding: 32px 16px;
-  text-align: center;
-  color: #7c8a80;
-  font-size: 14px;
-  background: #12161a;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-}
-
-.chat-row {
-  background: #12161a;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 12px 14px;
-}
-
-.chat-row-head {
+.aim-titlebar {
+  flex-shrink: 0;
+  background: var(--accent);
+  color: #04140a;
+  font-weight: 700;
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  padding: 8px 12px;
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 4px;
+  align-items: center;
+  gap: 7px;
 }
 
-.chat-row-who {
-  font-weight: 600;
-  font-size: 13.5px;
-  color: var(--accent);
+.aim-titlebar-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #04140a;
+  opacity: 0.6;
 }
 
-.chat-row-chain {
+.aim-log {
+  height: 560px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #7c8a80;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  padding: 1px 5px;
-}
-
-.chat-row-time {
-  font-size: 11.5px;
-  color: #5c6b62;
-  margin-left: auto;
-}
-
-.chat-row-text {
-  font-size: 14.5px;
-  color: #e7ede9;
+  font-size: 12px;
   line-height: 1.5;
+}
+
+.aim-empty {
+  margin: auto;
+  color: #5c6b62;
+  text-align: center;
+  font-size: 12px;
+}
+
+.aim-line {
   word-break: break-word;
 }
 
-.chat-composer {
-  position: sticky;
-  bottom: 16px;
+.aim-line-time {
+  color: #4a5850;
 }
 
-.chat-input-row {
+.aim-line-who {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.aim-line-text {
+  color: #cfd9d2;
+}
+
+.aim-composer {
+  flex-shrink: 0;
   display: flex;
-  gap: 8px;
-  background: #12161a;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  gap: 6px;
   padding: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: #0d1210;
 }
 
-.chat-input-row input {
+.aim-composer input {
   flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: #e7ede9;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 7px 9px;
+  color: #eef2ee;
   font-size: 16px;
-  padding: 8px 10px;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  outline: none;
 }
 
-.chat-input-row input::placeholder {
+.aim-composer input::placeholder {
   color: #5c6b62;
 }
 
-.chat-input-row .btn-buy {
+.aim-composer button {
   flex-shrink: 0;
+  background: var(--accent);
+  color: #04140a;
+  font-weight: 700;
+  font-size: 12.5px;
+  padding: 0 14px;
+  border-radius: 4px;
 }
 
-.chat-input-row.disabled {
-  opacity: 0.55;
+.aim-composer button:disabled {
+  opacity: 0.4;
+}
+
+.aim-composer.disabled {
   cursor: pointer;
 }
 
-.chat-input-row.disabled input {
+.aim-composer.disabled input {
   cursor: pointer;
-}
-
-.chat-input-row.disabled input::placeholder {
   color: #8b978f;
 }
 

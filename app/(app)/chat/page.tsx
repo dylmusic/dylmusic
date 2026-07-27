@@ -20,14 +20,8 @@ function truncate(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
-function timeAgo(ts: number) {
-  const s = Math.max(1, Math.floor((Date.now() - ts) / 1000));
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+function timeShort(ts: number) {
+  return new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 export default function ChatPage() {
@@ -36,7 +30,7 @@ export default function ChatPage() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [tick, setTick] = useState(0);
-  const listRef = useRef<HTMLDivElement>(null);
+  const logRef = useRef<HTMLDivElement>(null);
 
   const canPost = !!walletAddress && ownsAnyEdition(chain, walletAddress, ALL_TRACK_IDS);
 
@@ -62,6 +56,11 @@ export default function ChatPage() {
   }, [walletAddress, chain]);
   void tick;
 
+  useEffect(() => {
+    const el = logRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
   async function send() {
     const text = draft.trim();
     if (!text || !walletAddress || sending) return;
@@ -84,34 +83,31 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="chat-wrap">
-      <div className="dash-page-head">
-        <div className="dash-eyebrow">Chat</div>
-        <h1>Member Chat</h1>
-      </div>
+    <div className="chat-page-wrap">
+      <div className="aim-window">
+        <div className="aim-titlebar">
+          <span className="aim-titlebar-dot" />
+          Member Chat
+        </div>
 
-      <div className="chat-list" ref={listRef}>
-        {messages.length === 0 && (
-          <div className="chat-empty">No messages yet — be the first to post.</div>
-        )}
-        {messages.map((m) => {
-          const name = getNickname(m.wallet) ?? truncate(m.wallet);
-          return (
-            <div key={m.id} className="chat-row">
-              <div className="chat-row-head">
-                <span className="chat-row-who">{name}</span>
-                <span className="chat-row-chain">{m.chain}</span>
-                <span className="chat-row-time">{timeAgo(m.ts)}</span>
+        <div className="aim-log" ref={logRef}>
+          {messages.length === 0 && (
+            <div className="aim-empty">No messages yet — be the first to post.</div>
+          )}
+          {messages.map((m) => {
+            const name = getNickname(m.wallet) ?? truncate(m.wallet);
+            return (
+              <div key={m.id} className="aim-line">
+                <span className="aim-line-time">[{timeShort(m.ts)}]</span>{" "}
+                <span className="aim-line-who">{name}:</span>{" "}
+                <span className="aim-line-text">{m.text}</span>
               </div>
-              <div className="chat-row-text">{m.text}</div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
 
-      <div className="chat-composer">
         <div
-          className={`chat-input-row${!canPost ? " disabled" : ""}`}
+          className={`aim-composer${!canPost ? " disabled" : ""}`}
           onClick={() => {
             if (!walletAddress) requestConnect();
           }}
@@ -126,12 +122,8 @@ export default function ChatPage() {
               if (e.key === "Enter") send();
             }}
           />
-          <button
-            className="btn-buy"
-            onClick={send}
-            disabled={!canPost || sending || !draft.trim()}
-          >
-            {sending ? "…" : "Post"}
+          <button onClick={send} disabled={!canPost || sending || !draft.trim()}>
+            {sending ? "…" : "Send"}
           </button>
         </div>
       </div>
