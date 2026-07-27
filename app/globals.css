@@ -13,6 +13,7 @@ html,
 body {
   padding: 0;
   margin: 0;
+  padding-bottom: 40px; /* clears the fixed site-wide taskbar */
 }
 
 body {
@@ -21,11 +22,19 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto,
     sans-serif;
   -webkit-font-smoothing: antialiased;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpolygon points='2,1 2,19 7,15 10,22 13,20 10,13 17,13' fill='%23CCFF00' stroke='%2304140a' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E") 2 1, auto;
+}
+
+a,
+button,
+[role="button"],
+.track-row,
+input[type="checkbox"] {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpolygon points='2,1 2,19 7,15 10,22 13,20 10,13 17,13' fill='%2304140a' stroke='%23CCFF00' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E") 2 1, pointer;
 }
 
 button {
   font-family: inherit;
-  cursor: pointer;
   border: none;
   background: none;
   color: inherit;
@@ -113,24 +122,64 @@ input {
   justify-content: center;
   overflow: hidden;
   padding: 24px;
-  padding-bottom: 56px;
 }
 
-.landing-taskbar {
-  position: absolute;
+.site-taskbar {
+  position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 3;
-  height: 36px;
+  z-index: 50;
+  height: 40px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   padding: 0 10px;
   background: var(--accent);
   border-top: 2px solid rgba(255, 255, 255, 0.5);
   box-shadow: 0 -2px 20px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.taskbar-windows {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.taskbar-windows::-webkit-scrollbar {
+  display: none;
+}
+
+.taskbar-win-btn {
+  flex-shrink: 0;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #04140a;
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.16);
+  padding: 5px 12px;
+  border-top: 2px solid rgba(255, 255, 255, 0.55);
+  border-left: 2px solid rgba(255, 255, 255, 0.55);
+  border-right: 2px solid rgba(0, 0, 0, 0.3);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+}
+
+.taskbar-win-btn:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.taskbar-win-btn.active {
+  background: rgba(0, 0, 0, 0.22);
+  border-top-color: rgba(0, 0, 0, 0.4);
+  border-left-color: rgba(0, 0, 0, 0.4);
+  border-right-color: rgba(255, 255, 255, 0.5);
+  border-bottom-color: rgba(255, 255, 255, 0.5);
 }
 
 .taskbar-start {
@@ -180,9 +229,9 @@ input {
 }
 
 .start-menu {
-  position: absolute;
+  position: fixed;
   left: 10px;
-  bottom: 46px;
+  bottom: 48px;
   z-index: 41;
   display: flex;
   width: min(420px, calc(100vw - 20px));
@@ -1830,7 +1879,7 @@ input {
 
 .mini-player {
   position: fixed;
-  bottom: 20px;
+  bottom: 56px;
   right: 20px;
   z-index: 20;
   display: flex;
@@ -2102,7 +2151,7 @@ input {
   .mini-player {
     left: 16px;
     right: 16px;
-    bottom: 16px;
+    bottom: 52px;
     width: auto;
   }
 
@@ -2950,4 +2999,52 @@ input {
 
 .admin-delete-btn:disabled {
   opacity: 0.5;
+}
+
+/* ---------- Win95 window chrome ---------- */
+
+.win95-window {
+  max-width: 1100px;
+  margin: 0 auto;
+  background: #05070a;
+  border-top: 2px solid rgba(255, 255, 255, 0.35);
+  border-left: 2px solid rgba(255, 255, 255, 0.35);
+  border-right: 2px solid rgba(0, 0, 0, 0.6);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.6);
+}
+
+.win95-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--accent);
+  color: #04140a;
+  padding: 6px 10px;
+}
+
+.win95-titlebar-label {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.win95-controls {
+  display: flex;
+  gap: 5px;
+}
+
+.win95-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: rgba(4, 20, 10, 0.18);
+  border-top: 1px solid rgba(255, 255, 255, 0.6);
+  border-left: 1px solid rgba(255, 255, 255, 0.6);
+  border-right: 1px solid rgba(0, 0, 0, 0.35);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.35);
+}
+
+.win95-body {
+  padding: 8px;
 }

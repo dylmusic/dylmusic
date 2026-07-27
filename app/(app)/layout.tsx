@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAccount, useDisconnect } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
@@ -14,6 +13,8 @@ import ChainSwitcher from "@/components/ChainSwitcher";
 import WalletPill from "@/components/WalletPill";
 import NicknameEditor from "@/components/NicknameEditor";
 import MiniPlayer from "@/components/MiniPlayer";
+import GlobalTaskbar from "@/components/GlobalTaskbar";
+import Win95Window from "@/components/Win95Window";
 
 function AppShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -40,6 +41,18 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const onBeats = pathname === "/beats";
   const accentColor = CHAINS.find((c) => c.key === chain)?.color ?? "#CCFF00";
 
+  const pageTitle = onMusic
+    ? "Music"
+    : onDashboard
+    ? "Dashboard"
+    : onSwap
+    ? "Dyl Swap"
+    : onBeats
+    ? "Beats"
+    : onChat
+    ? "Chat"
+    : "Dyl";
+
   return (
     <div className="app-shell" style={{ "--accent": accentColor } as React.CSSProperties}>
       <header className="app-header">
@@ -53,23 +66,6 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
               className="app-logo-img"
             />
           </button>
-          <div className="view-switch" role="tablist" aria-label="Select view">
-            <Link href="/music" className={`view-tab${onMusic ? " active" : ""}`}>
-              Music
-            </Link>
-            <Link href="/dashboard" className={`view-tab${onDashboard ? " active" : ""}`}>
-              Dashboard
-            </Link>
-            <Link href="/chat" className={`view-tab${onChat ? " active" : ""}`}>
-              Chat
-            </Link>
-            <Link href="/swap" className={`view-tab${onSwap ? " active" : ""}`}>
-              Swap
-            </Link>
-            <Link href="/beats" className={`view-tab${onBeats ? " active" : ""}`}>
-              Beats
-            </Link>
-          </div>
         </div>
         <ChainSwitcher selected={chain} onSelect={setChain} />
         <div className="wallet-pill-group">
@@ -88,9 +84,11 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
       <main>
         <AppShellContext.Provider value={{ chain, walletAddress: activeWallet, requestConnect }}>
-          {children}
+          {onChat ? children : <Win95Window title={pageTitle}>{children}</Win95Window>}
         </AppShellContext.Provider>
       </main>
+
+      <GlobalTaskbar />
 
       {player.playingTrack && (
         <MiniPlayer
