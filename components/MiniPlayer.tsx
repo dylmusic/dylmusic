@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { ChainKey, Track, baselineMinted } from "@/lib/albums";
 import {
-  getHolding,
-  getListingPrice,
+  getOwnedEditions,
+  getListings,
   localMintedCount,
   recordMint,
-  setListingPrice,
+  setListingForEdition,
 } from "@/lib/holdings";
+import { recordActivity } from "@/lib/activity";
+import ListingsModal from "./ListingsModal";
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
@@ -31,51 +33,62 @@ export default function MiniPlayer({
 }) {
   const [tick, setTick] = useState(0);
   const [busy, setBusy] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [priceInput, setPriceInput] = useState(track.priceUsd.toFixed(2));
+  const [modalOpen, setModalOpen] = useState(false);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const minted = Math.min(
     track.editionCap,
     baselineMinted(track, chain) + localMintedCount(chain, track.id)
   );
-  const holding = walletAddress ? getHolding(chain, walletAddress, track.id) : undefined;
-  const listedPrice = walletAddress ? getListingPrice(chain, walletAddress, track.id) : undefined;
+  const ownedEditions = walletAddress ? getOwnedEditions(chain, walletAddress, track.id) : [];
+  const listings = walletAddress ? getListings(chain, walletAddress, track.id) : {};
   const soldOut = minted >= track.editionCap;
-  const owned = !!holding;
   void tick;
+
+  const listedPrices = Object.values(listings);
+  const sellDisplayPrice = listedPrices.length ? Math.min(...listedPrices) : track.priceUsd;
 
   async function buy() {
     if (!walletAddress) {
       onRequestConnect();
       return;
     }
-    if (busy || owned || soldOut) return;
+    if (busy || soldOut) return;
     setBusy(true);
     await delay(450);
     const current = baselineMinted(track, chain) + localMintedCount(chain, track.id);
     if (current < track.editionCap) {
       recordMint(chain, walletAddress, track.id, current + 1);
+      recordActivity({
+        type: "buy",
+        chain,
+        wallet: walletAddress,
+        trackTitle: track.title,
+        editionNumber: current + 1,
+        priceUsd: track.priceUsd,
+      });
     }
     setBusy(false);
     setTick((n) => n + 1);
   }
 
-  function confirmSell() {
-    if (!walletAddress) {
-      onRequestConnect();
-      return;
-    }
-    const p = parseFloat(priceInput);
-    if (!isNaN(p) && p > 0) {
-      setListingPrice(chain, walletAddress, track.id, p);
-      setTick((n) => n + 1);
-    }
+  function setEditionPrice(editionNumber: number, price: number) {
+    if (!walletAddress) return;
+    setListingForEdition(chain, walletAddress, track.id, editionNumber, price);
+    recordActivity({
+      type: "sell",
+      chain,
+      wallet: walletAddress,
+      trackTitle: track.title,
+      editionNumber,
+      priceUsd: price,
+    });
+    setTick((n) => n + 1);
   }
 
-  function cancelListing() {
+  function cancelEditionListing(editionNumber: number) {
     if (!walletAddress) return;
-    setListingPrice(chain, walletAddress, track.id, null);
+    setListingForEdition(chain, walletAddress, track.id, editionNumber, null);
     setTick((n) => n + 1);
   }
 
@@ -108,7 +121,9 @@ export default function MiniPlayer({
           <div className="mini-player-text">
             <span className="mini-player-title">{track.title}</span>
             <span className="mini-player-sub">
-              {owned ? `Edition #${holding!.editionNumber}` : `${minted}/${track.editionCap} minted`}
+              {ownedEditions.length > 0
+                ? `You own ${ownedEditions.length}`
+                : `${minted}/${track.editionCap} minted`}
             </span>
           </div>
         </div>
@@ -119,7 +134,7 @@ export default function MiniPlayer({
       </div>
 
       <div className="mini-player-actions">
-        {soldOut && !owned ? (
+        {soldOut ? (
           <button className="btn-buy" disabled>
             Sold Out
           </button>
@@ -128,54 +143,31 @@ export default function MiniPlayer({
             Connect
           </button>
         ) : (
-          <button className="btn-buy" onClick={buy} disabled={busy || owned}>
-            {busy ? "Buying…" : owned ? `Owned #${holding!.editionNumber}` : `Buy $${track.priceUsd.toFixed(2)}`}
+          <button className="btn-buy" onClick={buy} disabled={busy}>
+            {busy ? "Buying…" : `Buy $${track.priceUsd.toFixed(2)}`}
           </button>
         )}
 
-        {listedPrice != null ? (
-          <button className="btn-sell listed" onClick={cancelListing}>
-            Listed ${listedPrice.toFixed(2)} · Cancel
-          </button>
-        ) : (
-          <button
-            className="btn-sell"
-            onClick={(e) => {
-              const target = e.target as HTMLElement;
-              if (target.closest(".sell-price")) return;
-              confirmSell();
-            }}
-          >
-            Sell{" "}
-            <span
-              className="sell-price"
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditing(true);
-              }}
-            >
-              {editing ? (
-                <input
-                  autoFocus
-                  inputMode="decimal"
-                  value={priceInput}
-                  onChange={(e) => setPriceInput(e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  onBlur={() => setEditing(false)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      setEditing(false);
-                      confirmSell();
-                    }
-                  }}
-                />
-              ) : (
-                `$${priceInput}`
-              )}
-            </span>
-          </button>
-        )}
+        <button
+          className="btn-sell"
+          onClick={() => (walletAddress ? setModalOpen(true) : onRequestConnect())}
+        >
+          Sell ${sellDisplayPrice.toFixed(2)}
+        </button>
       </div>
+
+      {modalOpen && (
+        <ListingsModal
+          track={track}
+          editions={ownedEditions.map((editionNumber) => ({
+            editionNumber,
+            listedPrice: listings[editionNumber] ?? null,
+          }))}
+          onSetPrice={setEditionPrice}
+          onCancelListing={cancelEditionListing}
+          onClose={() => setModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

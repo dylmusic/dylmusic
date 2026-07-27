@@ -4,14 +4,15 @@ import Image from "next/image";
 import { useMemo, useState } from "react";
 import { Album, ChainKey, Track, baselineMinted } from "@/lib/albums";
 import {
-  getHolding,
-  getListingPrice,
+  getOwnedEditions,
+  getListings,
   localMintedCount,
   recordMint,
-  setListingPrice,
+  setListingForEdition,
 } from "@/lib/holdings";
 import { recordActivity } from "@/lib/activity";
 import TrackRow from "./TrackRow";
+import ListingsModal from "./ListingsModal";
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
@@ -34,6 +35,7 @@ export default function AlbumView({
 }) {
   const [tick, setTick] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [modalTrackId, setModalTrackId] = useState<string | null>(null);
 
   const minted = useMemo(() => {
     const m: Record<string, number> = {};
@@ -44,11 +46,11 @@ export default function AlbumView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [album, chain, tick]);
 
-  const holdings = useMemo(() => {
+  const ownedEditions = useMemo(() => {
     if (!walletAddress) return {};
-    const h: Record<string, ReturnType<typeof getHolding>> = {};
+    const h: Record<string, number[]> = {};
     for (const t of album.tracks) {
-      h[t.id] = getHolding(chain, walletAddress, t.id);
+      h[t.id] = getOwnedEditions(chain, walletAddress, t.id);
     }
     return h;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -56,16 +58,16 @@ export default function AlbumView({
 
   const listings = useMemo(() => {
     if (!walletAddress) return {};
-    const l: Record<string, number | undefined> = {};
+    const l: Record<string, Record<number, number>> = {};
     for (const t of album.tracks) {
-      l[t.id] = getListingPrice(chain, walletAddress, t.id);
+      l[t.id] = getListings(chain, walletAddress, t.id);
     }
     return l;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [album, chain, walletAddress, tick]);
 
   const sweepTracks = album.tracks.filter(
-    (t) => !holdings[t.id] && minted[t.id] < t.editionCap
+    (t) => (ownedEditions[t.id]?.length ?? 0) === 0 && minted[t.id] < t.editionCap
   );
   const sweepTotal = sweepTracks.reduce((sum, t) => sum + t.priceUsd, 0);
 
@@ -120,28 +122,39 @@ export default function AlbumView({
     setTick((n) => n + 1);
   }
 
-  function list(trackId: string, price: number) {
+  function setEditionPrice(trackId: string, editionNumber: number, price: number) {
     if (!walletAddress) return;
     const t = album.tracks.find((x) => x.id === trackId)!;
-    setListingPrice(chain, walletAddress, trackId, price);
+    setListingForEdition(chain, walletAddress, trackId, editionNumber, price);
     recordActivity({
       type: "sell",
       chain,
       wallet: walletAddress,
       trackTitle: t.title,
-      editionNumber: holdings[trackId]?.editionNumber ?? null,
+      editionNumber,
       priceUsd: price,
     });
     setTick((n) => n + 1);
   }
 
-  function cancelListing(trackId: string) {
+  function cancelEditionListing(trackId: string, editionNumber: number) {
     if (!walletAddress) return;
-    setListingPrice(chain, walletAddress, trackId, null);
+    setListingForEdition(chain, walletAddress, trackId, editionNumber, null);
     setTick((n) => n + 1);
   }
 
-  const ownedCount = album.tracks.filter((t) => holdings[t.id]).length;
+  const totalEditionsOwned = album.tracks.reduce(
+    (sum, t) => sum + (ownedEditions[t.id]?.length ?? 0),
+    0
+  );
+
+  const modalTrack = modalTrackId ? album.tracks.find((t) => t.id === modalTrackId)! : null;
+  const modalEditions = modalTrack
+    ? (ownedEditions[modalTrack.id] ?? []).map((editionNumber) => ({
+        editionNumber,
+        listedPrice: listings[modalTrack.id]?.[editionNumber] ?? null,
+      }))
+    : [];
 
   return (
     <div className="album-wrap">
@@ -179,8 +192,8 @@ export default function AlbumView({
               <span className="stat-label">tracks</span>
             </div>
             <div>
-              <span className="stat-num">{ownedCount}</span>
-              <span className="stat-label">you own</span>
+              <span className="stat-num">{totalEditionsOwned}</span>
+              <span className="stat-label">editions you own</span>
             </div>
             <div>
               <span className="stat-num">{soldPct}%</span>
@@ -208,8 +221,8 @@ export default function AlbumView({
             key={t.id}
             track={t}
             minted={minted[t.id]}
-            holding={holdings[t.id] ?? undefined}
-            listedPrice={listings[t.id]}
+            ownedEditions={ownedEditions[t.id] ?? []}
+            listings={listings[t.id] ?? {}}
             walletConnected={!!walletAddress}
             busy={busyId === t.id}
             isPlaying={playingTrackId === t.id && isPlaying}
@@ -217,11 +230,20 @@ export default function AlbumView({
             onTogglePlay={() => onTogglePlay(t)}
             onBuy={() => buyTrack(t.id)}
             onConnect={onRequestConnect}
-            onList={(price) => list(t.id, price)}
-            onCancelListing={() => cancelListing(t.id)}
+            onOpenSellModal={() => setModalTrackId(t.id)}
           />
         ))}
       </div>
+
+      {modalTrack && (
+        <ListingsModal
+          track={modalTrack}
+          editions={modalEditions}
+          onSetPrice={(editionNumber, price) => setEditionPrice(modalTrack.id, editionNumber, price)}
+          onCancelListing={(editionNumber) => cancelEditionListing(modalTrack.id, editionNumber)}
+          onClose={() => setModalTrackId(null)}
+        />
+      )}
     </div>
   );
 }

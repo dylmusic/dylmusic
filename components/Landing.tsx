@@ -87,7 +87,7 @@ export default function Landing({
           <div className="landing-content">
             <Image
               src="/brand/dyl-logo-white.png"
-              alt="dyl"
+              alt="Dyl"
               width={92}
               height={74}
               className="landing-logo"

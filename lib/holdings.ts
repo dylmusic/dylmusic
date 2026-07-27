@@ -7,21 +7,20 @@ import { ChainKey } from "./albums";
 // localStorage. Swapping this for real on-chain reads/writes later doesn't
 // need to change the UI layer, just these functions.
 //
-// Two separate stores on purpose: MINTS (who actually owns an edition) and
-// LISTINGS (a demo ask price on a track). Listings deliberately don't
-// require a prior mint — the Buy/Sell pair is shown on every track so the
-// marketplace mechanic is demonstrable before real ownership exists.
+// A wallet can own MULTIPLE numbered editions of the same track (buying
+// twice gets you two different edition numbers), so ownership is an array,
+// and each owned edition can carry its own independent listing price —
+// that's what lets someone hold 10 editions and ask a different price for
+// each one.
 
-export interface HoldingRecord {
-  editionNumber: number;
-}
+type MintsMap = Record<string, number[]>;
+// key = `${chainKey}:${walletLower}:${trackId}` -> array of edition numbers owned
 
-type HoldingsMap = Record<string, HoldingRecord>;
-type ListingsMap = Record<string, number>;
-// key = `${chainKey}:${walletLower}:${trackId}`
+type ListingsMap = Record<string, Record<number, number>>;
+// key = `${chainKey}:${walletLower}:${trackId}` -> { [editionNumber]: priceUsd }
 
-const MINTS_KEY = "dylmusic_holdings_v1";
-const LISTINGS_KEY = "dylmusic_listings_v1";
+const MINTS_KEY = "dylmusic_holdings_v2";
+const LISTINGS_KEY = "dylmusic_listings_v2";
 
 function readMap<T>(storageKey: string): Record<string, T> {
   if (typeof window === "undefined") return {};
@@ -45,24 +44,24 @@ function key(chainKey: ChainKey, wallet: string, trackId: string) {
   return `${chainKey}:${wallet.toLowerCase()}:${trackId}`;
 }
 
-export function getHolding(
+export function getOwnedEditions(
   chainKey: ChainKey,
   wallet: string,
   trackId: string
-): HoldingRecord | undefined {
-  return readMap<HoldingRecord>(MINTS_KEY)[key(chainKey, wallet, trackId)];
+): number[] {
+  return readMap<number[]>(MINTS_KEY)[key(chainKey, wallet, trackId)] ?? [];
 }
 
 // Count of locally-recorded mints for a track on a chain, across whichever
 // wallets have touched this browser — combined with the seeded baseline to
 // produce the "x/100" number shown in the UI.
 export function localMintedCount(chainKey: ChainKey, trackId: string): number {
-  const all = readMap<HoldingRecord>(MINTS_KEY);
+  const all = readMap<number[]>(MINTS_KEY);
   const prefix = `${chainKey}:`;
   const suffix = `:${trackId}`;
   let n = 0;
   for (const k of Object.keys(all)) {
-    if (k.startsWith(prefix) && k.endsWith(suffix)) n++;
+    if (k.startsWith(prefix) && k.endsWith(suffix)) n += all[k].length;
   }
   return n;
 }
@@ -73,31 +72,35 @@ export function recordMint(
   trackId: string,
   editionNumber: number
 ) {
-  const all = readMap<HoldingRecord>(MINTS_KEY);
-  all[key(chainKey, wallet, trackId)] = { editionNumber };
+  const all = readMap<number[]>(MINTS_KEY);
+  const k = key(chainKey, wallet, trackId);
+  all[k] = [...(all[k] ?? []), editionNumber];
   writeMap(MINTS_KEY, all);
 }
 
-export function getListingPrice(
+export function getListings(
   chainKey: ChainKey,
   wallet: string,
   trackId: string
-): number | undefined {
-  return readMap<number>(LISTINGS_KEY)[key(chainKey, wallet, trackId)];
+): Record<number, number> {
+  return readMap<Record<number, number>>(LISTINGS_KEY)[key(chainKey, wallet, trackId)] ?? {};
 }
 
-export function setListingPrice(
+export function setListingForEdition(
   chainKey: ChainKey,
   wallet: string,
   trackId: string,
+  editionNumber: number,
   priceUsd: number | null
 ) {
-  const all = readMap<number>(LISTINGS_KEY);
+  const all = readMap<Record<number, number>>(LISTINGS_KEY);
   const k = key(chainKey, wallet, trackId);
+  const current = { ...(all[k] ?? {}) };
   if (priceUsd == null) {
-    delete all[k];
+    delete current[editionNumber];
   } else {
-    all[k] = priceUsd;
+    current[editionNumber] = priceUsd;
   }
+  all[k] = current;
   writeMap(LISTINGS_KEY, all);
 }

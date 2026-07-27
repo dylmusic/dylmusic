@@ -3,9 +3,9 @@ import "./globals.css";
 import Providers from "@/components/Providers";
 
 export const metadata: Metadata = {
-  title: "dyl — Own the Drop",
+  title: "Dyl — The OG Crypto Rapper",
   description:
-    "Only 100 NFTs per song, on each chain. Every mint starts at $0.99 — buy with any coin from any chain. dyl's Crypto Rich (Deluxe), owned by the fans.",
+    "Only 100 NFTs per song, on each chain. Every mint starts at $0.99 — buy with any coin from any chain. Dyl's Crypto Rich (Deluxe), owned by the fans.",
 };
 
 export default function RootLayout({

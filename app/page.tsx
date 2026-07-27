@@ -92,7 +92,7 @@ export default function Home() {
           <button className="app-logo-btn" onClick={() => setShowHome(true)} aria-label="Back to home">
             <Image
               src="/brand/dyl-logo-white.png"
-              alt="dyl"
+              alt="Dyl"
               width={40}
               height={32}
               className="app-logo-img"

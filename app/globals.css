@@ -1130,6 +1130,138 @@ input {
   border: 1px solid rgba(124, 255, 107, 0.15);
 }
 
+/* ---------- Listings modal ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(2, 4, 3, 0.72);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 420px;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: #0a0e0c;
+  border: 1px solid rgba(124, 255, 107, 0.25);
+  border-radius: 18px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 40px rgba(124, 255, 107, 0.08);
+  padding: 22px;
+}
+
+.modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.modal-eyebrow {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #7cff6b;
+  margin-bottom: 4px;
+}
+
+.modal-head h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  color: #eef2ee;
+}
+
+.modal-close {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7a70;
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.modal-close:hover {
+  color: #eef2ee;
+}
+
+.modal-empty {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #8b978f;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.modal-editions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-edition-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.modal-edition-num {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12.5px;
+  color: #7cff6b;
+  flex-shrink: 0;
+}
+
+.modal-listed-price {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12.5px;
+  color: #ffb020;
+  flex: 1;
+}
+
+.modal-price-input {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 1;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 176, 32, 0.35);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.modal-price-input span {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12.5px;
+  color: #6b7a70;
+}
+
+.modal-price-input input {
+  width: 100%;
+  background: none;
+  border: none;
+  outline: none;
+  color: #eef2ee;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12.5px;
+}
+
 /* ---------- Recent transactions ---------- */
 
 .sales-list {

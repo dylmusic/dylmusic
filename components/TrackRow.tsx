@@ -1,15 +1,13 @@
 "use client";
 
-import { useState } from "react";
 import { Track } from "@/lib/albums";
-import { HoldingRecord } from "@/lib/holdings";
 import { formatStreams, getStreamCount } from "@/lib/streams";
 
 export default function TrackRow({
   track,
   minted,
-  holding,
-  listedPrice,
+  ownedEditions,
+  listings,
   walletConnected,
   busy,
   isPlaying,
@@ -17,13 +15,12 @@ export default function TrackRow({
   onTogglePlay,
   onBuy,
   onConnect,
-  onList,
-  onCancelListing,
+  onOpenSellModal,
 }: {
   track: Track;
   minted: number;
-  holding: HoldingRecord | undefined;
-  listedPrice: number | undefined;
+  ownedEditions: number[];
+  listings: Record<number, number>;
   walletConnected: boolean;
   busy: boolean;
   isPlaying: boolean;
@@ -31,26 +28,14 @@ export default function TrackRow({
   onTogglePlay: () => void;
   onBuy: () => void;
   onConnect: () => void;
-  onList: (price: number) => void;
-  onCancelListing: () => void;
+  onOpenSellModal: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [priceInput, setPriceInput] = useState(track.priceUsd.toFixed(2));
-
   const soldOut = minted >= track.editionCap;
-  const owned = !!holding;
+  const ownedCount = ownedEditions.length;
   const pct = Math.round((minted / track.editionCap) * 100);
 
-  function confirmSell() {
-    if (!walletConnected) {
-      onConnect();
-      return;
-    }
-    const p = parseFloat(priceInput);
-    if (!isNaN(p) && p > 0) {
-      onList(p);
-    }
-  }
+  const listedPrices = Object.values(listings);
+  const sellDisplayPrice = listedPrices.length ? Math.min(...listedPrices) : track.priceUsd;
 
   return (
     <div
@@ -75,8 +60,11 @@ export default function TrackRow({
       <div className="track-info">
         <div className="track-title">{track.title}</div>
         <div className="track-edition">
-          {owned ? (
-            <span className="edition-owned">Edition #{holding!.editionNumber}</span>
+          {ownedCount > 0 ? (
+            <span className="edition-owned">
+              You own {ownedCount} {ownedCount === 1 ? "edition" : "editions"}
+              {listedPrices.length > 0 ? ` · ${listedPrices.length} listed` : ""}
+            </span>
           ) : (
             <span>
               {minted}/{track.editionCap} minted · {pct}% sold
@@ -88,14 +76,11 @@ export default function TrackRow({
       <div className="track-actions" onClick={(e) => e.stopPropagation()}>
         <span className="track-streams" title="Streams">
           <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-            <path
-              d="M2.5 1.5v9l7-4.5-7-4.5Z"
-              fill="currentColor"
-            />
+            <path d="M2.5 1.5v9l7-4.5-7-4.5Z" fill="currentColor" />
           </svg>
           {formatStreams(getStreamCount(track))}
         </span>
-        {soldOut && !owned ? (
+        {soldOut ? (
           <button className="btn-buy" disabled>
             Sold Out
           </button>
@@ -104,53 +89,14 @@ export default function TrackRow({
             Connect
           </button>
         ) : (
-          <button className="btn-buy" onClick={onBuy} disabled={busy || owned}>
-            {busy ? "Buying…" : owned ? `Owned #${holding!.editionNumber}` : `Buy $${track.priceUsd.toFixed(2)}`}
+          <button className="btn-buy" onClick={onBuy} disabled={busy}>
+            {busy ? "Buying…" : `Buy $${track.priceUsd.toFixed(2)}`}
           </button>
         )}
 
-        {listedPrice != null ? (
-          <button className="btn-sell listed" onClick={onCancelListing}>
-            Listed ${listedPrice.toFixed(2)} · Cancel
-          </button>
-        ) : (
-          <button
-            className="btn-sell"
-            onClick={(e) => {
-              const target = e.target as HTMLElement;
-              if (target.closest(".sell-price")) return;
-              confirmSell();
-            }}
-          >
-            Sell{" "}
-            <span
-              className="sell-price"
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditing(true);
-              }}
-            >
-              {editing ? (
-                <input
-                  autoFocus
-                  inputMode="decimal"
-                  value={priceInput}
-                  onChange={(e) => setPriceInput(e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  onBlur={() => setEditing(false)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      setEditing(false);
-                      confirmSell();
-                    }
-                  }}
-                />
-              ) : (
-                `$${priceInput}`
-              )}
-            </span>
-          </button>
-        )}
+        <button className="btn-sell" onClick={walletConnected ? onOpenSellModal : onConnect}>
+          Sell ${sellDisplayPrice.toFixed(2)}
+        </button>
       </div>
     </div>
   );

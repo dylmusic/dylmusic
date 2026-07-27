@@ -54,7 +54,7 @@ function track(index: number, title: string, priceUsd = 0.99): Track {
 export const CRYPTO_RICH_DELUXE: Album = {
   slug: "crypto-rich-deluxe",
   title: "Crypto Rich (Deluxe)",
-  artist: "dyl",
+  artist: "Dyl",
   year: 2020,
   coverImage: "/covers/crypto-rich-deluxe.jpg",
   // Real 19-track tracklist, in official release order (verified via Spotify).
