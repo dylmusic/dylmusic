@@ -9,10 +9,13 @@ import {
   localMintedCount,
   recordMint,
   setListingForEdition,
+  buyListedEdition,
 } from "@/lib/holdings";
+import { buildOrderBook, OrderBookEntry } from "@/lib/orderbook";
 import { recordActivity } from "@/lib/activity";
 import TrackRow from "./TrackRow";
 import ListingsModal from "./ListingsModal";
+import OrderBookModal from "./OrderBookModal";
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
@@ -38,6 +41,7 @@ export default function AlbumView({
   const [tick, setTick] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [modalTrackId, setModalTrackId] = useState<string | null>(null);
+  const [bookTrackId, setBookTrackId] = useState<string | null>(null);
 
   const minted = useMemo(() => {
     const m: Record<string, number> = {};
@@ -68,6 +72,15 @@ export default function AlbumView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [album, chain, walletAddress, tick]);
 
+  const books = useMemo(() => {
+    const b: Record<string, OrderBookEntry[]> = {};
+    for (const t of album.tracks) {
+      b[t.id] = buildOrderBook(t, chain);
+    }
+    return b;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [album, chain, tick]);
+
   const sweepTracks = album.tracks.filter(
     (t) => (ownedEditions[t.id]?.length ?? 0) === 0 && minted[t.id] < t.editionCap
   );
@@ -77,11 +90,9 @@ export default function AlbumView({
   const totalCap = album.tracks.reduce((sum, t) => sum + t.editionCap, 0);
   const soldPct = Math.round((totalMinted / totalCap) * 100);
 
-  async function buyTrack(trackId: string) {
-    if (!walletAddress || busyId) return;
+  async function mintTrack(trackId: string) {
+    if (!walletAddress) return;
     const t = album.tracks.find((x) => x.id === trackId)!;
-    setBusyId(trackId);
-    await delay(450);
     const current = baselineMinted(t, chain) + localMintedCount(chain, t.id);
     if (current < t.editionCap) {
       recordMint(chain, walletAddress, t.id, current + 1);
@@ -94,6 +105,45 @@ export default function AlbumView({
         priceUsd: t.priceUsd,
       });
     }
+  }
+
+  async function buyResale(trackId: string, entry: OrderBookEntry) {
+    if (!walletAddress || entry.type !== "resale") return;
+    const t = album.tracks.find((x) => x.id === trackId)!;
+    buyListedEdition(chain, trackId, entry.seller!, walletAddress, entry.editionNumber!);
+    recordActivity({
+      type: "buy",
+      chain,
+      wallet: walletAddress,
+      trackTitle: t.title,
+      editionNumber: entry.editionNumber!,
+      priceUsd: entry.priceUsd,
+    });
+  }
+
+  async function buyFloor(trackId: string) {
+    if (!walletAddress || busyId) return;
+    const book = books[trackId];
+    const floor = book?.[0];
+    if (!floor) return;
+    setBusyId(trackId);
+    await delay(450);
+    if (floor.type === "mint") await mintTrack(trackId);
+    else await buyResale(trackId, floor);
+    setBusyId(null);
+    setTick((n) => n + 1);
+  }
+
+  async function buyFromBook(trackId: string, entry: OrderBookEntry) {
+    if (!walletAddress) {
+      onRequestConnect();
+      return;
+    }
+    if (busyId) return;
+    setBusyId(`${trackId}:${entry.type === "mint" ? "mint" : entry.editionNumber}`);
+    await delay(450);
+    if (entry.type === "mint") await mintTrack(trackId);
+    else await buyResale(trackId, entry);
     setBusyId(null);
     setTick((n) => n + 1);
   }
@@ -107,18 +157,7 @@ export default function AlbumView({
     setBusyId("__album__");
     for (const t of sweepTracks) {
       await delay(180);
-      const current = baselineMinted(t, chain) + localMintedCount(chain, t.id);
-      if (current < t.editionCap) {
-        recordMint(chain, walletAddress, t.id, current + 1);
-        recordActivity({
-          type: "buy",
-          chain,
-          wallet: walletAddress,
-          trackTitle: t.title,
-          editionNumber: current + 1,
-          priceUsd: t.priceUsd,
-        });
-      }
+      await mintTrack(t.id);
     }
     setBusyId(null);
     setTick((n) => n + 1);
@@ -157,6 +196,8 @@ export default function AlbumView({
         listedPrice: listings[modalTrack.id]?.[editionNumber] ?? null,
       }))
     : [];
+
+  const bookTrack = bookTrackId ? album.tracks.find((t) => t.id === bookTrackId)! : null;
 
   return (
     <div className="album-wrap">
@@ -231,12 +272,14 @@ export default function AlbumView({
             minted={minted[t.id]}
             ownedEditions={ownedEditions[t.id] ?? []}
             listings={listings[t.id] ?? {}}
+            book={books[t.id] ?? []}
             walletConnected={!!walletAddress}
             busy={busyId === t.id}
             isPlaying={playingTrackId === t.id && isPlaying}
             isActive={playingTrackId === t.id}
             onTogglePlay={() => onTogglePlay(t)}
-            onBuy={() => buyTrack(t.id)}
+            onBuyFloor={() => buyFloor(t.id)}
+            onOpenOrderBook={() => setBookTrackId(t.id)}
             onConnect={onRequestConnect}
             onOpenSellModal={() => setModalTrackId(t.id)}
           />
@@ -250,6 +293,22 @@ export default function AlbumView({
           onSetPrice={(editionNumber, price) => setEditionPrice(modalTrack.id, editionNumber, price)}
           onCancelListing={(editionNumber) => cancelEditionListing(modalTrack.id, editionNumber)}
           onClose={() => setModalTrackId(null)}
+        />
+      )}
+
+      {bookTrack && (
+        <OrderBookModal
+          track={bookTrack}
+          book={books[bookTrack.id] ?? []}
+          busyKey={
+            busyId?.startsWith(`${bookTrack.id}:`) ? busyId.split(":")[1] : null
+          }
+          onBuyMint={() => {
+            const mintEntry = books[bookTrack.id]?.find((e) => e.type === "mint");
+            if (mintEntry) buyFromBook(bookTrack.id, mintEntry);
+          }}
+          onBuyResale={(entry) => buyFromBook(bookTrack.id, entry)}
+          onClose={() => setBookTrackId(null)}
         />
       )}
     </div>

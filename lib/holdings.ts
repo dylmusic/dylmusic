@@ -104,3 +104,53 @@ export function setListingForEdition(
   all[k] = current;
   writeMap(LISTINGS_KEY, all);
 }
+
+export interface ResaleAsk {
+  wallet: string;
+  editionNumber: number;
+  priceUsd: number;
+}
+
+// Every active resale ask for a track on a chain, across every wallet that's
+// touched this browser — this is the "order book" once you look past a
+// single wallet's own listings.
+export function getAllListings(chainKey: ChainKey, trackId: string): ResaleAsk[] {
+  const all = readMap<Record<number, number>>(LISTINGS_KEY);
+  const prefix = `${chainKey}:`;
+  const suffix = `:${trackId}`;
+  const asks: ResaleAsk[] = [];
+  for (const k of Object.keys(all)) {
+    if (!k.startsWith(prefix) || !k.endsWith(suffix)) continue;
+    const wallet = k.slice(prefix.length, k.length - suffix.length);
+    for (const [editionStr, priceUsd] of Object.entries(all[k])) {
+      asks.push({ wallet, editionNumber: Number(editionStr), priceUsd });
+    }
+  }
+  return asks.sort((a, b) => a.priceUsd - b.priceUsd);
+}
+
+// Buying a specific listed edition off another wallet: moves the edition
+// out of the seller's holding into the buyer's, and clears the listing.
+// Distinct from recordMint — this never touches the mint/edition-cap count,
+// it's a transfer of an edition that already exists.
+export function buyListedEdition(
+  chainKey: ChainKey,
+  trackId: string,
+  seller: string,
+  buyer: string,
+  editionNumber: number
+) {
+  const mints = readMap<number[]>(MINTS_KEY);
+  const sellerKey = key(chainKey, seller, trackId);
+  const buyerKey = key(chainKey, buyer, trackId);
+
+  mints[sellerKey] = (mints[sellerKey] ?? []).filter((e) => e !== editionNumber);
+  mints[buyerKey] = [...(mints[buyerKey] ?? []), editionNumber];
+  writeMap(MINTS_KEY, mints);
+
+  const listings = readMap<Record<number, number>>(LISTINGS_KEY);
+  const sellerListings = { ...(listings[sellerKey] ?? {}) };
+  delete sellerListings[editionNumber];
+  listings[sellerKey] = sellerListings;
+  writeMap(LISTINGS_KEY, listings);
+}

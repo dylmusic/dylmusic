@@ -2,18 +2,21 @@
 
 import { Track } from "@/lib/albums";
 import { formatStreams, getStreamCount } from "@/lib/streams";
+import { OrderBookEntry } from "@/lib/orderbook";
 
 export default function TrackRow({
   track,
   minted,
   ownedEditions,
   listings,
+  book,
   walletConnected,
   busy,
   isPlaying,
   isActive,
   onTogglePlay,
-  onBuy,
+  onBuyFloor,
+  onOpenOrderBook,
   onConnect,
   onOpenSellModal,
 }: {
@@ -21,18 +24,20 @@ export default function TrackRow({
   minted: number;
   ownedEditions: number[];
   listings: Record<number, number>;
+  book: OrderBookEntry[];
   walletConnected: boolean;
   busy: boolean;
   isPlaying: boolean;
   isActive: boolean;
   onTogglePlay: () => void;
-  onBuy: () => void;
+  onBuyFloor: () => void;
+  onOpenOrderBook: () => void;
   onConnect: () => void;
   onOpenSellModal: () => void;
 }) {
-  const soldOut = minted >= track.editionCap;
   const ownedCount = ownedEditions.length;
   const pct = Math.round((minted / track.editionCap) * 100);
+  const floor = book[0] ?? null;
 
   const listedPrices = Object.values(listings);
   const sellDisplayPrice = listedPrices.length ? Math.min(...listedPrices) : track.priceUsd;
@@ -68,6 +73,7 @@ export default function TrackRow({
           ) : (
             <span>
               {minted}/{track.editionCap} minted · {pct}% sold
+              {book.length > 1 ? ` · ${book.length} asks` : ""}
             </span>
           )}
         </div>
@@ -80,7 +86,8 @@ export default function TrackRow({
           </svg>
           {formatStreams(getStreamCount(track))}
         </span>
-        {soldOut ? (
+
+        {!floor ? (
           <button className="btn-buy" disabled>
             Sold Out
           </button>
@@ -89,9 +96,21 @@ export default function TrackRow({
             Connect
           </button>
         ) : (
-          <button className="btn-buy" onClick={onBuy} disabled={busy}>
-            {busy ? "Buying…" : `Buy $${track.priceUsd.toFixed(2)}`}
-          </button>
+          <div className="btn-buy-split">
+            <button className="btn-buy" onClick={onBuyFloor} disabled={busy}>
+              {busy ? "Buying…" : `Buy $${floor.priceUsd.toFixed(2)}`}
+            </button>
+            <button
+              className="btn-buy-expand"
+              onClick={onOpenOrderBook}
+              title="View order book"
+              aria-label="View order book"
+            >
+              <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
+                <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
         )}
 
         <button className="btn-sell" onClick={walletConnected ? onOpenSellModal : onConnect}>

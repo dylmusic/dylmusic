@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ChainKey, Track, baselineMinted } from "@/lib/albums";
 import {
   getOwnedEditions,
@@ -8,9 +8,12 @@ import {
   localMintedCount,
   recordMint,
   setListingForEdition,
+  buyListedEdition,
 } from "@/lib/holdings";
+import { buildOrderBook, OrderBookEntry } from "@/lib/orderbook";
 import { recordActivity } from "@/lib/activity";
 import ListingsModal from "./ListingsModal";
+import OrderBookModal from "./OrderBookModal";
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
@@ -45,8 +48,9 @@ export default function MiniPlayer({
   onSeek: (time: number) => void;
 }) {
   const [tick, setTick] = useState(0);
-  const [busy, setBusy] = useState(false);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [bookOpen, setBookOpen] = useState(false);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const minted = Math.min(
@@ -55,20 +59,16 @@ export default function MiniPlayer({
   );
   const ownedEditions = walletAddress ? getOwnedEditions(chain, walletAddress, track.id) : [];
   const listings = walletAddress ? getListings(chain, walletAddress, track.id) : {};
-  const soldOut = minted >= track.editionCap;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const book = useMemo(() => buildOrderBook(track, chain), [track, chain, tick]);
+  const floor = book[0] ?? null;
   void tick;
 
   const listedPrices = Object.values(listings);
   const sellDisplayPrice = listedPrices.length ? Math.min(...listedPrices) : track.priceUsd;
 
-  async function buy() {
-    if (!walletAddress) {
-      onRequestConnect();
-      return;
-    }
-    if (busy || soldOut) return;
-    setBusy(true);
-    await delay(450);
+  async function mint() {
+    if (!walletAddress) return;
     const current = baselineMinted(track, chain) + localMintedCount(chain, track.id);
     if (current < track.editionCap) {
       recordMint(chain, walletAddress, track.id, current + 1);
@@ -81,7 +81,46 @@ export default function MiniPlayer({
         priceUsd: track.priceUsd,
       });
     }
-    setBusy(false);
+  }
+
+  async function buyResale(entry: OrderBookEntry) {
+    if (!walletAddress || entry.type !== "resale") return;
+    buyListedEdition(chain, track.id, entry.seller!, walletAddress, entry.editionNumber!);
+    recordActivity({
+      type: "buy",
+      chain,
+      wallet: walletAddress,
+      trackTitle: track.title,
+      editionNumber: entry.editionNumber!,
+      priceUsd: entry.priceUsd,
+    });
+  }
+
+  async function buyFloor() {
+    if (!walletAddress) {
+      onRequestConnect();
+      return;
+    }
+    if (busyKey || !floor) return;
+    setBusyKey(floor.type === "mint" ? "mint" : `${floor.editionNumber}`);
+    await delay(450);
+    if (floor.type === "mint") await mint();
+    else await buyResale(floor);
+    setBusyKey(null);
+    setTick((n) => n + 1);
+  }
+
+  async function buyFromBook(entry: OrderBookEntry) {
+    if (!walletAddress) {
+      onRequestConnect();
+      return;
+    }
+    if (busyKey) return;
+    setBusyKey(entry.type === "mint" ? "mint" : `${entry.editionNumber}`);
+    await delay(450);
+    if (entry.type === "mint") await mint();
+    else await buyResale(entry);
+    setBusyKey(null);
     setTick((n) => n + 1);
   }
 
@@ -172,7 +211,7 @@ export default function MiniPlayer({
       </div>
 
       <div className="mini-player-actions">
-        {soldOut ? (
+        {!floor ? (
           <button className="btn-buy" disabled>
             Sold Out
           </button>
@@ -181,9 +220,21 @@ export default function MiniPlayer({
             Connect
           </button>
         ) : (
-          <button className="btn-buy" onClick={buy} disabled={busy}>
-            {busy ? "Buying…" : `Buy $${track.priceUsd.toFixed(2)}`}
-          </button>
+          <div className="btn-buy-split">
+            <button className="btn-buy" onClick={buyFloor} disabled={!!busyKey}>
+              {busyKey ? "Buying…" : `Buy $${floor.priceUsd.toFixed(2)}`}
+            </button>
+            <button
+              className="btn-buy-expand"
+              onClick={() => setBookOpen(true)}
+              title="View order book"
+              aria-label="View order book"
+            >
+              <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
+                <path d="M1 3l4 4 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
         )}
 
         <button
@@ -204,6 +255,20 @@ export default function MiniPlayer({
           onSetPrice={setEditionPrice}
           onCancelListing={cancelEditionListing}
           onClose={() => setModalOpen(false)}
+        />
+      )}
+
+      {bookOpen && (
+        <OrderBookModal
+          track={track}
+          book={book}
+          busyKey={busyKey}
+          onBuyMint={() => {
+            const mintEntry = book.find((e) => e.type === "mint");
+            if (mintEntry) buyFromBook(mintEntry);
+          }}
+          onBuyResale={(entry) => buyFromBook(entry)}
+          onClose={() => setBookOpen(false)}
         />
       )}
     </div>
