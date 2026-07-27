@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Track } from "@/lib/albums";
 
 interface Pos {
@@ -8,30 +8,61 @@ interface Pos {
   y: number; // percent of container height
 }
 
-function seededRand(seed: number): number {
-  const x = Math.sin(seed * 999.7) * 10000;
-  return x - Math.floor(x);
-}
+// Grid the whole screen into cells, shuffle them, and bias toward the ones
+// farthest from dead-center (roughly where the headline/console sit) so
+// icons mostly land in the open margins — genuinely random on every load,
+// not seeded. A few landing under the content occasionally is fine.
+const GRID_COLS = 6;
+const GRID_ROWS = 5;
 
-function initialPositions(tracks: Track[]): Record<string, Pos> {
+function randomPositions(tracks: Track[]): Record<string, Pos> {
+  const cells: { x: number; y: number }[] = [];
+  for (let row = 0; row < GRID_ROWS; row++) {
+    for (let col = 0; col < GRID_COLS; col++) {
+      cells.push({
+        x: ((col + 0.5) / GRID_COLS) * 100,
+        y: ((row + 0.5) / GRID_ROWS) * 100,
+      });
+    }
+  }
+
+  cells.sort((a, b) => {
+    const da = Math.hypot(a.x - 50, a.y - 50);
+    const db = Math.hypot(b.x - 50, b.y - 50);
+    return db - da + (Math.random() - 0.5) * 20;
+  });
+
+  const cellW = 100 / GRID_COLS;
+  const cellH = 100 / GRID_ROWS;
+
   const positions: Record<string, Pos> = {};
-  const left = tracks.filter((_, i) => i % 2 === 0);
-  const right = tracks.filter((_, i) => i % 2 === 1);
-
-  [left, right].forEach((group, side) => {
-    const slotH = 92 / group.length;
-    group.forEach((t, i) => {
-      const jitterX = (seededRand(t.index * 3 + 1) - 0.5) * 10;
-      const jitterY = (seededRand(t.index * 7 + 2) - 0.5) * (slotH * 0.5);
-      const baseX = side === 0 ? 10 : 90;
-      positions[t.id] = {
-        x: Math.min(95, Math.max(1, baseX + jitterX)),
-        y: Math.min(95, Math.max(3, 4 + slotH * i + slotH / 2 + jitterY)),
-      };
-    });
+  tracks.forEach((t, i) => {
+    const cell = cells[i % cells.length];
+    const jitterX = (Math.random() - 0.5) * cellW * 0.7;
+    const jitterY = (Math.random() - 0.5) * cellH * 0.7;
+    positions[t.id] = {
+      x: Math.min(96, Math.max(2, cell.x + jitterX)),
+      y: Math.min(96, Math.max(3, cell.y + jitterY)),
+    };
   });
 
   return positions;
+}
+
+function MusicIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path
+        d="M6 11.5V2.8c0-.3.2-.55.5-.6l6-1.1c.35-.07.7.2.7.57v7.03"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="4.3" cy="11.5" r="1.9" stroke="currentColor" strokeWidth="1.1" />
+      <circle cx="11.5" cy="9.9" r="1.9" stroke="currentColor" strokeWidth="1.1" />
+    </svg>
+  );
 }
 
 export default function DesktopFiles({
@@ -46,7 +77,7 @@ export default function DesktopFiles({
   onTrackClick: (track: Track) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [positions, setPositions] = useState<Record<string, Pos>>(() => initialPositions(tracks));
+  const [positions, setPositions] = useState<Record<string, Pos>>({});
   const dragRef = useRef<{
     id: string;
     startClientX: number;
@@ -54,6 +85,14 @@ export default function DesktopFiles({
     startPos: Pos;
     moved: boolean;
   } | null>(null);
+
+  // Randomize only on the client, after mount — computing this during the
+  // server render would produce a different layout than the client's first
+  // paint and trip a hydration mismatch.
+  useEffect(() => {
+    setPositions(randomPositions(tracks));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handlePointerDown(e: React.PointerEvent, track: Track) {
     dragRef.current = {
@@ -96,6 +135,8 @@ export default function DesktopFiles({
     }
   }
 
+  if (Object.keys(positions).length === 0) return <div className="desktop-files" ref={containerRef} />;
+
   return (
     <div className="desktop-files" ref={containerRef}>
       {tracks.map((t) => {
@@ -118,15 +159,7 @@ export default function DesktopFiles({
                   <span />
                 </span>
               ) : (
-                <svg width="16" height="18" viewBox="0 0 16 18" fill="none">
-                  <path
-                    d="M1 1h9l5 5v11H1V1Z"
-                    fill="rgba(124,255,107,0.08)"
-                    stroke="currentColor"
-                    strokeWidth="1"
-                  />
-                  <path d="M10 1v5h5" stroke="currentColor" strokeWidth="1" fill="none" />
-                </svg>
+                <MusicIcon />
               )}
             </div>
             <div className="desktop-file-name">track-{t.index}.wav</div>
