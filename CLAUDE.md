@@ -63,6 +63,42 @@ contract = one collection = all volume" before writing Solidity/Anchor.
 
 ---
 
+## Legacy contracts — eligible for "burn old NFTs, get free mints"
+
+Dylan's own words, now live as one of the AIM-style message bubbles on the
+homepage: *"if you had any of my old NFTs, burn them and get free mints."*
+**The burn-to-mint mechanism itself is not built yet** — this is just the
+real, as-given contract list to build it against once it is. Addresses are
+recorded exactly as Dylan supplied them, not independently verified
+on-chain yet — verify each one for real (bytecode, `name()`/`symbol()`,
+actual holder data) before writing any burn-eligibility logic against them.
+
+**Old Dyl NFT collection (Ethereum mainnet)**
+- `0x253bfce1757bb2e5f9159738f8309c73dafe09ea`
+
+**$DYL (old cross-chain token) — burning the coin itself may or may not be
+in scope of "old NFTs"; listed here since Dylan supplied it in the same
+message. Confirm with him whether $DYL burns also grant mints, or only the
+old NFT collection does.**
+- Ethereum: `0x7a8946EDA77817126ffE301249f6DC4C7Df293C3`
+- Polygon: `0x4A506181f07Da5ddFDA4ca4c2Fa4c67001dB94B4`
+- Base: `0x4A506181f07Da5ddFDA4ca4c2Fa4c67001dB94B4` (same address as
+  Polygon — plausible via a deterministic CREATE2 deploy, not re-verified)
+- Solana: `DTUW2CFo71KnTNSFYX95jQ8P8aJVQVr8MEF1AGMm5WGm`
+
+Open questions to resolve before building this (don't guess): does
+"burning" mean sending to a dead/burn address on the ORIGINAL chain the old
+asset lives on (Ethereum/Polygon for the old contracts, separate from
+wherever the new Dyl collections end up per the single-collection mandate
+above), and does the free mint land on whichever NEW chain the user
+chooses, or a fixed mapping? How is burn eligibility checked cross-chain
+(e.g., burning an old Solana $DYL token to claim a free mint on the new
+Base collection) — this needs real cross-chain proof-of-burn verification,
+not just a client-side self-report like the rest of this app's current
+"ownership" checks.
+
+---
+
 ## Current state: everything is a local simulated ledger
 
 **No contracts are deployed anywhere yet.** Every "buy," "mint," "sell,"
