@@ -94,10 +94,33 @@ initial state, which explicitly ties this address to
   - One live example token from this collection (the current floor NFT at
     the time this was looked up, for spot-checking against a real wallet
     on Solscan/Solana FM): mint `3r7CWTme5bM4nNwHk9GRjygBBS2i5n5R3CQV4GvwQwsu`.
-  - Dylan reported not seeing these in his own Phantom wallet — most likely
-    Phantom's own spam/unverified-collection filter hiding them (check the
-    "Hidden" tab), not necessarily evidence they're gone. Not independently
-    confirmed against his actual wallet address in this session.
+  - Dylan's own wallet was checked directly against Solana's mainnet RPC
+    (not a marketplace/indexer UI, which turned out to be unreliable —
+    see below): `7pJuy6qEznjGP1uxoApzbsHZq33e4RANF8AbZPGQ9jxy` currently
+    holds exactly one NFT-shaped token, and it isn't this collection — it's
+    a **"Mortuary Inc. Ashes" ($ASH)** token, strongly suggesting the real
+    card was burned via some NFT-incinerator-style service at some point
+    (those typically mint a symbolic "ashes" receipt token). Magic Eden's
+    UI still shows this wallet as an owner regardless — confirmed that's
+    just their indexer/cache being stale (they don't re-crawl old,
+    low-volume collections often), not live on-chain truth. **Lesson for
+    building the real burn-mint feature: verify holdings via a live RPC
+    call (`getTokenAccountsByOwner` + Metaplex metadata PDA), never by
+    trusting Magic Eden's or Solscan's cached ownership display.**
+  - A second Solscan link Dylan supplied that reliably navigates to (what
+    is likely) this same collection, id not independently confirmed as a
+    real on-chain address (could just be Solscan's own internal grouping
+    id, not a mint/authority/candy-machine address):
+    `solscan.io/collection/874220bb58df72243a7a0bc29821c56521098e6b9f4dd1bcc0fdad434732541b`.
+    Solscan's site sits behind a Cloudflare managed challenge that blocked
+    every fetch method tried in this session (plain curl, WebFetch, and a
+    real headless Chrome instance all hit "Just a moment..." — actively
+    detecting automation, not a simple JS-wait). Before building
+    burn-eligibility logic, resolve this link to the real on-chain
+    identifier (candy machine id / update authority / collection mint) —
+    easiest path is just having Dylan open it himself and read off
+    whatever address Solscan displays there, since this environment can't
+    load the page.
 
 **$DYL (old cross-chain token) — burning the coin itself may or may not be
 in scope of "old NFTs"; listed here since Dylan supplied it in the same
