@@ -13,6 +13,7 @@ export interface LegacyAsset {
   kind: "nft" | "token";
   name: string;
   address: string;
+  tokenId?: string; // set only for specific-token entries on a shared/multi-tenant contract
   note?: string;
 }
 
@@ -23,6 +24,41 @@ export const LEGACY_ASSETS: LegacyAsset[] = [
     kind: "nft",
     name: "Old Dyl NFT collection",
     address: "0x253bfce1757bb2e5f9159738f8309c73dafe09ea",
+  },
+  {
+    chain: "ethereum",
+    chainLabel: "Ethereum",
+    kind: "nft",
+    name: "Dyl (own ERC-721)",
+    address: "0x6764aE7179342134Dfe263C59A077E40d25f2B95",
+    note: "1,333 supply, real ipfs metadata",
+  },
+  {
+    chain: "ethereum",
+    chainLabel: "Ethereum",
+    kind: "nft",
+    name: "Dyl item on OpenSea Shared Storefront #1",
+    address: "0x495f947276749Ce646f68AC8c248420045cb7b5e",
+    tokenId: "71467707431311496150712806865917248713642172373080555837822809033127644627944",
+    note: "shared multi-tenant contract — must check this exact tokenId, not the whole contract",
+  },
+  {
+    chain: "ethereum",
+    chainLabel: "Ethereum",
+    kind: "nft",
+    name: "Dyl item on OpenSea Shared Storefront #2",
+    address: "0x495f947276749Ce646f68AC8c248420045cb7b5e",
+    tokenId: "71467707431311496150712806865917248713642172373080555837822809030928621371492",
+    note: "shared multi-tenant contract — must check this exact tokenId, not the whole contract",
+  },
+  {
+    chain: "ethereum",
+    chainLabel: "Ethereum",
+    kind: "nft",
+    name: "Dyl item on OpenSea Shared Storefront #3",
+    address: "0x495f947276749Ce646f68AC8c248420045cb7b5e",
+    tokenId: "71467707431311496150712806865917248713642172373080555837822809034227156254820",
+    note: "shared multi-tenant contract — must check this exact tokenId, not the whole contract",
   },
   {
     chain: "solana",

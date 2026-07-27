@@ -63,6 +63,40 @@ contract = one collection = all volume" before writing Solidity/Anchor.
 
 ---
 
+## "Our own marketplace contract" — yes, but it doesn't do what you'd expect on OpenSea
+
+Dylan's question: can dylmusic have its own way of listing editions that
+also shows up on OpenSea, via "our own market contract"? Two different
+things get conflated here, worth being precise about before building:
+
+- **A standard ERC-721/1155 NFT's current owner and full transfer history
+  shows up on OpenSea's item page automatically**, no matter which
+  contract mediated a transfer — dylmusic's own buy/sell order-book
+  contract (this part genuinely is easy — the site's current *simulated*
+  order-book already mirrors exactly this pattern) would move real
+  ownership via standard `Transfer` events, and OpenSea's own indexer
+  picks that up regardless of not being "their" sale. So: real mints/sales
+  through our own contract WILL correctly show real owners/history on
+  OpenSea.
+- **What does NOT happen automatically: an item showing up as "for sale,
+  Buy Now" inside OpenSea's own marketplace UI.** That specifically
+  requires a real **Seaport** order (OpenSea's own listing protocol) to
+  exist — a listing made through our own separate marketplace contract is
+  invisible to OpenSea's own buy UI unless we *also* create a matching
+  Seaport order (via OpenSea's API/SDK) or a user lists manually through
+  opensea.io themselves. "Our own market contract" and "listed for sale on
+  OpenSea" are two different, both-buildable, NOT-automatically-linked
+  things — don't assume building the first gets you the second for free.
+- **Unverified, worth confirming before relying on it**: does OpenSea even
+  index/support **Robinhood Chain**? Confirmed working for Ethereum and
+  Base; Robinhood Chain is small/new enough that this hasn't been checked.
+  If OpenSea doesn't support that chain at all, the entire "single
+  OpenSea collection" mandate above needs a fallback plan for Robinhood
+  Chain specifically (e.g. relying on Robinhood's own chain explorer/
+  marketplace instead, if one exists) — verify this before it matters.
+
+---
+
 ## Legacy contracts — eligible for "burn old NFTs, get free mints"
 
 Dylan's own words, now live as one of the AIM-style message bubbles on the
@@ -75,6 +109,29 @@ actual holder data) before writing any burn-eligibility logic against them.
 
 **Old Dyl NFT collection (Ethereum mainnet)**
 - `0x253bfce1757bb2e5f9159738f8309c73dafe09ea`
+
+**A second, separate Dyl-owned ERC-721 (Ethereum)** —
+`0x6764aE7179342134Dfe263C59A077E40d25f2B95`. Verified live via a public
+Ethereum RPC (`ethereum-rpc.publicnode.com`, `viem`, no API key needed):
+real deployed contract, `name()`/`symbol()` both return `"Dyl"`,
+`totalSupply()` = 1333, `supportsInterface(0x80ac58cd)` (ERC-721) = true,
+real IPFS `tokenURI`. `ownerOf(1)` currently returns Dylan's own admin
+wallet (`0x9e0149f7CC28c93A3B5F76AB3e8A2a22d14435b5`) — confirms this is
+genuinely his. Dylan called this "a token" when he supplied it, but it's
+an NFT collection (ERC-721), not fungible — don't build burn logic
+assuming ERC-20 semantics here.
+
+**Three specific Dyl items on OpenSea's own Shared Storefront contract**
+(`0x495f947276749Ce646f68AC8c248420045cb7b5e` — verified via RPC:
+`name()` = `"OpenSea Shared Storefront"`, `supportsInterface(0xd9b67a26)`
+(ERC-1155) = true). **This is OpenSea's generic multi-tenant contract used
+by thousands of unrelated creators for lazy-minted items — burn-eligibility
+logic here MUST check the exact `(contract, tokenId)` pair, never "does
+this wallet hold anything from this contract."** The 3 real, verified
+token ids (all confirmed via a working `uri()` call):
+  - `71467707431311496150712806865917248713642172373080555837822809033127644627944`
+  - `71467707431311496150712806865917248713642172373080555837822809030928621371492`
+  - `71467707431311496150712806865917248713642172373080555837822809034227156254820`
 
 **Old Dyl NFT collection (Solana) — "Crypto Rich Deluxe Trading Cards"**,
 listed at magiceden.us/marketplace/crypto_rich_deluxe_trading_cards.

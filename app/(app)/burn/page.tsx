@@ -2,9 +2,9 @@
 
 import { LEGACY_ASSETS, LegacyAsset } from "@/lib/legacyCollections";
 
-function truncate(addr: string) {
-  if (addr.length <= 14) return addr;
-  return `${addr.slice(0, 8)}…${addr.slice(-6)}`;
+function truncate(addr: string, head = 8, tail = 6) {
+  if (addr.length <= head + tail + 1) return addr;
+  return `${addr.slice(0, head)}…${addr.slice(-tail)}`;
 }
 
 function AssetRow({ asset }: { asset: LegacyAsset }) {
@@ -20,6 +20,7 @@ function AssetRow({ asset }: { asset: LegacyAsset }) {
         <div className="burn-row-name">{asset.name}</div>
         <div className="burn-row-addr">
           {truncate(asset.address)}
+          {asset.tokenId && <> · id {truncate(asset.tokenId, 6, 4)}</>}
           {asset.note && <span className="burn-row-note"> · {asset.note}</span>}
         </div>
       </div>
@@ -51,7 +52,7 @@ export default function BurnPage() {
 
       <div className="burn-list">
         {LEGACY_ASSETS.map((a) => (
-          <AssetRow key={`${a.chain}-${a.address}-${a.kind}`} asset={a} />
+          <AssetRow key={`${a.chain}-${a.address}-${a.tokenId ?? ""}-${a.kind}`} asset={a} />
         ))}
       </div>
     </div>
