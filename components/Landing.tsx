@@ -1,25 +1,33 @@
 "use client";
 
 import Image from "next/image";
-import { CHAINS, ChainKey } from "@/lib/albums";
+import { Album, CHAINS, ChainKey } from "@/lib/albums";
+import ConsolePanel from "./ConsolePanel";
+import BioSection from "./BioSection";
 
 export default function Landing({
   chain,
   onSelectChain,
   onConnect,
+  album,
 }: {
   chain: ChainKey;
   onSelectChain: (chain: ChainKey) => void;
   onConnect: () => void;
+  album: Album;
 }) {
   const activeChain = CHAINS.find((c) => c.key === chain)!;
 
   return (
-    <div className="landing" style={{ "--glow-color": activeChain.color } as React.CSSProperties}>
-      <div className="landing-grid" aria-hidden />
-      <div className="landing-glow" aria-hidden />
+    <div className="landing-page">
+      <div
+        className="landing"
+        style={{ "--glow-color": activeChain.color } as React.CSSProperties}
+      >
+        <div className="landing-grid" aria-hidden />
+        <div className="landing-glow" aria-hidden />
 
-      <div className="landing-inner">
+        <div className="landing-inner">
         <div className="landing-content">
           <Image
             src="/brand/dyl-logo-white.png"
@@ -30,8 +38,11 @@ export default function Landing({
             priority
           />
 
-          <h1>own the drop.</h1>
-          <p>Only 100 NFTs per song, on each chain.</p>
+          <div className="landing-tagline">the OG crypto rapper</div>
+
+          <h1>Only 100 NFTs per song on each chain</h1>
+
+          <div className="landing-price">Every song starts at $5</div>
 
           <div className="landing-chain-select">
             <span className="landing-chain-label">Select blockchain</span>
@@ -61,19 +72,13 @@ export default function Landing({
           </button>
         </div>
 
-        <div className="landing-art">
-          <div className="landing-art-frame">
-            <Image
-              src="/covers/crypto-rich-deluxe.jpg"
-              alt="Crypto Rich (Deluxe)"
-              fill
-              sizes="(max-width: 900px) 280px, 380px"
-              style={{ objectFit: "cover" }}
-              priority
-            />
+          <div className="landing-art">
+            <ConsolePanel album={album} />
           </div>
         </div>
       </div>
+
+      <BioSection />
     </div>
   );
 }

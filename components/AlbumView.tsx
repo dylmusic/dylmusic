@@ -2,12 +2,13 @@
 
 import Image from "next/image";
 import { useMemo, useState } from "react";
-import { Album, ChainKey, baselineMinted } from "@/lib/albums";
+import { Album, ChainKey, Track, baselineMinted } from "@/lib/albums";
 import {
   getHolding,
+  getListingPrice,
   localMintedCount,
   recordMint,
-  setListing,
+  setListingPrice,
 } from "@/lib/holdings";
 import TrackRow from "./TrackRow";
 
@@ -18,11 +19,17 @@ export default function AlbumView({
   chain,
   walletAddress,
   onRequestConnect,
+  playingTrackId,
+  isPlaying,
+  onTogglePlay,
 }: {
   album: Album;
   chain: ChainKey;
   walletAddress: string | null;
   onRequestConnect: () => void;
+  playingTrackId: string | null;
+  isPlaying: boolean;
+  onTogglePlay: (track: Track) => void;
 }) {
   const [tick, setTick] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -46,10 +53,24 @@ export default function AlbumView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [album, chain, walletAddress, tick]);
 
+  const listings = useMemo(() => {
+    if (!walletAddress) return {};
+    const l: Record<string, number | undefined> = {};
+    for (const t of album.tracks) {
+      l[t.id] = getListingPrice(chain, walletAddress, t.id);
+    }
+    return l;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [album, chain, walletAddress, tick]);
+
   const sweepTracks = album.tracks.filter(
     (t) => !holdings[t.id] && minted[t.id] < t.editionCap
   );
   const sweepTotal = sweepTracks.reduce((sum, t) => sum + t.priceUsd, 0);
+
+  const totalMinted = album.tracks.reduce((sum, t) => sum + minted[t.id], 0);
+  const totalCap = album.tracks.reduce((sum, t) => sum + t.editionCap, 0);
+  const soldPct = Math.round((totalMinted / totalCap) * 100);
 
   async function buyTrack(trackId: string) {
     if (!walletAddress || busyId) return;
@@ -84,13 +105,13 @@ export default function AlbumView({
 
   function list(trackId: string, price: number) {
     if (!walletAddress) return;
-    setListing(chain, walletAddress, trackId, price);
+    setListingPrice(chain, walletAddress, trackId, price);
     setTick((n) => n + 1);
   }
 
   function cancelListing(trackId: string) {
     if (!walletAddress) return;
-    setListing(chain, walletAddress, trackId, null);
+    setListingPrice(chain, walletAddress, trackId, null);
     setTick((n) => n + 1);
   }
 
@@ -125,8 +146,8 @@ export default function AlbumView({
               <span className="stat-label">you own</span>
             </div>
             <div>
-              <span className="stat-num">100</span>
-              <span className="stat-label">per edition</span>
+              <span className="stat-num">{soldPct}%</span>
+              <span className="stat-label">sold ({chain})</span>
             </div>
           </div>
 
@@ -151,8 +172,12 @@ export default function AlbumView({
             track={t}
             minted={minted[t.id]}
             holding={holdings[t.id] ?? undefined}
+            listedPrice={listings[t.id]}
             walletConnected={!!walletAddress}
             busy={busyId === t.id}
+            isPlaying={playingTrackId === t.id && isPlaying}
+            isActive={playingTrackId === t.id}
+            onTogglePlay={() => onTogglePlay(t)}
             onBuy={() => buyTrack(t.id)}
             onConnect={onRequestConnect}
             onList={(price) => list(t.id, price)}

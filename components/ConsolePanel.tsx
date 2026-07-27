@@ -1,0 +1,92 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { Album } from "@/lib/albums";
+import { platformOverview } from "@/lib/platformStats";
+
+const DECORATIVE_BARS = Array.from({ length: 20 }, (_, i) => i);
+
+export default function ConsolePanel({ album }: { album: Album }) {
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+
+  const overview = platformOverview(album);
+
+  function handleMove(e: React.PointerEvent<HTMLDivElement>) {
+    const el = stageRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width;
+    const py = (e.clientY - rect.top) / rect.height;
+    setTilt({ x: (0.5 - py) * 16, y: (px - 0.5) * 20 });
+  }
+
+  function handleLeave() {
+    setTilt({ x: 0, y: 0 });
+  }
+
+  return (
+    <div
+      ref={stageRef}
+      className="console-stage"
+      onPointerMove={handleMove}
+      onPointerLeave={handleLeave}
+    >
+      <div
+        className="console-panel"
+        style={{ transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)` }}
+      >
+        <div className="console-header">
+          <span className="console-status">
+            <span className="console-status-dot" /> LIVE
+          </span>
+          <span className="console-id">DYL.SYS</span>
+        </div>
+
+        <div className="console-eq">
+          {DECORATIVE_BARS.map((i) => (
+            <span
+              key={i}
+              className="eq-bar"
+              style={{
+                animationDelay: `${(i % 7) * 0.09}s`,
+                animationDuration: `${0.9 + (i % 5) * 0.15}s`,
+              }}
+            />
+          ))}
+        </div>
+
+        <div className="console-readout">
+          <div className="console-readout-num">{Math.round(overview.totalPct)}%</div>
+          <div className="console-readout-label">sold across all chains</div>
+        </div>
+
+        <div className="console-chains">
+          {overview.perChain.map(({ chain, stat }) => (
+            <div key={chain.key} className="console-chain-meter">
+              <div className="console-chain-top">
+                <span className="chain-dot" style={{ background: chain.color }} />
+                <span>{chain.shortLabel}</span>
+                <span className="console-chain-pct">{Math.round(stat.pct)}%</span>
+              </div>
+              <div className="console-meter-track">
+                <div
+                  className="console-meter-fill"
+                  style={{ width: `${stat.pct}%`, background: chain.color }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="console-footer">
+          <span>{album.tracks.length} TRACKS</span>
+          <span>·</span>
+          <span>100 / EDITION</span>
+          <span>·</span>
+          <span>3 CHAINS</span>
+        </div>
+      </div>
+    </div>
+  );
+}

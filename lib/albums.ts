@@ -24,6 +24,7 @@ export interface Track {
   title: string;
   priceUsd: number;
   editionCap: number;
+  audioSrc: string;
   // Deterministic baseline so the demo doesn't look dead on first load —
   // real minted counts will come from indexing each chain once contracts exist.
   baselineMintedSeed: number;
@@ -38,13 +39,14 @@ export interface Album {
   tracks: Track[];
 }
 
-function track(index: number, title: string, priceUsd = 0.99): Track {
+function track(index: number, title: string, priceUsd = 5): Track {
   return {
     id: `track-${index}`,
     index,
     title,
     priceUsd,
     editionCap: 100,
+    audioSrc: `/audio/track-${index}.mp3`,
     baselineMintedSeed: index,
   };
 }
@@ -53,17 +55,29 @@ export const CRYPTO_RICH_DELUXE: Album = {
   slug: "crypto-rich-deluxe",
   title: "Crypto Rich (Deluxe)",
   artist: "dyl",
-  year: 2021,
+  year: 2020,
   coverImage: "/covers/crypto-rich-deluxe.jpg",
+  // Real 19-track tracklist, in official release order (verified via Spotify).
   tracks: [
-    track(1, "Track 01"),
-    track(2, "Track 02"),
-    track(3, "Track 03"),
-    track(4, "Track 04"),
-    track(5, "Track 05"),
-    track(6, "Track 06"),
-    track(7, "Track 07"),
-    track(8, "Track 08"),
+    track(1, "My Life"),
+    track(2, "Little Bitty"),
+    track(3, "Bad Hair"),
+    track(4, "Way Back"),
+    track(5, "Suck It"),
+    track(6, "On Fire (feat. Wes Walker, Cus Paq)"),
+    track(7, "Shooting Star"),
+    track(8, "Sunday Scaries (feat. Cus Paq, Chex)"),
+    track(9, "Murder Me"),
+    track(10, "No Sleep"),
+    track(11, "Treat Myself"),
+    track(12, "Cryptocurrency"),
+    track(13, "Big Facts"),
+    track(14, "Flash Drive"),
+    track(15, "Bitcoin"),
+    track(16, "Blockchain"),
+    track(17, "Ethereum"),
+    track(18, "Aliens"),
+    track(19, "Crypto Rich"),
   ],
 };
 
