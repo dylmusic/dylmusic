@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Providers from "@/components/Providers";
+import { PlayerProvider } from "@/components/PlayerContext";
+import DesktopBackground from "@/components/DesktopBackground";
 
 export const metadata: Metadata = {
   title: "Dyl - Music NFTs by the OG Crypto Rapper",
@@ -16,7 +18,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          <PlayerProvider>
+            <DesktopBackground />
+            {children}
+          </PlayerProvider>
+        </Providers>
       </body>
     </html>
   );

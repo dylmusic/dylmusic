@@ -12,6 +12,7 @@ interface PlayerState {
   currentTime: number;
   duration: number;
   canGoPrev: boolean;
+  analyser: AnalyserNode | null;
   toggleTrack: (t: Track, queue?: Track[]) => void;
   playNext: () => void;
   playPrev: () => void;
@@ -21,8 +22,15 @@ interface PlayerState {
 
 const PlayerContext = createContext<PlayerState | null>(null);
 
+// Lives in the ROOT layout (wraps every route, home included) so the same
+// audio element, playback state, and analyser graph survive client-side
+// navigation instead of resetting per page — this is what lets the
+// background visualizer and a playing track both persist across the whole
+// site instead of stopping the moment you leave the homepage.
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [playingTrack, setPlayingTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -30,9 +38,27 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [queue, setQueue] = useState<Track[]>([]);
   const [history, setHistory] = useState<Track[]>([]);
 
+  function ensureAudioGraph() {
+    const audio = audioRef.current;
+    if (!audio || audioCtxRef.current) return;
+    const AudioCtx =
+      window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new AudioCtx();
+    const source = ctx.createMediaElementSource(audio);
+    const node = ctx.createAnalyser();
+    node.fftSize = 128;
+    node.smoothingTimeConstant = 0.8;
+    source.connect(node);
+    node.connect(ctx.destination);
+    audioCtxRef.current = ctx;
+    setAnalyser(node);
+  }
+
   function playTrack(t: Track, newQueue: Track[], pushHistory: boolean) {
     const audio = audioRef.current;
     if (!audio) return;
+    ensureAudioGraph();
+    if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
     if (pushHistory && playingTrack) setHistory((h) => [...h, playingTrack]);
     audio.src = t.audioSrc;
     audio.play().catch(() => {});
@@ -45,6 +71,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const audio = audioRef.current;
     if (!audio) return;
     if (playingTrack?.id === t.id) {
+      ensureAudioGraph();
+      if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
       if (isPlaying) audio.pause();
       else audio.play().catch(() => {});
       return;
@@ -98,6 +126,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         currentTime,
         duration,
         canGoPrev: history.length > 0,
+        analyser,
         toggleTrack,
         playNext,
         playPrev,

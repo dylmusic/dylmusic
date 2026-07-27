@@ -93,12 +93,14 @@ export default function DesktopFiles({
   isPlaying,
   onTrackClick,
   avoidRef,
+  avoidRect,
 }: {
   tracks: Track[];
   playingTrackId: string | null;
   isPlaying: boolean;
   onTrackClick: (track: Track) => void;
-  avoidRef: React.RefObject<HTMLElement>;
+  avoidRef?: React.RefObject<HTMLElement>;
+  avoidRect?: Rect;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [positions, setPositions] = useState<Record<string, Pos>>({});
@@ -117,8 +119,8 @@ export default function DesktopFiles({
   // readable, instead of just guessing at a center exclusion zone.
   useEffect(() => {
     const container = containerRef.current;
-    const avoidEl = avoidRef.current;
-    let avoid: Rect | null = null;
+    const avoidEl = avoidRef?.current ?? null;
+    let avoid: Rect | null = avoidRect ?? null;
     if (container && avoidEl) {
       const cRect = container.getBoundingClientRect();
       const aRect = avoidEl.getBoundingClientRect();

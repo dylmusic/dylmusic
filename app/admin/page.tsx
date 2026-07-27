@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { ADMIN_WALLET, isAdminWallet } from "@/lib/admin";
+import { ADMIN_WALLET, isAdminWallet, CONTRACT_TARGETS } from "@/lib/admin";
 
 interface ChatMessage {
   id: string;
@@ -128,10 +128,31 @@ export default function AdminPage() {
             <div className="admin-section-head">
               <h2>Contracts</h2>
             </div>
-            <div className="admin-empty">
-              No contracts deployed yet on any chain — everything is a local simulated ledger. Once
-              there&apos;s a real contract to deploy, tell Claude which one and a real deploy flow
-              (bytecode + constructor args + a Deploy button signed from this wallet) goes here.
+            <div className="admin-empty" style={{ marginBottom: 14 }}>
+              One upgradable collection contract per chain — every track/album mints onto the
+              existing contract as a new tokenId, never a new contract. See CLAUDE.md &quot;Contract
+              Requirement&quot; before writing any of these.
+            </div>
+            <div className="admin-contract-list">
+              {CONTRACT_TARGETS.map((c) => (
+                <div key={c.key} className="admin-contract-row">
+                  <div className="admin-contract-info">
+                    <div className="admin-contract-chain">{c.chainName}</div>
+                    <div className="admin-contract-standard">{c.standard}</div>
+                    <div className="admin-contract-addr">
+                      {c.address ?? "Not deployed"}
+                    </div>
+                  </div>
+                  <div className="admin-contract-actions">
+                    <button className="admin-contract-btn" disabled>
+                      Deploy
+                    </button>
+                    <button className="admin-contract-btn" disabled>
+                      Upgrade
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

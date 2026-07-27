@@ -7,7 +7,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { CHAINS } from "@/lib/albums";
 import { useSolanaWallet } from "@/lib/solana";
 import { usePersistedChain } from "@/lib/useChain";
-import { PlayerProvider, usePlayer } from "@/components/PlayerContext";
+import { usePlayer } from "@/components/PlayerContext";
 import { AppShellContext } from "@/components/AppShellContext";
 import ChainSwitcher from "@/components/ChainSwitcher";
 import WalletPill from "@/components/WalletPill";
@@ -84,7 +84,13 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
       <main>
         <AppShellContext.Provider value={{ chain, walletAddress: activeWallet, requestConnect }}>
-          {onChat ? children : <Win95Window title={pageTitle}>{children}</Win95Window>}
+          {onChat ? (
+            children
+          ) : (
+            <Win95Window title={pageTitle} onClose={() => router.push("/")}>
+              {children}
+            </Win95Window>
+          )}
         </AppShellContext.Provider>
       </main>
 
@@ -112,9 +118,5 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <PlayerProvider>
-      <AppShellInner>{children}</AppShellInner>
-    </PlayerProvider>
-  );
+  return <AppShellInner>{children}</AppShellInner>;
 }
