@@ -3,7 +3,7 @@ import "./globals.css";
 import Providers from "@/components/Providers";
 
 export const metadata: Metadata = {
-  title: "Dyl — The OG Crypto Rapper",
+  title: "Dyl - Music NFTs by the OG Crypto Rapper",
   description:
     "Only 100 NFTs per song, on each chain. Every mint starts at $0.99 — buy with any coin from any chain. Dyl's Crypto Rich (Deluxe), owned by the fans.",
 };

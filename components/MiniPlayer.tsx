@@ -14,22 +14,35 @@ import ListingsModal from "./ListingsModal";
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
+function formatTime(s: number): string {
+  if (!isFinite(s) || s < 0) return "0:00";
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+
 export default function MiniPlayer({
   track,
   chain,
   walletAddress,
   isPlaying,
+  currentTime,
+  duration,
   onToggle,
   onClose,
   onRequestConnect,
+  onSeek,
 }: {
   track: Track;
   chain: ChainKey;
   walletAddress: string | null;
   isPlaying: boolean;
+  currentTime: number;
+  duration: number;
   onToggle: () => void;
   onClose: () => void;
   onRequestConnect: () => void;
+  onSeek: (time: number) => void;
 }) {
   const [tick, setTick] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -131,6 +144,31 @@ export default function MiniPlayer({
         <button className="mini-player-close" onClick={onClose} aria-label="Close player">
           ×
         </button>
+      </div>
+
+      <div
+        className="mini-player-seek"
+        onClick={(e) => {
+          if (!duration) return;
+          const rect = e.currentTarget.getBoundingClientRect();
+          const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+          onSeek(ratio * duration);
+        }}
+      >
+        <div className="mini-player-seek-track">
+          <div
+            className="mini-player-seek-fill"
+            style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+          />
+          <div
+            className="mini-player-seek-thumb"
+            style={{ left: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+          />
+        </div>
+        <div className="mini-player-seek-times">
+          <span>{formatTime(currentTime)}</span>
+          <span>{formatTime(duration)}</span>
+        </div>
       </div>
 
       <div className="mini-player-actions">

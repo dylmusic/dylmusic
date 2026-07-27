@@ -118,6 +118,77 @@ input {
   touch-action: none;
 }
 
+/* ---------- Desktop file icons ---------- */
+
+.desktop-files {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.desktop-file {
+  position: absolute;
+  width: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 6px;
+  border-radius: 8px;
+  cursor: grab;
+  touch-action: none;
+  pointer-events: auto;
+  user-select: none;
+  color: #6b7a70;
+  transition: color 0.15s ease;
+}
+
+.desktop-file:active {
+  cursor: grabbing;
+}
+
+.desktop-file:hover {
+  color: #cdf7c5;
+}
+
+.desktop-file-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.desktop-file.active .desktop-file-icon {
+  background: rgba(124, 255, 107, 0.12);
+  border-color: rgba(124, 255, 107, 0.4);
+  box-shadow: 0 0 16px rgba(124, 255, 107, 0.2);
+}
+
+.desktop-file-name {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 9.5px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.desktop-file.active .desktop-file-name {
+  color: #7cff6b;
+}
+
+.desktop-file-title {
+  font-size: 9px;
+  text-align: center;
+  color: #4d5c53;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 84px;
+}
+
 .landing-inner {
   position: relative;
   z-index: 1;
@@ -173,7 +244,7 @@ input {
 }
 
 .landing-price:last-of-type {
-  margin-bottom: 28px;
+  margin-bottom: 48px;
 }
 
 .landing-chain-select {
@@ -1461,8 +1532,42 @@ input {
   justify-content: center;
 }
 
-.mini-player-close:hover {
-  color: #eef2ee;
+.mini-player-seek {
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.mini-player-seek-track {
+  position: relative;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  margin-bottom: 5px;
+}
+
+.mini-player-seek-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: #7cff6b;
+}
+
+.mini-player-seek-thumb {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #7cff6b;
+  box-shadow: 0 0 6px rgba(124, 255, 107, 0.6);
+  transform: translate(-50%, -50%);
+}
+
+.mini-player-seek-times {
+  display: flex;
+  justify-content: space-between;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 10px;
+  color: #566159;
 }
 
 /* ---------- Responsive ---------- */

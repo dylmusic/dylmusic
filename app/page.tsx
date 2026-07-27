@@ -34,6 +34,8 @@ export default function Home() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playingTrack, setPlayingTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   function toggleTrack(t: Track) {
     const audio = audioRef.current;
@@ -47,6 +49,13 @@ export default function Home() {
     audio.play().catch(() => {});
     setPlayingTrack(t);
     recordStream(t);
+  }
+
+  function seek(time: number) {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.currentTime = time;
+    setCurrentTime(time);
   }
 
   function closePlayer() {
@@ -85,6 +94,8 @@ export default function Home() {
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
+        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
       />
 
       <header className="app-header">
@@ -154,9 +165,12 @@ export default function Home() {
           chain={chain}
           walletAddress={activeWallet}
           isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
           onToggle={() => toggleTrack(playingTrack)}
           onClose={closePlayer}
           onRequestConnect={requestConnect}
+          onSeek={seek}
         />
       )}
     </div>
