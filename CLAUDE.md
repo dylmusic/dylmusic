@@ -76,6 +76,29 @@ actual holder data) before writing any burn-eligibility logic against them.
 **Old Dyl NFT collection (Ethereum mainnet)**
 - `0x253bfce1757bb2e5f9159738f8309c73dafe09ea`
 
+**Old Dyl NFT collection (Solana) — "Crypto Rich Deluxe Trading Cards"**,
+listed at magiceden.us/marketplace/crypto_rich_deluxe_trading_cards.
+Magic Eden's own public API was hard-rate-limited when this was looked up
+(so this was NOT confirmed via their `/v2/collections/...` endpoint) —
+instead pulled directly from JSON embedded in the marketplace page's own
+initial state, which explicitly ties this address to
+`"symbol":"crypto_rich_deluxe_trading_cards","name":"Dyl"`:
+- **Candy Machine ID: `7JvmupdkaFekk2bqqesk4Y22ejQhmpC8Gx5AkB3usgPw`** — this
+  is the real collection identifier for this Candy-Machine-era Solana drop.
+  No separate Metaplex Certified Collection mint was found in the page data
+  looked at (that field may not exist for a collection this old, or may
+  just not have been present in the specific payload fetched) — if a
+  distinct `collection.key` shows up when this is actually built against,
+  that's the more precise per-NFT-verifiable address; the candy machine ID
+  is what's confirmed for now.
+  - One live example token from this collection (the current floor NFT at
+    the time this was looked up, for spot-checking against a real wallet
+    on Solscan/Solana FM): mint `3r7CWTme5bM4nNwHk9GRjygBBS2i5n5R3CQV4GvwQwsu`.
+  - Dylan reported not seeing these in his own Phantom wallet — most likely
+    Phantom's own spam/unverified-collection filter hiding them (check the
+    "Hidden" tab), not necessarily evidence they're gone. Not independently
+    confirmed against his actual wallet address in this session.
+
 **$DYL (old cross-chain token) — burning the coin itself may or may not be
 in scope of "old NFTs"; listed here since Dylan supplied it in the same
 message. Confirm with him whether $DYL burns also grant mints, or only the
