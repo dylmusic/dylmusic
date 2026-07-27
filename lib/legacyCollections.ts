@@ -61,6 +61,15 @@ export const LEGACY_ASSETS: LegacyAsset[] = [
     note: "shared multi-tenant contract — must check this exact tokenId, not the whole contract",
   },
   {
+    chain: "ethereum",
+    chainLabel: "Ethereum",
+    kind: "nft",
+    name: "Dyl item on OpenSea Shared Storefront #4",
+    address: "0x495f947276749Ce646f68AC8c248420045cb7b5e",
+    tokenId: "71467707431311496150712806865917248713642172373080555837822809021033016721418",
+    note: "shared multi-tenant contract — must check this exact tokenId, not the whole contract",
+  },
+  {
     chain: "solana",
     chainLabel: "Solana",
     kind: "nft",

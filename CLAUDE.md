@@ -121,17 +121,18 @@ genuinely his. Dylan called this "a token" when he supplied it, but it's
 an NFT collection (ERC-721), not fungible — don't build burn logic
 assuming ERC-20 semantics here.
 
-**Three specific Dyl items on OpenSea's own Shared Storefront contract**
+**Four specific Dyl items on OpenSea's own Shared Storefront contract**
 (`0x495f947276749Ce646f68AC8c248420045cb7b5e` — verified via RPC:
 `name()` = `"OpenSea Shared Storefront"`, `supportsInterface(0xd9b67a26)`
 (ERC-1155) = true). **This is OpenSea's generic multi-tenant contract used
 by thousands of unrelated creators for lazy-minted items — burn-eligibility
 logic here MUST check the exact `(contract, tokenId)` pair, never "does
-this wallet hold anything from this contract."** The 3 real, verified
+this wallet hold anything from this contract."** The 4 real, verified
 token ids (all confirmed via a working `uri()` call):
   - `71467707431311496150712806865917248713642172373080555837822809033127644627944`
   - `71467707431311496150712806865917248713642172373080555837822809030928621371492`
   - `71467707431311496150712806865917248713642172373080555837822809034227156254820`
+  - `71467707431311496150712806865917248713642172373080555837822809021033016721418`
 
 **Old Dyl NFT collection (Solana) — "Crypto Rich Deluxe Trading Cards"**,
 listed at magiceden.us/marketplace/crypto_rich_deluxe_trading_cards.
@@ -221,6 +222,40 @@ chooses, or a fixed mapping? How is burn eligibility checked cross-chain
 Base collection) — this needs real cross-chain proof-of-burn verification,
 not just a client-side self-report like the rest of this app's current
 "ownership" checks.
+
+### Burn protocol — which address/mechanism per chain
+
+Dylan's direction: use a real, recognizable, "looks legit" burn address per
+chain rather than inventing one. Verified for real before writing anything
+here (getting a burn address wrong is unrecoverable — a bad address either
+just isn't a real burn, or worse, sends a real asset to whoever actually
+controls it):
+
+- **EVM (Ethereum, Base, Polygon, Robinhood Chain): `0x000000000000000000000000000000000000dEaD`**
+  — verified live: valid checksum, zero outgoing transactions ever (exactly
+  what a real dead address should look like — it only ever receives). This
+  is the industry-standard "burn address" convention across the whole EVM
+  ecosystem, deliberately not the true zero address (`0x000...000`) since
+  some tokens' `transfer()` reverts on sends to the zero address, and
+  `0x...dEaD` reads as obviously intentional.
+- **Tezos: `tz1burnburnburnburnburnburnburjAYjjX`** — verified live via
+  TzKT (`api.tzkt.io`): TzKT's own indexer labels this address itself
+  `"alias": "Burn Address 🔥"`, holding 727,301+ distinct tokens across
+  728,494+ token balances. Real, ecosystem-recognized, not a guess.
+- **Solana: there is no equivalent "send it to a dead address" convention
+  to verify, and none should be used.** SPL Token (the standard both
+  fungible $DYL and the Crypto Rich Deluxe Trading Cards NFTs use) has a
+  **native `Burn` instruction** that actually decrements supply and
+  destroys the token at the protocol level — this is the technically
+  correct mechanism, not a wallet-style black-hole address. (This is also
+  exactly why burning on Solana can reclaim SOL rent and EVM burns can't —
+  a real burn + closing the token account returns the rent deposit; a
+  same-chain EVM "burn" is just a transfer with no analogous refund.) A
+  specific "incinerator" vanity address was floated but **could not be
+  verified — every guessed variant failed as an invalid/wrong-size Solana
+  pubkey against a live RPC call, so none is recorded here.** Don't use an
+  unverified address; call the real `Burn`/`BurnChecked` instruction from
+  `@solana/spl-token` instead when this gets built.
 
 ---
 

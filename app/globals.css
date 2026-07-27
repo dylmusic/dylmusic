@@ -3356,3 +3356,98 @@ input {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+.burn-checker {
+  background: #12161a;
+  border: 1px solid rgba(255, 107, 40, 0.25);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 28px;
+}
+
+.burn-checker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.burn-checker-title {
+  font-weight: 700;
+  color: #eef2ee;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.burn-checker-sub {
+  font-size: 12.5px;
+  color: #7c8a80;
+  max-width: 420px;
+  line-height: 1.5;
+}
+
+.burn-checker-btn {
+  flex-shrink: 0;
+  width: auto;
+  max-width: none;
+  margin-bottom: 0;
+  padding: 11px 22px;
+  font-size: 13px;
+}
+
+.burn-checker-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.burn-checker-total {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.burn-checker-total-num {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 30px;
+  font-weight: 700;
+  color: #ff8a3d;
+  line-height: 1;
+}
+
+.burn-checker-total-label {
+  font-size: 13px;
+  color: #8b978f;
+}
+
+.burn-checker-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.burn-checker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: 12.5px;
+}
+
+.burn-checker-row-name {
+  color: #7c8a80;
+}
+
+.burn-checker-row-count {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  color: #5c6b62;
+}
+
+.burn-checker-row-count.has {
+  color: var(--accent);
+  font-weight: 700;
+}

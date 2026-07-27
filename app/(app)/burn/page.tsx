@@ -1,6 +1,7 @@
 "use client";
 
 import { LEGACY_ASSETS, LegacyAsset } from "@/lib/legacyCollections";
+import BurnWalletChecker from "@/components/BurnWalletChecker";
 
 function truncate(addr: string, head = 8, tail = 6) {
   if (addr.length <= head + tail + 1) return addr;
@@ -49,6 +50,8 @@ export default function BurnPage() {
         Coming Soon until that&apos;s true. This page already lists every old contract that will
         be eligible.
       </div>
+
+      <BurnWalletChecker />
 
       <div className="burn-list">
         {LEGACY_ASSETS.map((a) => (
