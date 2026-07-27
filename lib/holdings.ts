@@ -154,3 +154,14 @@ export function buyListedEdition(
   listings[sellerKey] = sellerListings;
   writeMap(LISTINGS_KEY, listings);
 }
+
+// Gate for anything that just needs "does this wallet hold at least one
+// edition of anything" (e.g. token-gated chat posting) — checks every track
+// across every passed-in album's tracklist on this chain.
+export function ownsAnyEdition(
+  chainKey: ChainKey,
+  wallet: string,
+  trackIds: string[]
+): boolean {
+  return trackIds.some((trackId) => getOwnedEditions(chainKey, wallet, trackId).length > 0);
+}
