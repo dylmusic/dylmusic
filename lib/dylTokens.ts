@@ -1,6 +1,7 @@
 import { createPublicClient, http, isAddress, getAddress } from "viem";
 import { robinhoodChain } from "./web3";
 import { base } from "wagmi/chains";
+import type { ChainKey } from "./albums";
 
 // Curated token list for the real Swap page — same "Select Token" pattern
 // as HOODPrinter's /swap, rebranded and generalized (no single token's pool
@@ -141,6 +142,19 @@ export const CURATED_TOKENS: DylToken[] = [
 
 export function isSolanaChain(chainId: number): boolean {
   return chainId === SOLANA_CHAIN_ID;
+}
+
+export function chainIdForKey(chain: ChainKey): number {
+  if (chain === "base") return base.id;
+  if (chain === "solana") return SOLANA_CHAIN_ID;
+  return robinhoodChain.id;
+}
+
+// The site's own chain selector (robinhood/base/solana) picks which native
+// asset a buy defaults to paying with — the same tokens the real Swap page
+// already curates, just looked up by our own ChainKey instead of a raw id.
+export function getNativeTokenForChain(chain: ChainKey): DylToken {
+  return PINNED_TOKENS[chain][0];
 }
 
 const erc20MetaAbi = [

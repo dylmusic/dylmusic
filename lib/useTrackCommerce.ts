@@ -12,8 +12,12 @@ import {
 } from "./holdings";
 import { buildOrderBook, OrderBookEntry } from "./orderbook";
 import { recordActivity } from "./activity";
-import { getNativePayToken, isNativePayToken } from "./swapTokens";
+import { getNativeTokenForChain } from "./dylTokens";
 import type { DylToken } from "./dylTokens";
+
+function isNativePayToken(payToken: DylToken, nativeToken: DylToken): boolean {
+  return payToken.chainId === nativeToken.chainId && payToken.address === nativeToken.address;
+}
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
@@ -131,7 +135,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     const { track: t, entry } = pendingBuy;
     const entryKey = entry.type === "mint" ? "mint" : `${entry.editionNumber}`;
     setBusyKey(`${t.id}:${entryKey}`);
-    if (!isNativePayToken(payToken)) {
+    if (!isNativePayToken(payToken, getNativeTokenForChain(chain))) {
       setBuyStep(1);
       await delay(900);
       setBuyStep(2);
@@ -175,7 +179,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     busyKey,
     pendingBuy,
     buyStep,
-    defaultPayToken: getNativePayToken(chain),
+    defaultPayToken: getNativeTokenForChain(chain),
     requestBuyFloor,
     requestBuyFromBook,
     confirmPendingBuy,

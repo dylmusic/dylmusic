@@ -1,22 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Track, ChainKey } from "@/lib/albums";
+import type { Track } from "@/lib/albums";
 import type { OrderBookEntry } from "@/lib/orderbook";
-import { CURATED_PAY_TOKENS } from "@/lib/swapTokens";
+import { CURATED_TOKENS, PINNED_TOKENS, SWAP_CHAINS } from "@/lib/dylTokens";
 import type { DylToken } from "@/lib/dylTokens";
 import TokenPickerModal, { TokenIcon } from "./TokenPickerModal";
 
+const ALL_PINNED = [...PINNED_TOKENS.robinhood, ...PINNED_TOKENS.base, ...PINNED_TOKENS.solana];
+
 // "Buy" no longer purchases instantly — this confirms which currency to pay
-// with (defaulting to the chain's native asset) before doing so. Nothing
-// here is wired to a real payment yet, so choosing a non-native currency
-// just plays a cosmetic "swap, then buy" 1/2 -> 2/2 animation using the same
-// token picker the real Swap page uses, rather than actually moving funds.
+// with (defaulting to the chain's native asset) before doing so, letting the
+// buyer switch to any chain/token the real Swap page itself supports. Until
+// real NFT contracts are live, none of this actually moves funds — choosing
+// a non-native currency just plays a cosmetic "swap, then buy" 1/2 -> 2/2
+// animation instead of a real swap-then-purchase.
 
 export default function BuyConfirmModal({
   track,
   entry,
-  chain,
   defaultPayToken,
   buyStep,
   busy,
@@ -25,7 +27,6 @@ export default function BuyConfirmModal({
 }: {
   track: Track;
   entry: OrderBookEntry;
-  chain: ChainKey;
   defaultPayToken: DylToken;
   buyStep: 1 | 2 | null;
   busy: boolean;
@@ -39,7 +40,8 @@ export default function BuyConfirmModal({
     setPayToken(defaultPayToken);
   }, [defaultPayToken, track.id]);
 
-  const isNative = payToken.address === defaultPayToken.address;
+  const isNative =
+    payToken.chainId === defaultPayToken.chainId && payToken.address === defaultPayToken.address;
 
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onCancel}>
@@ -48,7 +50,7 @@ export default function BuyConfirmModal({
           <div className="buy-confirm-waiting">
             <div className="buy-confirm-ring" />
             <div className="buy-confirm-waiting-title">
-              {buyStep === 1 ? `Swapping to ${defaultPayToken.symbol}` : "Buying edition"}
+              {buyStep === 1 ? `Swapping ${payToken.symbol} to ${defaultPayToken.symbol}` : "Buying edition"}
             </div>
             <div className="buy-confirm-waiting-sub">Step {buyStep} of 2</div>
             <div className="buy-confirm-dots">
@@ -70,7 +72,9 @@ export default function BuyConfirmModal({
 
             <div className="buy-confirm-track">
               <span className="buy-confirm-track-title">
-                {entry.type === "mint" ? "New edition" : `Edition #${entry.editionNumber}`}
+                {entry.type === "mint"
+                  ? `MINTING: EDITION #${track.editionCap - (entry.remaining ?? 0) + 1}`
+                  : `PURCHASE: EDITION #${entry.editionNumber}`}
               </span>
               <span className="buy-confirm-track-price">${entry.priceUsd.toFixed(2)}</span>
             </div>
@@ -88,7 +92,8 @@ export default function BuyConfirmModal({
               </button>
               {!isNative && (
                 <div className="swap-route-note">
-                  Not {defaultPayToken.symbol} — swaps to {defaultPayToken.symbol} first, then buys.
+                  Swaps {payToken.symbol} ({SWAP_CHAINS.find((c) => c.id === payToken.chainId)?.name}) to{" "}
+                  {defaultPayToken.symbol} first, then buys.
                 </div>
               )}
             </div>
@@ -102,11 +107,10 @@ export default function BuyConfirmModal({
 
       <TokenPickerModal
         open={pickerOpen}
-        chainId={defaultPayToken.chainId}
-        tokens={CURATED_PAY_TOKENS[chain]}
-        pinnedTokens={CURATED_PAY_TOKENS[chain]}
-        chains={[]}
-        allowCustomAddress={false}
+        chainId={payToken.chainId}
+        tokens={CURATED_TOKENS}
+        pinnedTokens={ALL_PINNED}
+        chains={SWAP_CHAINS}
         onClose={() => setPickerOpen(false)}
         onSelect={setPayToken}
       />

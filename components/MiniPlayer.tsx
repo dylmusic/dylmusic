@@ -212,7 +212,6 @@ export default function MiniPlayer({
         <BuyConfirmModal
           track={commerce.pendingBuy.track}
           entry={commerce.pendingBuy.entry}
-          chain={chain}
           defaultPayToken={commerce.defaultPayToken}
           buyStep={commerce.buyStep}
           busy={commerce.busyKey !== null}
