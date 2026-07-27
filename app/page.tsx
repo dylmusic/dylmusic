@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { useAccount, useDisconnect } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
@@ -28,18 +29,19 @@ export default function Home() {
   }
 
   if (!connected) {
-    return (
-      <Landing
-        onConnectEvm={() => openConnectModal?.()}
-        onConnectSol={() => sol.connect()}
-      />
-    );
+    return <Landing chain={chain} onSelectChain={setChain} onConnect={requestConnect} />;
   }
 
   return (
     <div className="app-shell">
       <header className="app-header">
-        <div className="app-logo">dyl</div>
+        <Image
+          src="/brand/dyl-logo-white.png"
+          alt="dyl"
+          width={40}
+          height={32}
+          className="app-logo-img"
+        />
         <ChainSwitcher selected={chain} onSelect={setChain} />
         <WalletPill
           chain={chain}
