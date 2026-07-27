@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ChainKey, Track } from "@/lib/albums";
 import { useTrackCommerce } from "@/lib/useTrackCommerce";
 import ListingsModal from "./ListingsModal";
@@ -14,6 +14,8 @@ function shuffle<T>(arr: T[]): T[] {
   }
   return a;
 }
+
+type PicksMode = "top" | "shuffle";
 
 export default function StartMenu({
   allTracks,
@@ -34,9 +36,22 @@ export default function StartMenu({
   onTogglePlay: (t: Track) => void;
   onClose: () => void;
 }) {
-  const [picked] = useState<Track[]>(() => shuffle(allTracks).slice(0, 6));
+  const [mode, setMode] = useState<PicksMode>("top");
+  const [shuffled, setShuffled] = useState<Track[]>(() => shuffle(allTracks).slice(0, 12));
   const [modalTrackId, setModalTrackId] = useState<string | null>(null);
   const [bookTrackId, setBookTrackId] = useState<string | null>(null);
+
+  const topPicked = useMemo(
+    () => [...allTracks].sort((a, b) => b.priceUsd - a.priceUsd).slice(0, 12),
+    [allTracks]
+  );
+
+  const picked = mode === "top" ? topPicked : shuffled;
+
+  function handleShuffleClick() {
+    setShuffled(shuffle(allTracks).slice(0, 12));
+    setMode("shuffle");
+  }
 
   const commerce = useTrackCommerce(picked, chain, walletAddress);
 
@@ -58,7 +73,20 @@ export default function StartMenu({
         </div>
 
         <div className="start-menu-body">
-          <div className="start-menu-heading">Shuffle picks</div>
+          <div className="start-menu-tabs">
+            <button
+              className={`start-menu-tab${mode === "top" ? " active" : ""}`}
+              onClick={() => setMode("top")}
+            >
+              Top Songs
+            </button>
+            <button
+              className={`start-menu-tab${mode === "shuffle" ? " active" : ""}`}
+              onClick={handleShuffleClick}
+            >
+              Shuffle Songs
+            </button>
+          </div>
           {picked.map((t) => {
             const active = playingTrackId === t.id;
             const floor = commerce.books[t.id]?.[0];

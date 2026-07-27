@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ALBUMS, CHAINS } from "@/lib/albums";
+import { ALBUMS } from "@/lib/albums";
 import { ownsAnyEdition } from "@/lib/holdings";
 import { getNickname } from "@/lib/nicknames";
 import { useAppShell } from "@/components/AppShellContext";
@@ -33,7 +33,6 @@ function timeAgo(ts: number) {
 export default function ChatPage() {
   const { chain, walletAddress, requestConnect } = useAppShell();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [configured, setConfigured] = useState<boolean | null>(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [tick, setTick] = useState(0);
@@ -45,10 +44,9 @@ export default function ChatPage() {
     try {
       const res = await fetch("/api/chat", { cache: "no-store" });
       const data = await res.json();
-      setConfigured(!!data.configured);
       setMessages(data.messages ?? []);
     } catch {
-      setConfigured(false);
+      // best-effort — same tolerance as the rest of this prototype's telemetry
     }
   }
 
@@ -89,19 +87,12 @@ export default function ChatPage() {
     <div className="chat-wrap">
       <div className="dash-page-head">
         <div className="dash-eyebrow">Chat</div>
-        <h1>Holder Chat</h1>
-        <p className="chat-sub">
-          Anyone can read. Posting takes owning at least one numbered edition,
-          any track, any album — on {CHAINS.find((c) => c.key === chain)?.label ?? chain}.
-        </p>
+        <h1>Member Chat</h1>
       </div>
 
       <div className="chat-list" ref={listRef}>
-        {configured === false && (
-          <div className="chat-empty">Chat isn&apos;t set up yet — check back soon.</div>
-        )}
-        {configured && messages.length === 0 && (
-          <div className="chat-empty">No messages yet — be the first holder to post.</div>
+        {messages.length === 0 && (
+          <div className="chat-empty">No messages yet — be the first to post.</div>
         )}
         {messages.map((m) => {
           const name = getNickname(m.wallet) ?? truncate(m.wallet);
@@ -119,31 +110,30 @@ export default function ChatPage() {
       </div>
 
       <div className="chat-composer">
-        {!walletAddress ? (
-          <button className="btn-connect chat-connect" onClick={requestConnect}>
-            Connect Wallet to Post
+        <div
+          className={`chat-input-row${!canPost ? " disabled" : ""}`}
+          onClick={() => {
+            if (!walletAddress) requestConnect();
+          }}
+        >
+          <input
+            value={draft}
+            maxLength={500}
+            placeholder={canPost ? "Say something…" : "You must hold a Dyl NFT to chat"}
+            disabled={!canPost}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") send();
+            }}
+          />
+          <button
+            className="btn-buy"
+            onClick={send}
+            disabled={!canPost || sending || !draft.trim()}
+          >
+            {sending ? "…" : "Post"}
           </button>
-        ) : !canPost ? (
-          <div className="chat-gate">
-            You need to own an edition to post here — browse{" "}
-            <a href="/music">Music</a> to grab one.
-          </div>
-        ) : (
-          <div className="chat-input-row">
-            <input
-              value={draft}
-              maxLength={500}
-              placeholder="Say something…"
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") send();
-              }}
-            />
-            <button className="btn-buy" onClick={send} disabled={sending || !draft.trim()}>
-              {sending ? "…" : "Post"}
-            </button>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

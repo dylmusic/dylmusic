@@ -186,7 +186,7 @@ input {
   z-index: 41;
   display: flex;
   width: min(420px, calc(100vw - 20px));
-  max-height: 70vh;
+  max-height: 88vh;
   background: #0a0e0c;
   border-top: 2px solid rgba(255, 255, 255, 0.4);
   border-left: 2px solid rgba(255, 255, 255, 0.4);
@@ -228,6 +228,36 @@ input {
   text-transform: uppercase;
   color: #566159;
   padding: 4px 6px 10px;
+}
+
+.start-menu-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px 6px 12px;
+}
+
+.start-menu-tab {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7c8a80;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.start-menu-tab:hover {
+  color: #cfd9d2;
+}
+
+.start-menu-tab.active {
+  color: #04140a;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .start-menu-row {
@@ -1841,6 +1871,15 @@ input {
   min-width: 0;
 }
 
+.mini-player-artist {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  line-height: 1.4;
+}
+
 .mini-player-title {
   font-size: 14.5px;
   font-weight: 500;
@@ -2063,13 +2102,6 @@ input {
   padding: 48px 24px 160px;
 }
 
-.chat-sub {
-  font-size: 14px;
-  color: #8b978f;
-  margin: 0;
-  max-width: 480px;
-}
-
 .chat-list {
   display: flex;
   flex-direction: column;
@@ -2136,24 +2168,6 @@ input {
   bottom: 16px;
 }
 
-.chat-connect {
-  width: 100%;
-}
-
-.chat-gate {
-  background: #12161a;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 14px 16px;
-  font-size: 13.5px;
-  color: #8b978f;
-  text-align: center;
-}
-
-.chat-gate a {
-  color: var(--accent);
-}
-
 .chat-input-row {
   display: flex;
   gap: 8px;
@@ -2179,4 +2193,17 @@ input {
 
 .chat-input-row .btn-buy {
   flex-shrink: 0;
+}
+
+.chat-input-row.disabled {
+  opacity: 0.55;
+  cursor: pointer;
+}
+
+.chat-input-row.disabled input {
+  cursor: pointer;
+}
+
+.chat-input-row.disabled input::placeholder {
+  color: #8b978f;
 }

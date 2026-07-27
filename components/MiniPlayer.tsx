@@ -171,6 +171,7 @@ export default function MiniPlayer({
             <span />
           </span>
           <div className="mini-player-text">
+            <span className="mini-player-artist">Dyl</span>
             <span className="mini-player-title">{track.title}</span>
             <span className="mini-player-sub">
               {ownedEditions.length > 0
