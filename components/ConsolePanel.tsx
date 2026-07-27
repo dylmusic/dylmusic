@@ -65,7 +65,7 @@ export default function ConsolePanel({
                 <path d="M2.5 1.2c0-.9 1-1.4 1.7-.9l9 5.8c.7.4.7 1.4 0 1.8l-9 5.8c-.7.5-1.7 0-1.7-.9V1.2Z" />
               </svg>
             )}
-            {previewPlaying ? "Playing" : "Preview"}
+            {previewPlaying ? "Playing" : "Play Music"}
           </button>
         </div>
 

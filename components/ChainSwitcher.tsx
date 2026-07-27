@@ -10,7 +10,7 @@ export default function ChainSwitcher({
   onSelect: (chain: ChainKey) => void;
 }) {
   return (
-    <div className="chain-switch" role="tablist" aria-label="Select chain">
+    <div className="chain-switch nav-chain-switch" role="tablist" aria-label="Select chain">
       {CHAINS.map((c) => (
         <button
           key={c.key}

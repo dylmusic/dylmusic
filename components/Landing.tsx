@@ -6,6 +6,7 @@ import { Album, CHAINS, ChainKey } from "@/lib/albums";
 import ConsolePanel from "./ConsolePanel";
 import BioSection from "./BioSection";
 import Visualizer from "./Visualizer";
+import MiniPlayer from "./MiniPlayer";
 
 export default function Landing({
   chain,
@@ -13,12 +14,14 @@ export default function Landing({
   onConnect,
   album,
   alreadyConnected = false,
+  walletAddress = null,
 }: {
   chain: ChainKey;
   onSelectChain: (chain: ChainKey) => void;
   onConnect: () => void;
   album: Album;
   alreadyConnected?: boolean;
+  walletAddress?: string | null;
 }) {
   const activeChain = CHAINS.find((c) => c.key === chain)!;
   const previewTrack = album.tracks[album.tracks.length - 1];
@@ -27,6 +30,7 @@ export default function Landing({
   const audioCtxRef = useRef<AudioContext | null>(null);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [previewPlaying, setPreviewPlaying] = useState(false);
+  const [previewShown, setPreviewShown] = useState(false);
 
   function togglePreview() {
     const audio = previewAudioRef.current;
@@ -54,7 +58,14 @@ export default function Landing({
       audio.pause();
     } else {
       audio.play().catch(() => {});
+      setPreviewShown(true);
     }
+  }
+
+  function closePreview() {
+    const audio = previewAudioRef.current;
+    if (audio) audio.pause();
+    setPreviewShown(false);
   }
 
   return (
@@ -91,7 +102,6 @@ export default function Landing({
             <div className="landing-price">Buy with any coin from any chain</div>
 
             <div className="landing-chain-select">
-              <span className="landing-chain-label">Select blockchain</span>
               <div className="chain-switch landing-chain-switch" role="tablist" aria-label="Select chain">
                 {CHAINS.map((c) => (
                   <button
@@ -130,6 +140,18 @@ export default function Landing({
       </div>
 
       <BioSection />
+
+      {previewShown && (
+        <MiniPlayer
+          track={previewTrack}
+          chain={chain}
+          walletAddress={walletAddress}
+          isPlaying={previewPlaying}
+          onToggle={togglePreview}
+          onClose={closePreview}
+          onRequestConnect={onConnect}
+        />
+      )}
     </div>
   );
 }

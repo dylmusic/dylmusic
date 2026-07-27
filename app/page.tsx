@@ -72,6 +72,7 @@ export default function Home() {
         onSelectChain={setChain}
         onConnect={handleLandingConnect}
         alreadyConnected={connected}
+        walletAddress={activeWallet}
         album={CRYPTO_RICH_DELUXE}
       />
     );
@@ -117,16 +118,18 @@ export default function Home() {
           </div>
         </div>
         <ChainSwitcher selected={chain} onSelect={setChain} />
-        <WalletPill
-          chain={chain}
-          evmAddress={evmAddress}
-          solAddress={sol.address}
-          onConnectEvm={() => openConnectModal?.()}
-          onConnectSol={() => sol.connect()}
-          onDisconnectEvm={() => disconnectEvm()}
-          onDisconnectSol={() => sol.disconnect()}
-        />
-        {activeWallet && <NicknameEditor wallet={activeWallet} />}
+        <div className="wallet-pill-group">
+          {activeWallet && <NicknameEditor wallet={activeWallet} />}
+          <WalletPill
+            chain={chain}
+            evmAddress={evmAddress}
+            solAddress={sol.address}
+            onConnectEvm={() => openConnectModal?.()}
+            onConnectSol={() => sol.connect()}
+            onDisconnectEvm={() => disconnectEvm()}
+            onDisconnectSol={() => sol.disconnect()}
+          />
+        </div>
       </header>
 
       <main>

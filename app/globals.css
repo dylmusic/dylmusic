@@ -521,6 +521,10 @@ input {
   color: #cfd9d2;
 }
 
+.nav-chain-switch .chain-pill {
+  text-transform: uppercase;
+}
+
 .chain-pill.active {
   background: color-mix(in srgb, var(--chain-color) 16%, transparent);
   color: #f2f6f3;
@@ -562,42 +566,41 @@ input {
   box-shadow: 0 0 6px #7cff6b;
 }
 
-.nickname-trigger {
-  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
-  font-size: 11px;
-  color: #566159;
-  white-space: nowrap;
-}
-
-.nickname-trigger:hover {
-  color: #9fada4;
-}
-
-.nickname-editor {
+.wallet-pill-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+}
+
+.nickname-pencil {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #566159;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.nickname-pencil:hover {
+  color: #cdf7c5;
+  border-color: rgba(124, 255, 107, 0.3);
 }
 
 .nickname-editor input {
-  width: 120px;
+  width: 130px;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  padding: 5px 8px;
+  border: 1px solid rgba(124, 255, 107, 0.3);
+  border-radius: 999px;
+  padding: 8px 14px;
   color: #eef2ee;
   font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
-  font-size: 11px;
-}
-
-.nickname-editor button {
-  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
-  font-size: 11px;
-  font-weight: 600;
-  color: #04140a;
-  background: #7cff6b;
-  padding: 5px 10px;
-  border-radius: 6px;
+  font-size: 12px;
+  outline: none;
 }
 
 /* ---------- Album ---------- */
@@ -657,19 +660,23 @@ input {
 .spotify-link {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
-  font-size: 12px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-decoration: none;
   color: #9fada4;
   padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: color 0.15s ease, border-color 0.15s ease;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
 .spotify-link:hover {
   color: #1ed760;
+  background: rgba(30, 215, 96, 0.1);
   border-color: rgba(30, 215, 96, 0.35);
 }
 
