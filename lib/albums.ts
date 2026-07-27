@@ -34,6 +34,7 @@ export interface Album {
   title: string;
   artist: string;
   year: number;
+  coverImage: string;
   tracks: Track[];
 }
 
@@ -53,6 +54,7 @@ export const CRYPTO_RICH_DELUXE: Album = {
   title: "Crypto Rich (Deluxe)",
   artist: "dyl",
   year: 2021,
+  coverImage: "/covers/crypto-rich-deluxe.jpg",
   tracks: [
     track(1, "Track 01"),
     track(2, "Track 02"),

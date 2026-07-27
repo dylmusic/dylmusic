@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { Album, ChainKey, baselineMinted } from "@/lib/albums";
 import {
@@ -99,8 +100,14 @@ export default function AlbumView({
     <div className="album-wrap">
       <div className="album-header">
         <div className="album-cover">
-          <span className="album-cover-badge">DELUXE</span>
-          <span className="album-cover-title">{album.title}</span>
+          <Image
+            src={album.coverImage}
+            alt={album.title}
+            fill
+            sizes="(max-width: 640px) 220px, 220px"
+            priority
+            style={{ objectFit: "cover" }}
+          />
         </div>
 
         <div className="album-meta">

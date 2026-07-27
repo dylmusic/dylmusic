@@ -239,35 +239,11 @@ input {
 .album-cover {
   aspect-ratio: 1 / 1;
   border-radius: 18px;
-  background: radial-gradient(120% 140% at 20% 15%, #163024 0%, #05070a 60%),
-    linear-gradient(155deg, #0f2a1c 0%, #05070a 70%);
   border: 1px solid rgba(124, 255, 107, 0.18);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5),
     inset 0 0 60px rgba(124, 255, 107, 0.05);
   position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 16px;
   overflow: hidden;
-}
-
-.album-cover-badge {
-  align-self: flex-start;
-  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
-  font-size: 10px;
-  letter-spacing: 0.15em;
-  color: #7cff6b;
-  border: 1px solid rgba(124, 255, 107, 0.35);
-  padding: 4px 8px;
-  border-radius: 999px;
-}
-
-.album-cover-title {
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1.15;
-  color: #eef2ee;
 }
 
 .album-eyebrow {
