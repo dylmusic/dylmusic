@@ -62,19 +62,19 @@ function randomPositions(tracks: Track[], avoid: Rect | null): Record<string, Po
   return positions;
 }
 
-// A blocky, pixel-art music note — hand-placed 1px squares on a 12x12 grid,
-// crisp edges (no anti-aliasing) for that Windows-95-icon feel.
+// A blocky, pixel-art eighth note — stem + flag + oval notehead, hand-placed
+// 1px squares on a 12x12 grid, crisp edges for that Windows-95-icon feel.
 const NOTE_PIXELS: [number, number][] = [
-  [7, 1], [8, 1],
-  [7, 2], [8, 2],
-  [7, 3], [8, 3],
-  [7, 4], [8, 4],
-  [7, 5], [8, 5], [9, 5], [10, 5],
-  [7, 6], [8, 6], [9, 6], [10, 6],
-  [2, 8], [3, 8], [4, 8],
-  [1, 9], [2, 9], [3, 9], [4, 9], [5, 9],
-  [1, 10], [2, 10], [3, 10], [4, 10], [5, 10],
-  [2, 11], [3, 11], [4, 11],
+  // stem
+  [8, 1], [8, 2], [8, 3], [8, 4], [8, 5], [8, 6], [8, 7],
+  // flag
+  [9, 1], [9, 2], [10, 2], [9, 3], [10, 3], [11, 3], [9, 4], [10, 4],
+  // notehead (filled oval)
+  [6, 7], [7, 7],
+  [5, 8], [6, 8], [7, 8],
+  [4, 9], [5, 9], [6, 9], [7, 9],
+  [4, 10], [5, 10], [6, 10], [7, 10],
+  [5, 11], [6, 11],
 ];
 
 function MusicIcon() {

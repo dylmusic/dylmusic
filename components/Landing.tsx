@@ -9,6 +9,19 @@ import BioSection from "./BioSection";
 import Visualizer from "./Visualizer";
 import MiniPlayer from "./MiniPlayer";
 import DesktopFiles from "./DesktopFiles";
+import StartMenu from "./StartMenu";
+
+// Same pixel-note shape as the desktop file icons, reused on the taskbar
+// Start button so the "menu" and the "files" read as one icon family.
+const STAR_ICON_PIXELS: [number, number][] = [
+  [7, 1], [7, 2], [7, 3], [7, 4], [7, 5],
+  [8, 1], [8, 2], [9, 2],
+  [5, 5], [6, 5],
+  [4, 6], [5, 6], [6, 6],
+  [3, 7], [4, 7], [5, 7], [6, 7],
+  [3, 8], [4, 8], [5, 8], [6, 8],
+  [4, 9], [5, 9],
+];
 
 export default function Landing({
   chain,
@@ -37,6 +50,7 @@ export default function Landing({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [clock, setClock] = useState<string | null>(null);
+  const [startOpen, setStartOpen] = useState(false);
 
   useEffect(() => {
     function tick() {
@@ -94,11 +108,8 @@ export default function Landing({
   }
 
   return (
-    <div className="landing-page">
-      <div
-        className="landing"
-        style={{ "--glow-color": activeChain.color } as React.CSSProperties}
-      >
+    <div className="landing-page" style={{ "--accent": activeChain.color } as React.CSSProperties}>
+      <div className="landing">
         <Visualizer color={activeChain.color} analyser={isPlaying ? analyser : null} />
         <DesktopFiles
           tracks={album.tracks}
@@ -172,12 +183,29 @@ export default function Landing({
         </div>
 
         <div className="landing-taskbar">
-          <span className="taskbar-start">
-            <span className="chain-dot" style={{ background: activeChain.color }} />
-            dyl.sys
-          </span>
+          <button className="taskbar-start" onClick={() => setStartOpen((v) => !v)}>
+            <svg width="12" height="12" viewBox="0 0 12 12" shapeRendering="crispEdges">
+              {STAR_ICON_PIXELS.map(([x, y], i) => (
+                <rect key={i} x={x} y={y} width="1" height="1" fill="#04140a" />
+              ))}
+            </svg>
+            Start
+          </button>
           <span className="taskbar-clock">{clock ?? "--:--"}</span>
         </div>
+
+        {startOpen && (
+          <StartMenu
+            allTracks={album.tracks}
+            chain={chain}
+            walletAddress={walletAddress}
+            onRequestConnect={onConnect}
+            playingTrackId={playingTrack?.id ?? null}
+            isPlaying={isPlaying}
+            onTogglePlay={toggleTrack}
+            onClose={() => setStartOpen(false)}
+          />
+        )}
       </div>
 
       <BioSection />

@@ -13,7 +13,7 @@ export interface ChainInfo {
 }
 
 export const CHAINS: ChainInfo[] = [
-  { key: "robinhood", label: "Robinhood Chain", shortLabel: "Robinhood", color: "#00C805", live: true },
+  { key: "robinhood", label: "Robinhood", shortLabel: "Robinhood", color: "#00C805", live: true },
   { key: "base", label: "Base", shortLabel: "Base", color: "#0052FF", live: true },
   { key: "solana", label: "Solana", shortLabel: "Solana", color: "#9945FF", live: true },
 ];

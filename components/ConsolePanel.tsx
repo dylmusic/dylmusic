@@ -70,28 +70,22 @@ export default function ConsolePanel({
         </div>
 
         <div className="console-log">
-          <div className="console-log-prompt">
-            <span className="console-log-caret">$</span> dyl.sys --status
+          <div className="console-log-row">
+            <span>Albums</span>
+            <span>{liveCount} live</span>
           </div>
           <div className="console-log-row">
-            <span>catalog</span>
-            <span>
-              {albums.length} albums ({liveCount} live)
-            </span>
+            <span>Tracks</span>
+            <span>{liveAlbum.tracks.length} released</span>
           </div>
           <div className="console-log-row">
-            <span>tracks</span>
-            <span>{liveAlbum.tracks.length} indexed</span>
+            <span>Chains</span>
+            <span>{overview.perChain.map((c) => c.chain.shortLabel).join(" · ")}</span>
           </div>
           <div className="console-log-row">
-            <span>chains</span>
-            <span>{overview.perChain.map((c) => c.chain.shortLabel.toLowerCase()).join(" · ")}</span>
+            <span>Sold</span>
+            <span>{Math.round(overview.totalPct)}% of all editions</span>
           </div>
-          <div className="console-log-row">
-            <span>sold</span>
-            <span>{Math.round(overview.totalPct)}% across all chains</span>
-          </div>
-          <div className="console-log-cursor" />
         </div>
 
         <div className="console-chains">
@@ -113,7 +107,7 @@ export default function ConsolePanel({
         </div>
 
         <div className="console-footer">
-          <span>{albums.length} ALBUMS</span>
+          <span>{liveCount} ALBUM{liveCount === 1 ? "" : "S"}</span>
           <span>·</span>
           <span>{liveAlbum.tracks.length} TRACKS</span>
           <span>·</span>

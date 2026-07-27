@@ -40,10 +40,13 @@ export default function MusicGrid({
               <div className="music-card-title">{album.title}</div>
               <div className="music-card-sub">
                 {album.comingSoon ? (
-                  <span>{album.tracks.length > 0 ? `${album.tracks.length} tracks` : "Coming Soon"}</span>
+                  <span>
+                    {album.year}
+                    {album.tracks.length > 0 ? ` · ${album.tracks.length} tracks` : " · Coming Soon"}
+                  </span>
                 ) : (
                   <span>
-                    {album.tracks.length} tracks · ${total.toFixed(2)}
+                    {album.year} · {album.tracks.length} tracks · ${total.toFixed(2)}
                   </span>
                 )}
               </div>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAccount, useDisconnect } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { CHAINS } from "@/lib/albums";
 import { useSolanaWallet } from "@/lib/solana";
 import { usePersistedChain } from "@/lib/useChain";
 import { PlayerProvider, usePlayer } from "@/components/PlayerContext";
@@ -34,9 +35,10 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const player = usePlayer();
   const onMusic = pathname === "/music" || pathname.startsWith("/music/");
   const onDashboard = pathname === "/dashboard";
+  const accentColor = CHAINS.find((c) => c.key === chain)?.color ?? "#00C805";
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" style={{ "--accent": accentColor } as React.CSSProperties}>
       <header className="app-header">
         <div className="app-header-left">
           <button className="app-logo-btn" onClick={() => router.push("/")} aria-label="Back to home">
