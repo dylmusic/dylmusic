@@ -35,7 +35,14 @@ export interface ContractTarget {
   order: number;
   chainName: string;
   standard: string;
+  /** The permanent, real address users/marketplaces see — the ERC1967 PROXY for EVM targets, never the implementation. */
   address: string | null;
+  /** EVM only — tracks the CURRENT implementation behind the proxy, for upgrade bookkeeping. Irrelevant for solana/marketplace. */
+  implementationAddress?: string | null;
+  /** EVM only — the deployed AlbumBuyer wrapper for this chain (see onchain/contracts/AlbumBuyer.sol). */
+  albumBuyerAddress?: string | null;
+  /** wagmi/viem chainId — required to know which network the admin panel should sign a deploy/upgrade tx on. Absent for solana/marketplace. */
+  chainId?: number;
   reason: string;
   optional?: boolean;
 }
@@ -47,6 +54,9 @@ export const CONTRACT_TARGETS: ContractTarget[] = [
     chainName: "Robinhood Chain",
     standard: "ERC721A (upgradable proxy)",
     address: null,
+    implementationAddress: null,
+    albumBuyerAddress: null,
+    chainId: 4663,
     reason: "Home chain — the flagship collection, deploy first.",
   },
   {
@@ -55,6 +65,9 @@ export const CONTRACT_TARGETS: ContractTarget[] = [
     chainName: "Base",
     standard: "ERC721A (upgradable proxy)",
     address: null,
+    implementationAddress: null,
+    albumBuyerAddress: null,
+    chainId: 8453,
     reason: "Second EVM chain, same contract shape as Robinhood Chain.",
   },
   {
@@ -63,6 +76,9 @@ export const CONTRACT_TARGETS: ContractTarget[] = [
     chainName: "Ethereum",
     standard: "ERC721A (upgradable proxy)",
     address: null,
+    implementationAddress: null,
+    albumBuyerAddress: null,
+    chainId: 1,
     reason: "Added 2026-07-28 (gas is cheap enough now) — same shape again, third EVM deploy.",
   },
   {

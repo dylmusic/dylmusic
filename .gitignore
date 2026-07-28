@@ -3,3 +3,8 @@ node_modules
 .vercel
 *.log
 .DS_Store
+onchain/artifacts
+onchain/cache
+onchain/typechain-types
+onchain/.env
+onchain-solana/.env

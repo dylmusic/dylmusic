@@ -50,6 +50,13 @@ export interface Album {
   comingSoon?: boolean;
 }
 
+// `index` must be globally unique across EVERY track in EVERY album, not
+// just within one album — it's also the on-chain trackId (see
+// onchain/contracts/DylCollection.sol and lib/tokenIdScheme.ts), and two
+// tracks sharing an index would mint into the SAME on-chain tokenId range,
+// a real collision, not just a metadata display bug. Crypto Rich (Deluxe)
+// currently occupies 1-19; the next album to get real tracks must continue
+// from 20, never restart at 1.
 function track(index: number, title: string, priceUsd = 0.99): Track {
   return {
     id: `track-${index}`,

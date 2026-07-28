@@ -1,5 +1,5 @@
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
-import { base } from "wagmi/chains";
+import { base, mainnet } from "wagmi/chains";
 import type { Chain } from "wagmi/chains";
 
 // Reused from the HOODPrinter /swap project's real Reown project — same
@@ -25,6 +25,9 @@ export const robinhoodChain: Chain = {
 export const wagmiConfig = getDefaultConfig({
   appName: "dylmusic",
   projectId: WALLETCONNECT_PROJECT_ID,
-  chains: [base, robinhoodChain],
+  // mainnet added for the admin panel's Ethereum collection deploy/upgrade —
+  // Robinhood Chain and Base already covered browsing/swap, Ethereum was
+  // EVM-target #3 with nothing needing a mainnet signature until now.
+  chains: [base, robinhoodChain, mainnet],
   ssr: true,
 });

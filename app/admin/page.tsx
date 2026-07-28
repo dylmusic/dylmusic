@@ -1,9 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAccount } from "wagmi";
+import { useAccount, usePublicClient, useSendTransaction, useSwitchChain } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { ADMIN_WALLET, isAdminWallet, CONTRACT_TARGETS } from "@/lib/admin";
+import { ADMIN_WALLET, isAdminWallet, CONTRACT_TARGETS, type ContractTarget } from "@/lib/admin";
+import {
+  buildDeployImplementationTx,
+  buildDeployProxyTx,
+  buildUpgradeTx,
+  buildAdminMintTx,
+  buildDeployAlbumBuyerTx,
+} from "@/lib/contractDeploy";
+import type { Address } from "viem";
 
 interface ChatMessage {
   id: string;
@@ -13,18 +21,38 @@ interface ChatMessage {
   ts: number;
 }
 
+// Admin-settable, no oracle (mirrors the contract's own admin-only
+// setMintPrice) — a rough ETH-denominated stand-in for the site's $0.99
+// public mint price. Fine-tune per chain after deploy via setMintPrice as
+// ETH/USD drifts; this is only ever the INITIAL value passed to initialize().
+const DEFAULT_MINT_PRICE_WEI = BigInt("300000000000000"); // 0.0003 ETH
+
+function metadataBaseURI(chainSlug: string) {
+  return `https://dylmusic.vercel.app/api/metadata/${chainSlug}/`;
+}
+
 function truncate(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
+type DeployPhase =
+  | { step: "implementation" | "proxy" | "albumBuyer" | "newImplementation" | "upgrade" | "mint"; label: string }
+  | { step: "done"; label: string }
+  | { step: "error"; label: string };
+
 export default function AdminPage() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId: connectedChainId } = useAccount();
   const { openConnectModal } = useConnectModal();
+  const { sendTransactionAsync } = useSendTransaction();
+  const { switchChainAsync } = useSwitchChain();
+  const publicClient = usePublicClient();
   const allowed = isAdminWallet(address);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatConfigured, setChatConfigured] = useState<boolean | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [targets, setTargets] = useState<ContractTarget[]>(CONTRACT_TARGETS);
+  const [phase, setPhase] = useState<Record<string, DeployPhase | undefined>>({});
 
   async function loadChat() {
     try {
@@ -55,6 +83,118 @@ export default function AdminPage() {
       setDeletingId(null);
     }
   }
+
+  function setTargetField(key: ContractTarget["key"], patch: Partial<ContractTarget>) {
+    setTargets((prev) => prev.map((t) => (t.key === key ? { ...t, ...patch } : t)));
+  }
+
+  async function ensureChain(target: ContractTarget) {
+    if (!target.chainId) throw new Error(`No chainId configured for ${target.key}`);
+    if (connectedChainId !== target.chainId) {
+      await switchChainAsync({ chainId: target.chainId });
+    }
+  }
+
+  async function sendAndWait(tx: { to?: Address; data: `0x${string}`; value: bigint }) {
+    const hash = await sendTransactionAsync(tx);
+    const receipt = await publicClient!.waitForTransactionReceipt({ hash });
+    if (receipt.status !== "success") throw new Error(`Transaction reverted: ${hash}`);
+    return receipt;
+  }
+
+  async function handleDeploy(target: ContractTarget) {
+    if (!address) return;
+    try {
+      await ensureChain(target);
+
+      setPhase((p) => ({ ...p, [target.key]: { step: "implementation", label: "1/3 — Deploying implementation…" } }));
+      const implReceipt = await sendAndWait(buildDeployImplementationTx());
+      const implementationAddress = implReceipt.contractAddress as Address;
+      if (!implementationAddress) throw new Error("No contractAddress in implementation deploy receipt");
+
+      setPhase((p) => ({ ...p, [target.key]: { step: "proxy", label: "2/3 — Deploying proxy…" } }));
+      const proxyReceipt = await sendAndWait(
+        buildDeployProxyTx({
+          implementationAddress,
+          name: "Dyl",
+          symbol: "DYL",
+          admin: address as Address,
+          initialMintPriceWei: DEFAULT_MINT_PRICE_WEI,
+          initialMetadataBaseURI: metadataBaseURI(target.key),
+        })
+      );
+      const proxyAddress = proxyReceipt.contractAddress as Address;
+      if (!proxyAddress) throw new Error("No contractAddress in proxy deploy receipt");
+
+      setPhase((p) => ({ ...p, [target.key]: { step: "albumBuyer", label: "3/3 — Deploying AlbumBuyer…" } }));
+      const albumBuyerReceipt = await sendAndWait(buildDeployAlbumBuyerTx());
+      const albumBuyerAddress = albumBuyerReceipt.contractAddress as Address;
+
+      setTargetField(target.key, {
+        address: proxyAddress,
+        implementationAddress,
+        albumBuyerAddress: albumBuyerAddress ?? null,
+      });
+      setPhase((p) => ({
+        ...p,
+        [target.key]: {
+          step: "done",
+          label: `Deployed. Proxy ${truncate(proxyAddress)} — commit this into lib/admin.ts CONTRACT_TARGETS.`,
+        },
+      }));
+    } catch (err) {
+      setPhase((p) => ({ ...p, [target.key]: { step: "error", label: describeError(err) } }));
+    }
+  }
+
+  async function handleUpgrade(target: ContractTarget) {
+    if (!target.address) return;
+    try {
+      await ensureChain(target);
+      setPhase((p) => ({ ...p, [target.key]: { step: "newImplementation", label: "1/2 — Deploying new implementation…" } }));
+      const implReceipt = await sendAndWait(buildDeployImplementationTx());
+      const newImplementationAddress = implReceipt.contractAddress as Address;
+      if (!newImplementationAddress) throw new Error("No contractAddress in implementation deploy receipt");
+
+      setPhase((p) => ({ ...p, [target.key]: { step: "upgrade", label: "2/2 — Calling upgradeToAndCall…" } }));
+      await sendAndWait(buildUpgradeTx(target.address as Address, newImplementationAddress));
+
+      setTargetField(target.key, { implementationAddress: newImplementationAddress });
+      setPhase((p) => ({
+        ...p,
+        [target.key]: { step: "done", label: `Upgraded. New implementation ${truncate(newImplementationAddress)}.` },
+      }));
+    } catch (err) {
+      setPhase((p) => ({ ...p, [target.key]: { step: "error", label: describeError(err) } }));
+    }
+  }
+
+  async function handleMintFirstTen(target: ContractTarget) {
+    if (!target.address || !address) return;
+    try {
+      await ensureChain(target);
+      setPhase((p) => ({ ...p, [target.key]: { step: "mint", label: "Minting editions #1-10…" } }));
+      // trackId 1 — lib/albums.ts's real tracks start at index 1. Repeat per
+      // track as new albums ship; this button covers one track at a time.
+      await sendAndWait(buildAdminMintTx(target.address as Address, BigInt(1), BigInt(10), address as Address));
+      setPhase((p) => ({
+        ...p,
+        [target.key]: { step: "done", label: "Editions #1-10 minted to admin wallet. Auto-listing is a separate, not-yet-built step (see CLAUDE.md)." },
+      }));
+    } catch (err) {
+      setPhase((p) => ({ ...p, [target.key]: { step: "error", label: describeError(err) } }));
+    }
+  }
+
+  function describeError(err: unknown): string {
+    if (err instanceof Error) return err.message;
+    return "Unknown error — see console.";
+  }
+
+  const busy = (key: string) => {
+    const s = phase[key]?.step;
+    return s !== undefined && s !== "done" && s !== "error";
+  };
 
   return (
     <div className="admin-wrap">
@@ -133,42 +273,75 @@ export default function AdminPage() {
               existing contract as a new tokenId, never a new contract. ERC721A, not ERC-1155
               (decided 2026-07-28). See CLAUDE.md &quot;Contract Requirement&quot; before writing any
               of these. Steps 1–4 are required; step 5 (marketplace) is optional — only do it if
-              OpenSea&apos;s own listing flow (Seaport) turns out not to be enough.
+              OpenSea&apos;s own listing flow (Seaport) turns out not to be enough. Deploy also
+              deploys that chain&apos;s AlbumBuyer wrapper in the same 3-transaction flow. Solana
+              (step 4) is a separate scripted setup, not wired here — see onchain-solana/.
             </div>
             <div className="admin-contract-list">
-              {CONTRACT_TARGETS.map((c) => (
-                <div key={c.key} className={`admin-contract-row${c.optional ? " optional" : ""}`}>
-                  <div className="admin-contract-step">{c.order}</div>
-                  <div className="admin-contract-info">
-                    <div className="admin-contract-chain">
-                      {c.chainName}
-                      {c.optional && <span className="admin-contract-optional-tag">Optional</span>}
+              {targets.map((c) => {
+                const p = phase[c.key];
+                const evm = c.key === "robinhood" || c.key === "base" || c.key === "ethereum";
+                return (
+                  <div key={c.key} className={`admin-contract-row${c.optional ? " optional" : ""}`}>
+                    <div className="admin-contract-step">{c.order}</div>
+                    <div className="admin-contract-info">
+                      <div className="admin-contract-chain">
+                        {c.chainName}
+                        {c.optional && <span className="admin-contract-optional-tag">Optional</span>}
+                      </div>
+                      <div className="admin-contract-standard">{c.standard}</div>
+                      <div className="admin-contract-reason">{c.reason}</div>
+                      <div className="admin-contract-addr">{c.address ?? "Not deployed"}</div>
+                      {c.albumBuyerAddress && (
+                        <div className="admin-contract-addr">AlbumBuyer: {c.albumBuyerAddress}</div>
+                      )}
+                      {p && (
+                        <div className={`admin-contract-addr${p.step === "error" ? " warn" : ""}`}>{p.label}</div>
+                      )}
                     </div>
-                    <div className="admin-contract-standard">{c.standard}</div>
-                    <div className="admin-contract-reason">{c.reason}</div>
-                    <div className="admin-contract-addr">
-                      {c.address ?? "Not deployed"}
-                    </div>
-                  </div>
-                  <div className="admin-contract-actions">
-                    <button className="admin-contract-btn" disabled>
-                      Deploy
-                    </button>
-                    <button className="admin-contract-btn" disabled>
-                      Upgrade
-                    </button>
-                    {c.key !== "marketplace" && (
-                      <button
-                        className="admin-contract-btn"
-                        disabled
-                        title="Mints editions #1-10 to the admin wallet, then auto-lists them at $10-$100 (inverse to edition number) — see CLAUDE.md Deployment minting strategy"
-                      >
-                        Mint #1-10 &amp; List
-                      </button>
+                    {evm ? (
+                      <div className="admin-contract-actions">
+                        <button
+                          className="admin-contract-btn"
+                          disabled={busy(c.key) || !!c.address}
+                          onClick={() => handleDeploy(c)}
+                        >
+                          Deploy
+                        </button>
+                        <button
+                          className="admin-contract-btn"
+                          disabled={busy(c.key) || !c.address}
+                          onClick={() => handleUpgrade(c)}
+                        >
+                          Upgrade
+                        </button>
+                        <button
+                          className="admin-contract-btn"
+                          disabled={busy(c.key) || !c.address}
+                          title="Mints editions #1-10 (trackId 1) to the admin wallet. Auto-listing at $10-$100 per CLAUDE.md's Deployment minting strategy is a separate, not-yet-built step."
+                          onClick={() => handleMintFirstTen(c)}
+                        >
+                          Mint #1-10 &amp; List
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="admin-contract-actions">
+                        <button className="admin-contract-btn" disabled>
+                          Deploy
+                        </button>
+                        <button className="admin-contract-btn" disabled>
+                          Upgrade
+                        </button>
+                        {c.key !== "marketplace" && (
+                          <button className="admin-contract-btn" disabled>
+                            Mint #1-10 &amp; List
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

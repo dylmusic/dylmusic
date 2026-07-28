@@ -37,12 +37,18 @@ Concretely, when contracts get built:
   contract needs to be **upgradable** (see below) — adding tracks/albums
   over time is core to the roadmap (Internet Legend, lost angeles files,
   and whatever comes after), and the collection must never fragment
-  across contract addresses to support that. ERC721A's batch-mint gas
-  savings apply whenever multiple editions of a track mint together
-  (e.g. an admin/team allocation, or a buyer grabbing several editions in
-  one tx) — even if most public mints are one edition at a time, it costs
-  nothing to build on ERC721A and it is the standard the rest of this
-  section assumes.
+  across contract addresses to support that. **Correction, proven wrong
+  by the actual build (2026-07-28): ERC721A's headline batch-mint gas
+  savings do NOT apply here.** That savings mechanism only works for
+  *consecutive* tokenIds minted from ERC721A's own internal counter, and
+  this fixed `trackId*1000+edition` scheme requires arbitrary, non-
+  consecutive tokenIds — the real, shipped contract uses ERC721A's
+  **spot-mint** feature (`_mintSpot`, one call per tokenId) instead, which
+  writes a full storage slot per token same as plain ERC-721. Still the
+  right call over ERC-1155 (real unique 721 tokenIds, `tokensOfOwner` via
+  the Queryable extension, full tooling compatibility) — just don't expect
+  the gas-savings headline ERC721A is usually chosen for. See "ERC721A
+  specifics" below for the corrected, code-verified detail.
 - **Solana: one Metaplex Certified Collection per... TBD whether "per chain"
   here just means Solana overall, or something finer.** Every minted edition
   NFT must be `verified` into that single Collection NFT so marketplaces
@@ -67,50 +73,62 @@ because everyone likes unique 721s. 1155s are trash." This is now the
 standing requirement — the bullet above reflects it. Do not build an
 ERC-1155 version of these contracts.
 
-**ERC721A specifics, confirmed research (Dylan supplied 2026-07-28,
-matches how Azuki's actual implementation works) — read before building:**
-- **Standard ERC-721 has no batch-mint function at all** — that has to be
-  a feature of the specific contract. ERC721A adds a `mint(quantity)` that
-  compresses ownership storage across a consecutive run, making each
-  additional token in the same transaction to the same wallet
-  meaningfully cheaper than a separate mint call would be. The savings
-  come specifically from **consecutive tokens minted to the SAME address
-  in ONE transaction** — this is exactly the "buyer grabbing several
-  editions in one tx" case already called out above, and exactly the
-  multi-buy feature already shipped in `lib/useTrackCommerce.ts`
-  (`mintTrack(t, quantity)`, the order-book quantity stepper) for the
-  *simulated* buy flow — when the real contract exists, that function is
-  the natural place to call a real `mint(quantity)` instead of looping N
-  separate single mints.
-- **ERC721A is a gas-optimized implementation of ERC-721, not a different
-  standard** — fully compatible with every normal wallet/marketplace/
-  ERC-721 tool. Every minted token is still fully separate afterward:
-  its own unique tokenId, its own metadata, individually transferable/
-  approvable, shows up on OpenSea etc. exactly like a normal 721. This
-  directly confirms the per-track tokenId-range partitioning scheme two
-  bullets up is sound — batch-minting a run of ids under ERC721A doesn't
-  change that each one is a real independent token afterward.
-- **ERC721A does NOT include ERC721Enumerable** (the optional extension
-  for "list every token a wallet owns" / "list every token that
-  exists"). Marketplaces don't need it — they index `Transfer` events
-  instead — but **this site's own code will**, the exact same way
-  `lib/solanaCollectionCheck.ts` and the Ethereum legacy-collection
-  enumeration gap already documented under "Credits system" above hit
-  this same wall for a pre-existing collection with no enumeration
-  support. Do not repeat that gap on a NEW contract we control: either
-  add a custom view function (e.g. a per-owner token list, or at least a
-  per-owner-per-track balance) at build time, or plan on an indexer
-  (Alchemy — an API key is already stored as `ALCHEMY_API_KEY` in Vercel
-  production env, added 2026-07-28 for exactly this class of problem)
-  from day one rather than discovering the gap after deploy.
-- **Batch savings apply best to "mint N to one wallet in one tx"**, less
-  to airdrops/mints spread across many different wallets (a custom
-  airdrop function still beats N separate transactions on overhead, just
-  not by as much), and OpenZeppelin's `ERC721Consecutive` (a different,
-  even-cheaper batch primitive) only works at contract *construction*
-  time, not for after-deploy public minting — not applicable here since
-  editions mint over time as tracks/albums are added, not all at once at
-  deploy.
+**ERC721A specifics — corrected against the real, built, tested contract
+(`onchain/contracts/DylCollection.sol`, 2026-07-28). The original research
+below this contract requirement section (Dylan-supplied, matching Azuki's
+implementation) was directionally right about ERC721A in general but wrong
+about it applying to THIS scheme — read the correction, not the original
+claim:**
+- **Standard ERC-721 has no batch-mint function at all** — still true,
+  that has to be a feature of the specific contract.
+- **ERC721A's headline `mint(quantity)` batch-gas-savings mechanism only
+  works for consecutive tokenIds pulled from ERC721A's own internal
+  counter** — it has no way to start a batch at an arbitrary tokenId, only
+  a count from wherever that counter currently sits. This is
+  **fundamentally incompatible** with the fixed `trackId*1000+edition`
+  scheme two sections up, which requires arbitrary, non-consecutive,
+  precomputed tokenIds.
+- **The real fix, and what's actually built**: ERC721A's **spot-mint**
+  feature — override `_startTokenId()` and `_sequentialUpTo()` to both
+  return `0` (disables normal sequential minting entirely; passes because
+  `_sequentialUpTo() < _startTokenId()` is `0 < 0`, false), then mint every
+  token via `_mintSpot(to, tokenId)`, one call per token. This is real,
+  intentional, shipped ERC721A functionality for exactly this use case —
+  not a hack. **Consequence**: spot-minted tokens are non-consecutive by
+  construction, so each one writes its own full storage slot — a multi-
+  edition buy is still cheaper than N *separate transactions* (saves N×
+  the base 21000 gas + N× calldata), but NOT cheaper than N separate mint
+  calls the way vanilla ERC721A batch-mint is. Budget/estimate gas
+  accordingly; don't expect the ERC721A headline number.
+- **Real edge case found and fixed**: `_mintSpot` requires `tokenId >
+  _sequentialUpTo()` (i.e. `> 0`), so tokenId `0` itself can never be
+  spot-minted — `trackId=0, edition=0` would silently collide with that
+  floor. Fixed with a permanent `+1` offset:
+  `tokenId = trackId*1000 + editionIndex0Based + 1` (see
+  `lib/tokenIdScheme.ts`, mirrored exactly on the Solana side's config-line
+  numbering) — robust regardless of whether track indices ever start at 0
+  (`lib/albums.ts` currently starts real tracks at index 1, but the
+  contract doesn't rely on that convention holding forever).
+- **ERC721A is still a gas-optimized ERC-721 implementation, not a
+  different standard** — fully compatible with every normal wallet/
+  marketplace/ERC-721 tool regardless of the above. Every minted token is
+  still fully separate: its own unique tokenId, individually transferable/
+  approvable, shows up on OpenSea etc. exactly like a normal 721. This is
+  still the right call over ERC-1155 for that reason alone — the batch-gas
+  question is a separate, narrower point from the 721-vs-1155 decision.
+- **ERC721A does NOT include ERC721Enumerable** — confirmed handled by
+  using `ERC721AQueryableUpgradeable` (not plain `ERC721AUpgradeable`),
+  which adds `tokensOfOwner(address)` returning every tokenId a wallet
+  holds directly on-chain — verified this function exists and closes the
+  exact gap `lib/solanaCollectionCheck.ts`/the Ethereum legacy-collection
+  enumeration problem hit for a pre-existing collection with no
+  enumeration support (see "Credits system" above). No indexer required
+  for the basic case; `ALCHEMY_API_KEY` (Vercel prod env) remains available
+  if a future need outgrows on-chain enumeration (e.g. paginating a very
+  large collection cheaply).
+- `OpenZeppelin's `ERC721Consecutive` — still not applicable, only works
+  at contract *construction* time, not for after-deploy minting as tracks
+  are added over time.
 
 **Contracts must be upgradable** (proxy pattern — UUPS or Transparent Proxy
 for EVM; Solana's own program-upgrade authority model for the Solana side).
@@ -174,23 +192,188 @@ whoever writes the contracts:**
   collection verification** (the checkmark) — that is a social/support-
   ticket process on their end, not something the contract can do.
 
-**Nothing about this is built yet** — this section exists so a future
-contract-writing session starts from the right architecture instead of
-naively spinning up a contract per track. If any contract work begins,
-re-read this section first and confirm the plan still satisfies "one
-contract = one collection = all volume" before writing Solidity/Anchor.
+### Built and dry-run-proven, 2026-07-28 — not yet deployed to any real mainnet
 
-### NFT traits/attributes — Artist + Title now, extensible later
+Everything in this section is real, working code, verified end-to-end
+against forked real mainnet state (EVM) and a local validator running the
+real cloned Metaplex mainnet programs (Solana) — not deployed to production
+anywhere yet. That last step is deliberately Dylan's own action (see
+"Admin" below): the deploy transactions are signed by his own connected
+wallet through `/admin`, never a raw key pasted into any session.
+
+- **`onchain/`** — separate Hardhat 2 project (own `package.json`/
+  `tsconfig.json`, excluded from the root Next.js `tsconfig.json` so
+  Mocha/Hardhat's ambient types never leak into the app). `hardhat@2.29.0`
+  + `@openzeppelin/hardhat-upgrades@3.9.1` + `hardhat-toolbox@6.1.2` —
+  deliberately pinned to the Hardhat 2 line, not the newer Hardhat 3
+  rewrite, since `erc721a-upgradeable` and most real-world OZ-Upgradeable+
+  ERC721A reference code targets Hardhat 2's API shape.
+  - `contracts/DylCollection.sol` — the real UUPS collection contract
+    (`ERC721AQueryableUpgradeable` + `OwnableUpgradeable` +
+    `ERC2981Upgradeable` + `UUPSUpgradeable`). `mint`/`adminMint`/
+    `setMintPrice`/`setMetadataBaseURI`/`setRoyalty`/`withdraw`/
+    `contractURI`. Same bytecode deployed 3× (once per EVM chain).
+  - `contracts/AlbumBuyer.sol` — separate, non-upgradeable multicall-style
+    wrapper for "buy the whole album in one signature" (Dylan's chosen
+    approach over building it into the collection contract itself) — loops
+    plain external calls to the collection's own `mint()`, atomic revert
+    on any failure, no low-level `.call()`-with-swallowed-return.
+  - `test/*.test.ts` — 27 passing tests: init-guards, tokenId math, the
+    100-edition cap, the 10-edition admin allocation cap, payment
+    enforcement, `tokensOfOwner`, `supportsInterface`, royalty, withdraw
+    (including a zero-address guard added during the requirements re-check
+    — `withdraw(address(0))` would otherwise succeed silently on EVM and
+    burn the balance instead of reverting), and a full real UUPS upgrade
+    (`upgrades.upgradeProxy` — automatically checks storage-layout safety).
+  - `scripts/dry-run.ts` — full deploy→adminMint→publicMint→AlbumBuyer→
+    upgrade→tokenURI cycle, run for real against a **local Hardhat fork of
+    each chain's live mainnet RPC** (Robinhood, Base, Ethereum) — real
+    deployed bytecode against real current chain state, Hardhat's own
+    auto-funded test accounts, zero real funds. (Real public testnets exist
+    for all three — Robinhood Chain testnet chainId `46630`, confirmed live
+    against `docs.robinhood.com` — but their faucets are CAPTCHA/wallet-
+    gated and weren't reliably scriptable here; the mainnet-fork approach
+    gives equivalent real-bytecode validation without that blocker.)
+  - `scripts/export-artifacts.ts` — copies compiled ABI+bytecode into
+    `lib/contracts/*.json` (committed, read by the Next.js app). Re-run
+    (`npm run build` in `onchain/`) any time the Solidity changes.
+  - `scripts/validate-upgrade.ts` — read-only storage-layout check against
+    a real deployed proxy (`upgrades.forceImport` + `upgrades.validateUpgrade`)
+    — no key/signing involved. Required step before ever clicking "Upgrade"
+    for real; the browser-signed production path has no automatic
+    equivalent safety net of its own.
+- **`lib/contractDeploy.ts`** — pure functions building raw
+  `{to, data, value}` transactions (viem `encodeDeployData`/
+  `encodeFunctionData`) for deploy/upgrade/adminMint/withdraw/album-batch-
+  mint. `lib/tokenIdScheme.ts` mirrors the contract's exact tokenId math for
+  the metadata routes.
+- **`app/admin/page.tsx`** — the previously-disabled Deploy/Upgrade/
+  "Mint #1-10 & List" buttons per `CONTRACT_TARGETS` row are now real,
+  signed by the admin's own connected wallet (wagmi `useSendTransaction`).
+  Deploy is 2 signed txs (implementation, then proxy+`initialize`) plus a
+  3rd for that chain's `AlbumBuyer`. **The client-side `isAdminWallet` gate
+  is UI-visibility-only here, not the real security boundary** — the real
+  boundary is that the on-chain transaction must be signed by the real key,
+  and `adminMint`/`upgradeToAndCall` are both `onlyOwner`-enforced by the
+  contract itself, so someone bypassing the UI gate could only ever deploy
+  *their own* worthless copy, never touch Dylan's real deployment. After a
+  real deploy, the resulting proxy address is committed into
+  `lib/admin.ts`'s `CONTRACT_TARGETS[i].address` by hand (a reviewed code
+  change, not an auto-write from a client-reported event).
+  `lib/web3.ts`'s wagmi config gained `mainnet` in its `chains` array for
+  this (previously only `base`/`robinhoodChain`).
+- **`app/api/metadata/[chain]/[tokenId]/route.ts`** + `.../collection/route.ts`
+  — the dynamic tokenURI/contractURI endpoints from the "NFT traits" section
+  below, live-tested against real `lib/albums.ts` data. Confirmed live
+  against the real old Dyl collection (`0x253bfce1...`, OpenSea) that
+  `animation_url` (audio) alongside `image` (cover) is what actually
+  renders the play-button UI OpenSea uses for music NFTs — same mechanism
+  used here, sourced from `Track.audioSrc`.
+- **`onchain-solana/`** — separate scripts project (real current packages:
+  `@metaplex-foundation/umi@1.5.1`, `mpl-candy-machine@6.1.0`,
+  `mpl-token-metadata@3.4.0`, `mpl-toolbox@0.11.4`). Legacy (non-
+  programmable) Metaplex NFTs, matching the EVM "declare royalty, don't
+  enforce via transfer restriction" decision for maximum marketplace
+  compatibility on both chains.
+  - `scripts/create-collection.ts` — one-time: creates the single
+    Certified Collection NFT every track's Candy Machine verifies into.
+  - `scripts/create-track-candy-machine.ts` — run once per track: creates
+    a Candy Machine sized to that track's edition cap, uploads config
+    lines (same `trackId*1000+edition+1` tokenId numbering as EVM, via
+    `configLineSettings.prefixUri` pointing at the same metadata API route
+    — NOT `hiddenSettings`, which shares one identical URI across every
+    mint and can't give each edition its own real tokenURI), mints
+    editions #1-10 straight to the admin wallet, then wraps a Candy Guard
+    (`solPayment`) so public/paid minting opens for edition #11 onward.
+  - **Real mechanics discovered building this, genuinely non-obvious —
+    worth reading before touching this code again**:
+    - `mintV2` (the normal guard-gated mint helper) **always** routes
+      through the `mplCandyGuard` program — even with no `candyGuard`
+      passed, it auto-derives the default guard PDA and requires it to
+      already exist. There is no "bypass the guard" option on `mintV2`.
+      The genuinely guard-free instruction for the admin's free 10 editions
+      is the separate, lower-level `mintFromCandyMachineV2` (talks straight
+      to CandyMachineCore, takes `mintAuthority` as a plain `Signer`) —
+      confirmed by tracing the SDK's own `create()` convenience helper,
+      which wraps a Candy Guard on immediately and offers no window to
+      mint free beforehand; this is why the real script calls the lower-
+      level pieces itself in a different order instead of using `create()`.
+    - **A Candy Guard's real on-chain address is a PDA derived from a
+      `base` keypair** (`findCandyGuardPda(umi, {base})`) — NOT the base
+      signer's own address. Using `candyGuard.publicKey` (the base
+      signer) instead of the derived PDA fails with a confusing
+      `AccountNotInitialized` error on the very next instruction that
+      references it (hit this for real, twice — `wrap()` and the public
+      `mintV2()` both need the derived PDA).
+    - **Candy Machine mints routinely exceed Solana's default 200,000 CU
+      per-transaction budget** (Token Metadata's `Create`+`Mint` under the
+      hood is compute-heavy) — every mint transaction needs an explicit
+      `setComputeUnitLimit` (from `mpl-toolbox`) requesting a higher budget
+      (800,000 used here); hit "exceeded CUs meter" for real without it.
+    - Devnet's own airdrop faucet is IP-rate-limited and was already
+      exhausted from this sandboxed environment — validated instead against
+      a **local `solana-test-validator` with the real Token Metadata /
+      Candy Machine Core / Candy Guard programs cloned in from mainnet-beta**
+      (`--clone-upgradeable-program`, not plain `--clone` — these are
+      BPF-upgradeable programs, whose real bytecode lives in a separate
+      ProgramData account that plain `--clone` doesn't pull in; using it
+      anyway silently produces a "Program is not deployed" error on the
+      first real invocation, not an obvious failure at clone time).
+    - When constructing a `Signer` from a loaded keypair and installing it
+      as the umi identity, use `signerIdentity(signer)`, not
+      `keypairIdentity(signer)` — the latter expects a raw `Keypair`
+      object (it internally re-wraps it), and passing an already-wrapped
+      `Signer` into it produces a broken identity that fails with a
+      confusing "Attempt to debit an account but found no record of a
+      prior credit" on the first transaction, not an obvious type error.
+  - Verified live end-to-end on the local validator (both the disposable
+    dry-run version and the real parametrized production scripts,
+    separately): 10 free admin-minted editions with correct sequential
+    tokenIds, correct collection verification, correct royalty (690 bps),
+    correct dynamic tokenURI per mint, guard wrap, and a real paid public
+    mint through the guard.
+  - Deliberately **not** wired into `/admin` — this is a one-time-per-track
+    setup ceremony Dylan runs himself with his own Solana wallet
+    (`RPC_URL`/`KEYPAIR_PATH` env vars + CLI flags), same "you hold the
+    keys" model as the EVM admin panel, just script-invoked rather than
+    browser-clicked since Candy Machine setup doesn't fit the repeatable
+    Deploy/Upgrade button shape the EVM chains use.
+
+**Explicitly NOT done, on purpose — scope boundary agreed with Dylan
+before starting**: the site's existing simulated buy/mint/sell UI
+(`lib/useTrackCommerce.ts`, `lib/holdings.ts`) is **not** rewired to call
+these real contracts — that needs its own fresh confirmation from Dylan per
+the "Current state: everything is a local simulated ledger" section below,
+independent of the contracts themselves existing. Also not done: Seaport/
+OpenSea auto-listing automation for the "Mint #1-10 & List" strategy
+(the mint half is real; the list half is a separate frontend/marketplace-
+integration concern), and confirming whether OpenSea indexes Robinhood
+Chain at all (still genuinely unverified).
+
+If any further contract work begins, re-read this whole section first and
+confirm the plan still satisfies "one contract = one collection = all
+volume" before writing more Solidity/Anchor — this is the reference for
+what's real, not a fresh design exercise.
+
+### NFT traits/attributes — Artist + Song now, extensible later — BUILT 2026-07-28
 
 Dylan, 2026-07-28: "Lets make each NFT have metadata for Artist and
 Title... we can always add more metadata later right" — clarified he
 means the `attributes` (`trait_type`/`value`) array both OpenSea and
 Magic Eden render as an NFT's visible traits, not generic off-chain data.
+**Trait name corrected from "Title" to "Song"** after checking the real
+old Dyl collection's own metadata (`0x253bfce1...`, token #220 "Treat
+Myself") — it uses `trait_type: "Song"`, not `"Title"`; matched that
+existing convention rather than inventing a new one. Also matched its
+`name` field convention: just the song title alone (`"Treat Myself"`, not
+`"Dyl - Treat Myself"` — redundant given the collection itself is already
+named "Dyl").
 
-- **Artist** and **Title** map directly onto data that already exists
-  (`Album.artist`, `Track.title` in `lib/albums.ts`) — no new fields
-  needed, just surface them as `attributes` entries when the metadata
-  endpoint gets built.
+- **Artist** and **Song** map directly onto data that already existed
+  (`Album.artist`, `Track.title` in `lib/albums.ts`) — no new fields were
+  needed, just surfaced as `attributes` entries in
+  `app/api/metadata/[chain]/[tokenId]/route.ts` (see the "Built and
+  dry-run-proven" section above for the real, shipped implementation).
 - **Yes, more traits can be added later — but only if `tokenURI` is
   served dynamically, not frozen on static IPFS JSON.** A static
   IPFS-pinned JSON file's `attributes` array is fixed forever at mint
@@ -211,12 +394,14 @@ Magic Eden render as an NFT's visible traits, not generic off-chain data.
   kept OpenSea-compatible — same Artist/Title traits, same
   dynamic-endpoint approach applies (point `uri` at our own API route
   instead of a static Arweave/IPFS file).
-- Natural additional traits once this gets built (not required now,
-  just obvious candidates given the existing data model): Album,
-  Edition Number (out of 100), Chain.
-
-Still nothing built — this just records the trait decision for whoever
-writes the metadata endpoint.
+- **Additional traits shipped too**, beyond just Artist/Song: Album,
+  Edition (the 1-based edition number), and Chain — same real
+  `app/api/metadata/[chain]/[tokenId]/route.ts` route. Also added
+  `animation_url` (not originally scoped in this section, added once the
+  real OpenSea rendering mechanism was confirmed — see the "Built and
+  dry-run-proven" section above) pointing at `Track.audioSrc`, which is
+  what actually makes OpenSea show the cover image with a play button
+  instead of just a static image.
 
 ---
 
@@ -1148,33 +1333,34 @@ of the single-track batch-mint work for free.
 
 ## Admin — `/admin`
 
-Wallet-gated (client-side check, not a signature — fine for today's low
-stakes, **must move to real signature verification before anything that
-moves funds or deploys/upgrades a real contract is wired up**). Admin wallet:
+Wallet-gated (client-side check, not a signature). Admin wallet:
 `0x9e0149f7CC28c93A3B5F76AB3e8A2a22d14435b5` (`lib/admin.ts`,
-`ADMIN_WALLET`/`isAdminWallet()`). Currently has: platform status readout,
-chat moderation (delete messages, server-side-checked against the same admin
-wallet via `DELETE /api/chat`).
+`ADMIN_WALLET`/`isAdminWallet()`). Has: platform status readout, chat
+moderation (delete messages, server-side-checked against the same admin
+wallet via `DELETE /api/chat`), and — **built 2026-07-28, see "Built and
+dry-run-proven" under the CONTRACT REQUIREMENT section above for full
+detail** — real Deploy/Upgrade/"Mint #1-10 & List" buttons for the 3 EVM
+`CONTRACT_TARGETS` rows, signed by the admin's own connected wallet.
 
-**To build**: contract deploy + upgrade tooling. Since contracts must be
-upgradable (see above), this isn't a one-time "Deploy" button — it needs
-distinct deploy (first time per chain) and upgrade (push new implementation
-to the existing proxy) actions, plus whatever "add a new track/album as a
-new tokenId on the existing collection" action looks like day-to-day. Design
-this panel around the fact there are exactly 4 target collections total
-(Robinhood Chain, Base, Ethereum, Solana — Ethereum added 2026-07-28) plus
-the optional marketplace contract — not a generic "deploy any contract"
-tool. `lib/admin.ts` `CONTRACT_TARGETS` is already this exact ordered list
-(with per-step `reason` strings), and `/admin`'s Contracts section already
-renders it as a numbered 1-5 sequence — the Deploy/Upgrade buttons there
-are still disabled placeholders since nothing is deployed yet, but the
-shape (`order`, `reason`, per-target `key`) already matches what real
-deploy tooling should read from, extend it rather than hardcoding a
-separate list. A third button, **"Mint #1-10 & List"**, is also already
-scaffolded next to Deploy/Upgrade for each of the 4 collection rows
-(disabled, same honest reasoning) — that is the concrete admin action for
-the "Deployment minting strategy" below, one per chain, not a single
-global button.
+**Why the client-side gate is fine here, specifically, and doesn't need the
+signature-verification upgrade this section used to call for**: for THESE
+three actions (deploy/upgrade/mint), the real security boundary is that the
+on-chain transaction must be signed by whoever's wallet is actually
+connected — the contract's own `onlyOwner` checks (`adminMint`,
+`_authorizeUpgrade`) enforce this independently of the UI. Someone
+bypassing the client-side `isAdminWallet` check could only ever deploy
+*their own* worthless copy or have their own upgrade/mint calls revert
+on-chain — they can never actually touch Dylan's real deployed proxy
+without his real key. This reasoning is specific to these three actions;
+it does NOT generalize to e.g. an API route that trusts a client-supplied
+wallet address in a POST body (like `/api/chat`'s DELETE) — that class of
+endpoint still has no on-chain self-authentication and would need real
+signature verification if it ever moved funds.
+
+Solana's setup (`onchain-solana/`) is deliberately **not** wired into this
+panel — see the "Built and dry-run-proven" section for why (one-time
+per-track ceremony, script-invoked with Dylan's own Solana wallet, not a
+repeatable browser button).
 
 ---
 
