@@ -374,13 +374,16 @@ against them):**
 **Still open / not yet specified**: Diamond tier's reward (ETH or Solana),
 whether Deluxe vs. Classic trading cards get the same ratio (recorded above
 as if they do — not confirmed), Polygon's ratio, and the other two ETH VIP
-sub-tiers (`1/10` Classic, `1/1` Singles). **$DYL is a threshold on total
-held balance, not a per-token burn count** — a fundamentally different
-mechanic from the NFT rows (burn N cards → get N×reward; here it's "hold
-≥1,000,000 $DYL" as a gate), likely checked by balance snapshot/proof
-rather than an actual burn transaction — confirm this distinction with
-Dylan before implementing, since "burn $DYL" vs. "hold $DYL" have very
-different UX and irreversibility implications.
+sub-tiers (`1/10` Classic, `1/1` Singles).
+
+**Resolved 2026-07-28: $DYL is burned, not just held.** The distinction
+flagged above was asked directly — Dylan: "yes, you burn it, that
+threshold shows how many free mints its worth after burning." So the
+existing table's two rows (1,000,000 → 5, 10,000,000 → 50) are burn
+thresholds: a real transfer of that much $DYL to the chain's burn
+address is what has to happen on-chain, not a balance snapshot. Same
+numbers, different (and now irreversible) mechanic — see the pipeline
+section right below for how this fits with the NFT burns.
 
 ### Credits system + mint allocator (`lib/burnCredits.ts`, `components/BurnWalletChecker.tsx`) — shipped 2026-07-27
 
@@ -413,6 +416,71 @@ steppers, defaulting to an even split (remainder distributed to the first
 chains). Purely local UI state — **nothing is submitted anywhere**, no
 API call, no on-chain action; real burning still isn't wired up (see the
 "Burning isn't wired up yet" notice already on the page).
+
+### Full burn → mint pipeline — scoped 2026-07-28, NOT built beyond the numbered `/burn` UI
+
+Dylan laid out the full intended system directly. `/burn` was restructured
+the same day into 4 numbered steps matching this exactly (Check NFTs →
+Burn NFTs → Choose how to spend it → Mint), but steps 2 and 4 are honest
+disabled placeholders — **no real burn or mint transaction exists yet,
+and per Dylan's own instruction none should be wired live until the
+pieces below are actually ready**: *"do not actually burn anything or
+credit anything yet, just set it up to be wired to real burn and real
+contracts."*
+
+- **Step 1 — Check NFTs**: already real (the 3 checkers above).
+- **Step 2 — Burn NFTs**: one button per chain grouping (EVM/Solana/
+  Tezos, matching the checkers' own grouping), each burning everything
+  found for that chain — NFTs **and now $DYL** (see the resolved note
+  above) — in one guided multi-signature flow, then flipping to
+  "Burned ✓ Tx: 0x1234…" in place of the button. **For any multi-
+  transaction flow here, reuse the exact HOODPrinter pattern already
+  proven on `hoodprinter.xyz/swap`**: grey out / blur the whole module
+  with an absolute-positioned overlay, a spinning ring, and step text
+  ("Confirming 1/2", then "2/2") — don't invent a different multi-tx UX.
+  Burn destinations (already verified live, see "Burn protocol" above):
+  EVM → `0x000...dEaD` (NFTs via `safeTransferFrom`, $DYL via a normal
+  ERC-20 `transfer`), Tezos → `tz1burnburnburnburnburnburnburjAYjjX`
+  (FA2 transfer), Solana → the real `Burn` instruction from
+  `@solana/spl-token` (protocol-level, no destination address).
+  **Blocked on**: exact tokenId enumeration for the tiered Ethereum
+  "Old Dyl NFT collection" (`0x253bfce1...`) — the checker only has a
+  min–max range today because a public RPC can't page that contract's
+  full Transfer history (see "Credits system" above). Dylan's call:
+  *"Get an indexer API key"* — next concrete step is Dylan signing up
+  for a free Alchemy (or Etherscan) API key, adding it as a Vercel env
+  var, and handing it over so real per-tokenId enumeration (and
+  therefore a real, precise burn) can be built. Nothing in step 2 should
+  go live before that key exists — burning the wrong/an unverified set
+  of tokenIds is not recoverable.
+- **Step 3 — Choose how to spend it**: mostly real already (the
+  allocator). The one required change once step 2 is real: **the
+  allocator must always re-derive the spendable total by reading the
+  wallet's actual burn transaction(s) on-chain**, not trust local state
+  — so a refresh after a burn (or a burn that partially failed) always
+  shows the true, currently-earned total. This is also what makes the
+  whole flow refresh-safe per Dylan: *"the free mint allocator should
+  always check their TXN on chain to confirm what they burned... that
+  way if theres anything wrong with the burning process, they can
+  refresh after the txn and it will still verify."*
+- **Step 4 — Mint**: genuinely cannot be built yet — there is no
+  deployed mint contract on Robinhood Chain, Base, or Solana (see the
+  "⚠️ CONTRACT REQUIREMENT" section up top; ERC721A decided, nothing
+  deployed). Dylan's framing: 1 mint transaction per target chain
+  (so up to 3 total, not 3 per track), each minting a **randomly
+  selected** set of editions from across the catalog to the user
+  (ties into the separate "Explore: fully-random free mints" note
+  above — same idea, now scoped as the literal step 4 action rather
+  than just an idea). Stays a disabled placeholder until those
+  contracts exist and are deployed — a real, separate contract-writing
+  engagement, not a `/burn` page change.
+- **Recording**: once step 2 is real, every burn tx needs to be recorded
+  server-side (new Redis keys, same `@upstash/redis` pattern already
+  used by `lib/boardStore.ts`/`lib/chatStore.ts`) so step 3's on-chain
+  re-verification has something to reconcile against and so a wallet's
+  total earned-but-unspent mint count can be tracked across sessions —
+  not designed in detail yet, next thing to spec once step 2's
+  enumeration blocker is clear.
 
 **Solana and Tezos wallet checkers shipped 2026-07-27** (`components/
 SolanaWalletChecker.tsx` + `lib/solanaCollectionCheck.ts`;
