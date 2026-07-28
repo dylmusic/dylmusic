@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@airgap/beacon-sdk": "^4.8.1",
     "@rainbow-me/rainbowkit": "^2.2.11",
     "@reservoir0x/relay-sdk": "^2.4.0",
     "@reservoir0x/relay-svm-wallet-adapter": "^11.0.0",

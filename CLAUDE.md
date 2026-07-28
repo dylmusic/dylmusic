@@ -399,20 +399,84 @@ API call, no on-chain action; real burning still isn't wired up (see the
 
 **Solana and Tezos wallet checkers shipped 2026-07-27** (`components/
 SolanaWalletChecker.tsx` + `lib/solanaCollectionCheck.ts`;
-`components/TezosWalletChecker.tsx` + `lib/tezosCollectionCheck.ts`) —
-same collapsible-header pattern as the ETH checker (closed by default,
-"✓ Checked" badge + toggle once results exist). `/burn` now shows only
-the three checkers' header rows by default (Dylan: "only show this part
-by default... make the rest of it collapsible"); the full
-`LEGACY_ASSETS` contract list sits behind a separate "View every
-eligible contract" toggle, closed by default. Solana has no verified
-per-token tier lookup yet (same "min–max range, conservative side
-counted" treatment as the ETH tiered collection); Tezos is a flat 1
-NFT = 1 mint. Tezos deliberately has no real Temple/Trust Wallet SDK
-connection — no Beacon SDK dependency was added — it's a paste-your-
-tz1-address flow instead (exactly what both wallets' own "Copy Address"
-feature gives you), reasoned as too large a lift to build blind without
-a real Temple extension to test against.
+`components/TezosWalletChecker.tsx` + `lib/tezosCollectionCheck.ts` +
+`lib/tezosBeacon.ts`) — same collapsible-header pattern as the ETH
+checker (closed by default, toggle to expand). `/burn` shows only the
+three checkers' header rows by default (Dylan: "only show this part by
+default... make the rest of it collapsible"); the full `LEGACY_ASSETS`
+contract list sits behind a separate "View every eligible contract"
+toggle, also closed by default.
+
+**Checking no longer auto-expands the breakdown** (Dylan: "when you
+click check, dont go to the dropped down state. just check it, but
+also show the number of free mints to the left of the check box after
+checked"). All three checkers dropped their `setOpen(true)` after a
+successful check; instead a `.checker-mints-badge` pill (the live
+spendable total) renders next to the `✓ Checked` badge in the title row
+the moment results exist, and the ▼/▲ toggle is the only way to expand
+the full per-tier breakdown.
+
+**Solana detection was actually broken — root-caused and fixed
+2026-07-27.** The original heuristic compared a token's on-chain
+Metaplex `symbol` field against the marketplace collection *slug*
+(`"crypto_rich_deluxe_trading_cards"`, 33 characters) — that could
+never match anything: Metaplex's on-chain symbol is capped at 10 bytes,
+so a string that long was never actually stored on-chain. Confirmed
+live against the collection's own floor NFT (mint
+`3r7CWTme5bM4nNwHk9GRjygBBS2i5n5R3CQV4GvwQwsu`, per the candy machine
+section above): its real on-chain symbol is `"CRT"`, and its full name
+is `"Crypto Rich Standard Card #184"`. Fixed by checking what actually
+proves candy-machine membership: the metadata's `creators` array has
+the candy machine ID (`7Jvmu...sgPw`) first, with `verified: true` —
+Metaplex sets that flag via the mint's own `sign_metadata` call, so it
+can't be forged by a later holder, unlike a symbol/name string. Tier
+(Standard/Gold/Platinum/Diamond) is then read straight off the same
+on-chain `name` field via a simple word match — no off-chain JSON fetch
+needed. This upgraded Solana from an unreliable min–max range to the
+same exact per-tier precision the ETH checker already had.
+
+**Tezos now connects a real wallet instead of paste-an-address**
+(`lib/tezosBeacon.ts`) — the original paste-tz1-address flow was a
+deliberate placeholder (see below for why it existed), superseded once
+Dylan asked to "actually allow them to connect Temple wallet or trust
+wallet... make it happen and make it smooth." Neither Temple nor Trust
+Wallet exposes a simple injected `window.temple`-style provider —
+Temple's own extension docs describe a content-script/Beacon bridge,
+not a global object — so `@airgap/beacon-sdk`'s `DAppClient` (the
+TZIP-10/Beacon standard, and the vendor-recommended integration path
+both wallets actually implement) is what's used, same "use the
+official widget-integration pairing" call already made for RainbowKit/
+Relay elsewhere in this app rather than hand-rolling wallet detection.
+One `requestPermissions()` call opens Beacon's own real pairing modal —
+verified live, no crash, real wallet icons (Temple shows up
+automatically since the extension self-registers as a Beacon peer).
+Trust Wallet doesn't implement Beacon natively (confirmed: still an
+open feature request against `trustwallet/wallet-core` as of this
+build) but Beacon added WalletConnect v2 as a transport specifically so
+WC2-only wallets can reach Tezos dApps without their own Beacon
+integration, and Trust Wallet supports WC2 for Tezos — so the same
+single modal covers both, there's no way to route straight to "just
+Temple" or "just Trust" without reimplementing Beacon's own
+pairing/transport logic, and there's no need to. `getActiveAccount()`
+restores the session on reload; `clearActiveAccount()` backs a
+"Disconnect" link shown next to the connected (truncated) address.
+
+**Dashboard "Total Volume" info tooltip, custom-styled** (`components/
+MultichainOverview.tsx`) — was a plain native `title` attribute on the
+whole clickable volume tile, so the browser's own default tooltip
+covered the entire box and only appeared after a slow OS-level hover
+delay. Dylan: "stylize the flag to match our site... only show this
+when they hover over the word Total Volume not the whole box... make
+it obvious you can hover it for more info." Replaced with a
+`.dash-vol-info` span wrapping just the "Total Volume" label (dotted
+underline + a small ⓘ icon, `cursor: help`) and a `.dash-vol-tip`
+bubble absolutely positioned below it, styled with the same square
+Win95 bevel border used everywhere else — shown on hover/focus via CSS
+only, `tabIndex={0}` so it's reachable without a mouse too. Only
+rendered while `volumeView === "total"` (the toggle's other state, "V2
+Volume", is self-explanatory and doesn't need it). Clicking anywhere on
+the tile — including the label/icon — still toggles between Total and
+V2, unchanged; hover is scoped narrower than click on purpose.
 
 ### Explore: fully-random free mints (not built yet)
 

@@ -154,7 +154,6 @@ export default function BurnWalletChecker() {
     setDylResults(dyl);
     setTierBreakdown(tiers);
     setChecking(false);
-    setOpen(true);
   }
 
   const { totalCount, totalDylBalance, tieredCredits, untieredCount, spendable } = useMemo(() => {
@@ -212,6 +211,11 @@ export default function BurnWalletChecker() {
         <div>
           <div className="burn-checker-title">
             EVM Wallet Checker
+            {results && (
+              <span className="checker-mints-badge">
+                {spendable.toLocaleString()} free mint{spendable === 1 ? "" : "s"}
+              </span>
+            )}
             {results && <span className="checker-checked-badge">✓ Checked</span>}
           </div>
           <div className="burn-checker-sub">Check all EVM wallets at once</div>

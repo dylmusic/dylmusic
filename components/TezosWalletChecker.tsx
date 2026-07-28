@@ -1,33 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { checkTezosWallet, isLikelyTezosAddress, TezosCheckResult } from "@/lib/tezosCollectionCheck";
+import { useTezosWallet } from "@/lib/tezosBeacon";
+import { checkTezosWallet, TezosCheckResult } from "@/lib/tezosCollectionCheck";
 
-// No Temple/Trust Wallet SDK is wired up yet (neither exposes a simple
-// injected-provider connect the way Phantom does for Solana — Temple's own
-// is a heavier Beacon-SDK integration, Trust Wallet has none for Tezos at
-// all outside its mobile app) — rather than fake a "Connect" button that
-// doesn't really do a wallet handshake, this takes a pasted address
-// (exactly what both wallets' own "Copy Address" feature gives you) and
-// checks it for real against TzKT. Honest about the mechanism, still
-// fully functional today.
+function truncateAddr(addr: string) {
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
 export default function TezosWalletChecker() {
-  const [addressInput, setAddressInput] = useState("");
+  const { address, connect, disconnect, connecting, error: connectError } = useTezosWallet();
   const [checking, setChecking] = useState(false);
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<TezosCheckResult | null>(null);
-  const [hint, setHint] = useState<string | null>(null);
-
-  const validAddress = isLikelyTezosAddress(addressInput);
 
   async function checkWallet() {
-    if (!validAddress) return;
+    if (!address) return;
     setChecking(true);
-    setHint(null);
-    const r = await checkTezosWallet(addressInput.trim());
+    const r = await checkTezosWallet(address);
     setResult(r);
     setChecking(false);
-    setOpen(true);
   }
 
   const count = result?.count ?? 0;
@@ -39,65 +31,64 @@ export default function TezosWalletChecker() {
         <div>
           <div className="burn-checker-title">
             Tezos Wallet Checker
+            {result && (
+              <span className="checker-mints-badge">
+                {spendable.toLocaleString()} free mint{spendable === 1 ? "" : "s"}
+              </span>
+            )}
             {result && <span className="checker-checked-badge">✓ Checked</span>}
           </div>
-          <div className="burn-checker-sub">Check your Dyl collection on objkt.com</div>
+          <div className="burn-checker-sub">
+            Check your Dyl collection on objkt.com, with Temple or Trust Wallet
+          </div>
         </div>
-        {result && (
-          <button
-            className="checker-toggle"
-            onClick={() => setOpen((v) => !v)}
-            aria-label={open ? "Collapse results" : "Expand results"}
-          >
-            {open ? "▲" : "▼"}
-          </button>
-        )}
-      </div>
-
-      <div className="tezos-input-row">
-        <button
-          type="button"
-          className="tezos-wallet-hint-btn"
-          onClick={() => setHint("Open Temple Wallet → tap your account → Copy Address, then paste it here.")}
-        >
-          Temple Wallet
-        </button>
-        <button
-          type="button"
-          className="tezos-wallet-hint-btn"
-          onClick={() => setHint("Open Trust Wallet → Tezos → Receive → Copy Address, then paste it here.")}
-        >
-          Trust Wallet
-        </button>
-      </div>
-
-      <div className="tezos-input-row">
-        <input
-          className="tezos-address-input"
-          value={addressInput}
-          placeholder="Paste your tz1… address"
-          onChange={(e) => {
-            setAddressInput(e.target.value);
-            setHint(null);
-          }}
-        />
-        <button className="btn-burn-hero burn-checker-btn" onClick={checkWallet} disabled={!validAddress || checking}>
-          {checking ? (
-            <>
-              <span className="btn-spinner" />
-              Checking…
-            </>
-          ) : result ? (
-            "Re-check"
+        <div className="checker-head-actions">
+          {!address ? (
+            <button className="btn-burn-hero burn-checker-btn" onClick={connect} disabled={connecting}>
+              {connecting ? (
+                <>
+                  <span className="btn-spinner" />
+                  Connecting…
+                </>
+              ) : (
+                "Connect Wallet"
+              )}
+            </button>
           ) : (
-            "Check"
+            <button className="btn-burn-hero burn-checker-btn" onClick={checkWallet} disabled={checking}>
+              {checking ? (
+                <>
+                  <span className="btn-spinner" />
+                  Checking…
+                </>
+              ) : result ? (
+                "Re-check"
+              ) : (
+                "Check My Wallet"
+              )}
+            </button>
           )}
-        </button>
+          {result && (
+            <button
+              className="checker-toggle"
+              onClick={() => setOpen((v) => !v)}
+              aria-label={open ? "Collapse results" : "Expand results"}
+            >
+              {open ? "▲" : "▼"}
+            </button>
+          )}
+        </div>
       </div>
-      {hint && <div className="tezos-hint">{hint}</div>}
-      {addressInput && !validAddress && (
-        <div className="tezos-hint warn">That doesn&apos;t look like a real Tezos address yet.</div>
+
+      {address && (
+        <div className="tezos-connected-row">
+          Connected: <span className="tezos-connected-addr">{truncateAddr(address)}</span>
+          <button className="tezos-disconnect-btn" onClick={disconnect}>
+            Disconnect
+          </button>
+        </div>
       )}
+      {connectError && <div className="tezos-hint warn">{connectError}</div>}
 
       {result && open && (
         <>

@@ -1915,6 +1915,60 @@ input {
   letter-spacing: 0.05em;
 }
 
+.dash-vol-info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: help;
+  border-bottom: 1px dotted #8b978f;
+  padding-bottom: 1px;
+  width: fit-content;
+  outline: none;
+}
+
+.dash-vol-info-icon {
+  font-size: 11px;
+  color: var(--accent);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.dash-vol-tip {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 20;
+  width: 220px;
+  max-width: 60vw;
+  background: #12161a;
+  color: #cfd9d2;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 400;
+  padding: 10px 12px;
+  border-top: 2px solid rgba(255, 255, 255, 0.3);
+  border-left: 2px solid rgba(255, 255, 255, 0.3);
+  border-right: 2px solid rgba(0, 0, 0, 0.5);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.5);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+  pointer-events: none;
+}
+
+.dash-vol-info:hover .dash-vol-tip,
+.dash-vol-info:focus-visible .dash-vol-tip,
+.dash-vol-info:focus .dash-vol-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
 .chart-card {
   padding: 18px 18px 12px;
   border-radius: 14px;
@@ -3827,6 +3881,17 @@ body > div:has(> .landing-page) {
   padding: 3px 8px;
 }
 
+.checker-mints-badge {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  padding: 2px 8px;
+}
+
 .checker-head-actions {
   display: flex;
   align-items: center;
@@ -4141,48 +4206,35 @@ body > div:has(> .landing-page) {
   color: #566159;
 }
 
-.tezos-input-row {
+.tezos-connected-row {
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-top: 14px;
+  font-size: 12.5px;
+  color: #7c8a80;
   flex-wrap: wrap;
 }
 
-.tezos-wallet-hint-btn {
+.tezos-connected-addr {
   font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
-  font-size: 12px;
-  font-weight: 600;
-  color: #cfd9d2;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 8px 14px;
-  border-top: 2px solid rgba(255, 255, 255, 0.18);
-  border-left: 2px solid rgba(255, 255, 255, 0.18);
-  border-right: 2px solid rgba(0, 0, 0, 0.4);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.4);
-}
-
-.tezos-wallet-hint-btn:hover {
-  color: var(--accent);
-}
-
-.tezos-address-input {
-  flex: 1;
-  min-width: 200px;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 0;
-  border-top: 2px solid rgba(0, 0, 0, 0.4);
-  border-left: 2px solid rgba(0, 0, 0, 0.4);
-  border-right: 2px solid rgba(255, 255, 255, 0.12);
-  border-bottom: 2px solid rgba(255, 255, 255, 0.12);
-  padding: 9px 12px;
   color: #eef2ee;
-  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
-  font-size: 13px;
-  outline: none;
+  font-weight: 600;
 }
 
-.tezos-address-input::placeholder {
-  color: #566159;
+.tezos-disconnect-btn {
+  margin-left: auto;
+  font-size: 11px;
+  color: #7c8a80;
+  background: transparent;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 0;
+}
+
+.tezos-disconnect-btn:hover {
+  color: #ff8a7a;
+  border-color: rgba(255, 138, 122, 0.4);
 }
 
 .tezos-hint {

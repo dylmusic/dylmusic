@@ -1,19 +1,14 @@
 // Real Tezos FA2 balance check via TzKT's public API — same reliable,
 // no-key-needed indexer already used to verify the burn address and the
-// collection itself (see CLAUDE.md). No wallet-extension SDK involved:
-// this takes a plain tz1... address (typed, or pasted from Temple/Trust
-// Wallet's own "copy address" feature) rather than a live signature-based
-// connection — see components/TezosWalletChecker.tsx for why.
+// collection itself (see CLAUDE.md). The address itself now comes from a
+// real Beacon wallet connection (see lib/tezosBeacon.ts /
+// components/TezosWalletChecker.tsx), not a pasted string.
 
 const OBJKT_CONTRACT = "KT1EcBQkN7vuVxg3gDZBbVb7qnBD6kDdS14K";
 
 export interface TezosCheckResult {
   count: number;
   error?: string;
-}
-
-export function isLikelyTezosAddress(v: string): boolean {
-  return /^(tz1|tz2|tz3|KT1)[a-zA-Z0-9]{33}$/.test(v.trim());
 }
 
 export async function checkTezosWallet(address: string): Promise<TezosCheckResult> {

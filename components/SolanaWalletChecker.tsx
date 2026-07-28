@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useSolanaWallet } from "@/lib/solana";
 import { checkSolanaWallet, SolanaCheckResult } from "@/lib/solanaCollectionCheck";
 import { CARD_TIER_MINTS, dylMintsForBalance } from "@/lib/burnCredits";
@@ -17,20 +17,25 @@ export default function SolanaWalletChecker() {
     const r = await checkSolanaWallet(address);
     setResult(r);
     setChecking(false);
-    setOpen(true);
   }
 
-  // No on-chain tier lookup available for Solana yet (see
-  // lib/solanaCollectionCheck.ts — no Blockscout-style indexer verified for
-  // it in this session), so credits show as a min-max range like the ETH
-  // checker did before that upgrade: min = every card priced as cheapest
-  // tier, max = priced as the richest tier we have a number for. The
-  // conservative min is what actually counts toward spendable.
-  const cardCount = result?.cardCount ?? 0;
-  const min = cardCount * (CARD_TIER_MINTS.standard ?? 0);
-  const max = cardCount * (CARD_TIER_MINTS.platinum ?? 0);
-  const dylMints = dylMintsForBalance(result?.dylBalance ?? 0);
-  const spendable = min + dylMints;
+  // Exact per-token tier lookup now (verified-creator match against the
+  // candy machine ID + the on-chain name string — see
+  // lib/solanaCollectionCheck.ts), same precision the ETH checker already
+  // has. Diamond and any unrecognized tier show as held but "Not priced
+  // yet" rather than guessing, matching how the ETH checker treats its own
+  // unpriced items.
+  const tiers = result?.tiers;
+  const { dylMints, spendable } = useMemo(() => {
+    const t = tiers;
+    const tCredits = t
+      ? t.standard * (CARD_TIER_MINTS.standard ?? 0) +
+        t.gold * (CARD_TIER_MINTS.gold ?? 0) +
+        t.platinum * (CARD_TIER_MINTS.platinum ?? 0)
+      : 0;
+    const dMints = dylMintsForBalance(result?.dylBalance ?? 0);
+    return { dylMints: dMints, spendable: tCredits + dMints };
+  }, [tiers, result]);
 
   return (
     <div className="burn-checker">
@@ -38,6 +43,11 @@ export default function SolanaWalletChecker() {
         <div>
           <div className="burn-checker-title">
             Solana Wallet Checker
+            {result && (
+              <span className="checker-mints-badge">
+                {spendable.toLocaleString()} free mint{spendable === 1 ? "" : "s"}
+              </span>
+            )}
             {result && <span className="checker-checked-badge">✓ Checked</span>}
           </div>
           <div className="burn-checker-sub">Check your Trading Cards + $Dyl on Solana, with Phantom</div>
@@ -77,8 +87,8 @@ export default function SolanaWalletChecker() {
         <>
           <div className="burn-checker-total burn-checker-total-combined">
             <div className="burn-checker-total-part">
-              <span className="burn-checker-total-num">{cardCount}</span>
-              <span className="burn-checker-total-label">trading card{cardCount === 1 ? "" : "s"} found</span>
+              <span className="burn-checker-total-num">{tiers?.total ?? 0}</span>
+              <span className="burn-checker-total-label">trading card{(tiers?.total ?? 0) === 1 ? "" : "s"} found</span>
             </div>
             <div className="burn-checker-total-part">
               <span className="burn-checker-total-num">
@@ -96,19 +106,39 @@ export default function SolanaWalletChecker() {
             <div className="credits-head">
               <span className="credits-head-title">What your Solana bag is worth</span>
               <span className="credits-head-note">
-                Tier detection isn&apos;t verified for Solana yet — shown as a range, conservative side counted.
+                Real per-token tiers, verified on-chain against the candy machine.
               </span>
             </div>
 
             <div className="credits-rows">
-              {cardCount > 0 && (
+              {tiers && tiers.standard > 0 && (
                 <div className="credits-row">
-                  <span className="credits-row-label">
-                    {cardCount} card{cardCount === 1 ? "" : "s"}
-                  </span>
-                  <span className="credits-row-value">
-                    {min === max ? min : `${min}–${max}`} mints
-                  </span>
+                  <span className="credits-row-label">{tiers.standard} Standard card{tiers.standard === 1 ? "" : "s"}</span>
+                  <span className="credits-row-value">{tiers.standard * (CARD_TIER_MINTS.standard ?? 0)} mints</span>
+                </div>
+              )}
+              {tiers && tiers.gold > 0 && (
+                <div className="credits-row">
+                  <span className="credits-row-label">{tiers.gold} Gold card{tiers.gold === 1 ? "" : "s"}</span>
+                  <span className="credits-row-value">{tiers.gold * (CARD_TIER_MINTS.gold ?? 0)} mints</span>
+                </div>
+              )}
+              {tiers && tiers.platinum > 0 && (
+                <div className="credits-row">
+                  <span className="credits-row-label">{tiers.platinum} Platinum card{tiers.platinum === 1 ? "" : "s"}</span>
+                  <span className="credits-row-value">{tiers.platinum * (CARD_TIER_MINTS.platinum ?? 0)} mints</span>
+                </div>
+              )}
+              {tiers && tiers.diamond > 0 && (
+                <div className="credits-row muted">
+                  <span className="credits-row-label">{tiers.diamond} Diamond card{tiers.diamond === 1 ? "" : "s"}</span>
+                  <span className="credits-row-value">Not priced yet</span>
+                </div>
+              )}
+              {tiers && tiers.unknown > 0 && (
+                <div className="credits-row muted">
+                  <span className="credits-row-label">{tiers.unknown} unrecognized card{tiers.unknown === 1 ? "" : "s"}</span>
+                  <span className="credits-row-value">Not priced yet</span>
                 </div>
               )}
               {result.dylBalance > 0 && (
@@ -124,7 +154,7 @@ export default function SolanaWalletChecker() {
                   <span className="credits-row-label">Check failed: {result.error}</span>
                 </div>
               )}
-              {cardCount === 0 && result.dylBalance === 0 && !result.error && (
+              {(tiers?.total ?? 0) === 0 && result.dylBalance === 0 && !result.error && (
                 <div className="credits-row muted">
                   <span className="credits-row-label">Nothing eligible found in this wallet.</span>
                 </div>

@@ -44,17 +44,21 @@ export default function MultichainOverview({ album }: { album: Album }) {
         <button
           className="dash-quick-tile dash-quick-tile-click"
           onClick={() => setVolumeView((v) => (v === "total" ? "v2" : "total"))}
-          title={
-            volumeView === "total"
-              ? "Includes historical NFT trading volume across collections and $Dyl coin"
-              : "Volume on this v2 platform only"
-          }
         >
           <span className="dash-quick-num">
             {volumeEth.toFixed(3)} <span className="dash-quick-unit">ETH</span>
           </span>
           <span className="dash-quick-usd">${volumeUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-          <span className="dash-quick-label">{volumeView === "total" ? "Total Volume" : "V2 Volume"}</span>
+          {volumeView === "total" ? (
+            <span className="dash-quick-label dash-vol-info" tabIndex={0}>
+              Total Volume<span className="dash-vol-info-icon">ⓘ</span>
+              <span className="dash-vol-tip" role="tooltip">
+                Includes historical NFT trading volume across collections and $Dyl coin
+              </span>
+            </span>
+          ) : (
+            <span className="dash-quick-label">V2 Volume</span>
+          )}
         </button>
         <div className="dash-quick-tile">
           <span className="dash-quick-num">{overview.totalMinted.toLocaleString()}</span>
