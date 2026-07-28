@@ -21,20 +21,28 @@ must consolidate into a single OpenSea collection page.
 
 Concretely, when contracts get built:
 
-- **EVM chains (Robinhood Chain, Base): one ERC-1155 contract per chain**,
-  not one contract per track and not one contract per album. Each track is a
-  distinct `tokenId` within that one contract; `editionCap` (100) is that
-  token id's max supply; individual numbered editions are just sequential
-  mints of that `tokenId` (ERC-1155 doesn't have "edition numbers" as a
-  first-class concept the way ERC-721 serials do — decide before building
-  whether "edition #14" is tracked via a separate on-chain counter/event log,
-  or whether it's cosmetic-only in the UI while the contract just tracks
-  aggregate supply per `tokenId`). New albums/tracks get NEW `tokenId`s
-  minted on the SAME existing contract — never a new contract deployment
-  per album. This is why the contract needs to be **upgradable** (see
-  below) — adding tracks/albums over time is core to the roadmap
-  (Internet Legend, lost angeles files, and whatever comes after), and the
-  collection must never fragment across contract addresses to support that.
+- **EVM chains (Robinhood Chain, Base): one ERC721A contract per chain**,
+  not one contract per track and not one contract per album, and **not
+  ERC-1155** (decided against 2026-07-28, see below). Each edition is a
+  real, unique ERC-721 token id — not a fungible copy count under a shared
+  track id — which is the whole reason for the switch: buyers/marketplaces
+  treat 721s as genuinely unique collectibles, 1155s read as generic
+  fungible-stock items. Token ids are partitioned into per-track ranges
+  (e.g. track N occupies ids `N*1000` through `N*1000+99` for its 100
+  editions) so "edition #14 of track X" is one specific, unique token id —
+  decide the exact offset scheme before building, it just needs to be
+  fixed and collision-free across every track ever added. New
+  albums/tracks get a NEW range of ids minted on the SAME existing
+  contract — never a new contract deployment per album. This is why the
+  contract needs to be **upgradable** (see below) — adding tracks/albums
+  over time is core to the roadmap (Internet Legend, lost angeles files,
+  and whatever comes after), and the collection must never fragment
+  across contract addresses to support that. ERC721A's batch-mint gas
+  savings apply whenever multiple editions of a track mint together
+  (e.g. an admin/team allocation, or a buyer grabbing several editions in
+  one tx) — even if most public mints are one edition at a time, it costs
+  nothing to build on ERC721A and it is the standard the rest of this
+  section assumes.
 - **Solana: one Metaplex Certified Collection per... TBD whether "per chain"
   here just means Solana overall, or something finer.** Every minted edition
   NFT must be `verified` into that single Collection NFT so marketplaces
@@ -48,20 +56,14 @@ Concretely, when contracts get built:
   total, not one-per-track (would be 19+ contracts) and not one shared
   contract across chains (impossible anyway — different VMs).
 
-**Explore later: ERC721A for the EVM contracts** (Dylan, 2026-07-27: "i
-think we should do ERC721A"). Not evaluated yet — flagging the real
-tension before anyone builds against it: ERC721A (Azuki's gas-optimized
-standard) is a batch-mint optimization for **ERC-721**, not ERC-1155,
-and its savings come from minting several sequential token IDs to one
-buyer in a single transaction. The requirement above locks each EVM
-chain into one ERC-1155 contract with one `tokenId` per track (so
-"edition #14 of track X" and "edition #3 of track Y" can share a
-contract without being the same token). Before building, resolve
-whether ERC721A's batch-mint savings even apply to this app's actual
-mint flow (mostly one edition at a time, not bulk buys) and whether an
-ERC-721-based shape can still satisfy the one-collection-per-chain rule
-above (e.g. token ID ranges partitioned per track) without regressing
-the ERC-1155 approach's clean per-track supply tracking.
+**Decided 2026-07-28: ERC721A, not ERC-1155, for the EVM contracts.**
+Dylan on 2026-07-27: "i think we should do ERC721A" (flagged as an
+explore-later tension against the then-current ERC-1155 plan); on
+2026-07-28, corrected firmly and decided outright: "we do NOT like
+erc1155. that was the old way, really bad. ERC721A is the right way
+because everyone likes unique 721s. 1155s are trash." This is now the
+standing requirement — the bullet above reflects it. Do not build an
+ERC-1155 version of these contracts.
 
 **Contracts must be upgradable** (proxy pattern — UUPS or Transparent Proxy
 for EVM; Solana's own program-upgrade authority model for the Solana side).
