@@ -1,17 +1,12 @@
-"use client";
+import type { Metadata } from "next";
+import MusicPageClient from "./music-client";
 
-import { useRouter } from "next/navigation";
-import { ALBUMS, Album } from "@/lib/albums";
-import { useAppShell } from "@/components/AppShellContext";
-import MusicGrid from "@/components/MusicGrid";
+export const metadata: Metadata = {
+  title: "Music",
+  description:
+    "Browse Dyl's discography — stream every track and collect numbered onchain Music NFT editions on Robinhood Chain, Base, Ethereum, or Solana.",
+};
 
 export default function MusicPage() {
-  const router = useRouter();
-  const { chain, walletAddress } = useAppShell();
-
-  function openAlbum(album: Album) {
-    router.push(`/music/${album.slug}`);
-  }
-
-  return <MusicGrid albums={ALBUMS} chain={chain} walletAddress={walletAddress} onOpenAlbum={openAlbum} />;
+  return <MusicPageClient />;
 }

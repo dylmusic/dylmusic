@@ -1,6 +1,11 @@
-"use client";
-
+import type { Metadata } from "next";
 import SwapCard from "@/components/SwapCard";
+
+export const metadata: Metadata = {
+  title: "Swap",
+  description:
+    "Swap any token cross-chain for $Dyl or any curated token on Robinhood Chain, Base, Ethereum, or Solana.",
+};
 
 export default function SwapPage() {
   return (

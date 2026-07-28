@@ -1,3 +1,10 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Beats",
+  description: "Buy and lease beats from producers — coming soon on Dyl's onchain music platform.",
+};
+
 export default function BeatsPage() {
   return (
     <div className="dash-wrap">

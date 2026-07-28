@@ -1,39 +1,21 @@
-"use client";
-
-import { useRouter } from "next/navigation";
+import type { Metadata } from "next";
 import { ALBUMS } from "@/lib/albums";
-import { useAppShell } from "@/components/AppShellContext";
-import { usePlayer } from "@/components/PlayerContext";
-import AlbumView from "@/components/AlbumView";
+import AlbumPageClient from "./album-client";
+
+export function generateMetadata({ params }: { params: { slug: string } }): Metadata {
+  const album = ALBUMS.find((a) => a.slug === params.slug);
+  if (!album) {
+    return { title: "Album", description: "That album isn't available yet." };
+  }
+  const description = `${album.title} by ${album.artist} (${album.year}) — stream every track and collect numbered onchain Music NFT editions. Only 100 editions per song, per chain.`;
+  return {
+    title: album.title,
+    description,
+    openGraph: { title: `${album.title} | Dyl`, description, images: [{ url: album.coverImage }] },
+    twitter: { title: `${album.title} | Dyl`, description, images: [album.coverImage] },
+  };
+}
 
 export default function AlbumPage({ params }: { params: { slug: string } }) {
-  const router = useRouter();
-  const { chain, walletAddress, requestConnect } = useAppShell();
-  const player = usePlayer();
-
-  const album = ALBUMS.find((a) => a.slug === params.slug);
-
-  if (!album || album.comingSoon) {
-    return (
-      <div className="album-wrap">
-        <button className="album-back" onClick={() => router.push("/music")}>
-          ← Music
-        </button>
-        <p style={{ color: "#8b978f" }}>That album isn&apos;t available yet.</p>
-      </div>
-    );
-  }
-
-  return (
-    <AlbumView
-      album={album}
-      chain={chain}
-      walletAddress={walletAddress}
-      onRequestConnect={requestConnect}
-      playingTrackId={player.playingTrack?.id ?? null}
-      isPlaying={player.isPlaying}
-      onTogglePlay={player.toggleTrack}
-      onBack={() => router.push("/music")}
-    />
-  );
+  return <AlbumPageClient params={params} />;
 }
