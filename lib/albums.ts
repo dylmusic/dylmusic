@@ -24,7 +24,7 @@ export const CHAINS: ChainInfo[] = [
   { key: "robinhood", label: "Robinhood", shortLabel: "Robinhood", color: "#CCFF00", live: true },
   { key: "base", label: "Base", shortLabel: "Base", color: "#0052FF", live: true },
   { key: "solana", label: "Solana", shortLabel: "Solana", color: "#9945FF", live: true },
-  { key: "ethereum", label: "Ethereum", shortLabel: "Ethereum", color: "#8B8FA8", live: true },
+  { key: "ethereum", label: "Ethereum", shortLabel: "ETH", color: "#8B8FA8", live: true },
 ];
 
 export interface Track {

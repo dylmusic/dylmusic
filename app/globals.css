@@ -494,7 +494,16 @@ input {
   grid-template-columns: 1.1fr 0.9fr;
   align-items: center;
   gap: 56px;
-  pointer-events: auto;
+  /* none on the grid container itself, auto only on its two real content
+     cells below — .landing-inner's own box is much bigger than what it
+     visually renders (grid gaps, unused cell space around shorter
+     columns), and left as pointer-events:auto it silently wins hit-tests
+     over any desktop icon that happens to land in one of those empty
+     pockets, even though nothing is painted there. Only mattered once the
+     icon avoid-zone shrank enough for icons to actually reach this box's
+     edges (see DesktopBackground.tsx) — confirmed live via a real
+     elementFromPoint sweep before and after this change. */
+  pointer-events: none;
 }
 
 .landing-content {
@@ -502,6 +511,7 @@ input {
   display: flex;
   flex-direction: column;
   align-items: center;
+  pointer-events: auto;
 }
 
 .landing-logo {
@@ -817,6 +827,7 @@ input {
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: auto;
 }
 
 /* ---------- 3D interactive console (landing centerpiece) ---------- */

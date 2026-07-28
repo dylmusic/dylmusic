@@ -132,8 +132,13 @@ export default function DesktopFiles({
       };
     }
     setPositions(randomPositions(tracks, avoid));
+    // Re-shuffle when the avoid box's real numbers change (e.g. DesktopBackground
+    // correcting its first-paint guess to a real viewport-derived value shortly
+    // after mount, or a window resize) — deliberately keyed on the plain numbers,
+    // not the avoidRect object reference, since a new inline object literal every
+    // render would otherwise reposition icons constantly for no reason.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [avoidRect?.left, avoidRect?.top, avoidRect?.right, avoidRect?.bottom]);
 
   function handlePointerDown(e: React.PointerEvent, track: Track) {
     dragRef.current = {

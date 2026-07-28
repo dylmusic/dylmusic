@@ -101,7 +101,7 @@ export default function Landing({
                     onClick={() => onSelectChain(c.key)}
                   >
                     <span className="chain-dot" style={{ background: c.color }} />
-                    {c.label}
+                    {c.shortLabel}
                   </button>
                 ))}
               </div>
