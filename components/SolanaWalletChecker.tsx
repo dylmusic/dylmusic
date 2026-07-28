@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSolanaWallet } from "@/lib/solana";
-import { checkSolanaWallet, SolanaCheckResult } from "@/lib/solanaCollectionCheck";
+import { emptyTiers, SolanaCheckResult } from "@/lib/solanaCollectionCheck";
 import { CARD_TIER_MINTS, dylMintsForBalance } from "@/lib/burnCredits";
 
 export default function SolanaWalletChecker({
@@ -18,8 +18,17 @@ export default function SolanaWalletChecker({
   async function checkWallet() {
     if (!address) return;
     setChecking(true);
-    const r = await checkSolanaWallet(address);
-    setResult(r);
+    // Goes through our own server route (app/api/solana-check), not a
+    // direct browser call to the public Solana RPC — that endpoint 403s a
+    // lot of residential/mobile IPs under its own abuse-prevention, so
+    // every check now runs from one consistent server IP instead.
+    try {
+      const res = await fetch(`/api/solana-check?address=${encodeURIComponent(address)}`);
+      const r: SolanaCheckResult = await res.json();
+      setResult(r);
+    } catch {
+      setResult({ dylBalance: 0, tiers: emptyTiers(), error: "Check failed" });
+    }
     setChecking(false);
   }
 

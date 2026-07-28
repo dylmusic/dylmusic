@@ -12,6 +12,7 @@ import RecentSales from "./RecentSales";
 export default function MultichainOverview({ album }: { album: Album }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [volumeView, setVolumeView] = useState<"total" | "v2">("total");
+  const [burnedView, setBurnedView] = useState<"nfts" | "coin">("nfts");
 
   useEffect(() => {
     setRefreshKey((k) => k + 1);
@@ -68,13 +69,20 @@ export default function MultichainOverview({ album }: { album: Album }) {
           <span className="dash-quick-num">{formatStreams(streams.total)}</span>
           <span className="dash-quick-label">total streams</span>
         </div>
-        {/* Real zero, not a placeholder — burning isn't wired up on-chain
-            yet (see /burn), so there's genuinely nothing to count. Same
-            "show the true zero" call already made for RWA Pools. */}
-        <div className="dash-quick-tile">
+        {/* Real zero either way, not a placeholder — burning isn't wired up
+            on-chain yet (see /burn), so there's genuinely nothing to count
+            for NFTs or $Dyl coin. Same "show the true zero" call already
+            made for RWA Pools. Click toggles which one is shown, same
+            pattern as the Total/V2 Volume tile above. */}
+        <button
+          className="dash-quick-tile dash-quick-tile-click"
+          onClick={() => setBurnedView((v) => (v === "nfts" ? "coin" : "nfts"))}
+        >
           <span className="dash-quick-num">0</span>
-          <span className="dash-quick-label">NFTs burned</span>
-        </div>
+          <span className="dash-quick-label">
+            {burnedView === "nfts" ? "NFTs burned" : "$Dyl Coin burned"}
+          </span>
+        </button>
       </div>
 
       {/* ---------- Multichain / crypto (priority) ---------- */}

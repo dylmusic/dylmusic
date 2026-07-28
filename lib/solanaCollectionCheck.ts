@@ -1,5 +1,9 @@
-"use client";
-
+// Runs server-side now (called from app/api/solana-check/route.ts, not
+// directly from the browser) — the public Solana RPC 403s a lot of
+// residential/mobile IPs under its own abuse-prevention (confirmed: the
+// endpoint itself answered fine from a server IP while a real user's
+// browser got a 403 on the identical call), so this moved off the client
+// to run from one consistent server IP instead of every visitor's own.
 import { Connection, PublicKey } from "@solana/web3.js";
 
 // Same public RPC lib/dylSwap.ts already uses for real Solana reads.
@@ -42,7 +46,7 @@ export interface SolanaCheckResult {
   error?: string;
 }
 
-function emptyTiers(): SolanaTierBreakdown {
+export function emptyTiers(): SolanaTierBreakdown {
   return { standard: 0, gold: 0, platinum: 0, diamond: 0, unknown: 0, total: 0 };
 }
 
