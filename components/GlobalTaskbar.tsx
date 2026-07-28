@@ -48,6 +48,46 @@ export default function GlobalTaskbar({
     return () => clearInterval(id);
   }, []);
 
+  // Clicking the clock reveals today's date + live ETH/SOL price — a real
+  // CoinGecko fetch (same free, keyless /simple/price endpoint, no server
+  // proxy needed, CORS is wide open on it), not a fake number. Only
+  // fetched on demand when opened, not polled in the background.
+  const [pricesOpen, setPricesOpen] = useState(false);
+  const [prices, setPrices] = useState<{ eth: number | null; sol: number | null }>({
+    eth: null,
+    sol: null,
+  });
+  const [pricesState, setPricesState] = useState<"idle" | "loading" | "error">("idle");
+
+  function toggleClockPopup() {
+    setPricesOpen((open) => {
+      const next = !open;
+      if (next) fetchPrices();
+      return next;
+    });
+  }
+
+  async function fetchPrices() {
+    setPricesState("loading");
+    try {
+      const res = await fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=ethereum,solana&vs_currencies=usd"
+      );
+      const data = await res.json();
+      setPrices({ eth: data?.ethereum?.usd ?? null, sol: data?.solana?.usd ?? null });
+      setPricesState("idle");
+    } catch {
+      setPricesState("error");
+    }
+  }
+
+  const todayLabel = new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
   // Mobile-only nudge: the nav row scrolls sideways (more pages than fit
   // on a phone), but nothing about it visually signals that — no
   // scrollbar (scrollbar-width:none), no visible cut-off edge. A single
@@ -153,7 +193,51 @@ export default function GlobalTaskbar({
         ))}
       </div>
 
-      <span className="taskbar-clock">{clock ?? "--:--"}</span>
+      <div className="taskbar-clock-wrap">
+        {pricesOpen && (
+          <>
+            <div className="taskbar-clock-backdrop" onClick={() => setPricesOpen(false)} />
+            <div className="taskbar-clock-popup">
+              <div className="taskbar-clock-popup-head">Today</div>
+              <div className="taskbar-clock-popup-date">{todayLabel}</div>
+              <div className="taskbar-clock-popup-rows">
+                <div className="taskbar-clock-popup-row">
+                  <span>
+                    <span className="chain-dot" style={{ background: "#8B8FA8" }} />
+                    ETH
+                  </span>
+                  <span>
+                    {pricesState === "loading"
+                      ? "…"
+                      : pricesState === "error" || prices.eth === null
+                        ? "—"
+                        : `$${prices.eth.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
+                  </span>
+                </div>
+                <div className="taskbar-clock-popup-row">
+                  <span>
+                    <span className="chain-dot" style={{ background: "#9945FF" }} />
+                    SOL
+                  </span>
+                  <span>
+                    {pricesState === "loading"
+                      ? "…"
+                      : pricesState === "error" || prices.sol === null
+                        ? "—"
+                        : `$${prices.sol.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
+                  </span>
+                </div>
+              </div>
+              {pricesState === "error" && (
+                <div className="taskbar-clock-popup-error">Couldn&apos;t load prices.</div>
+              )}
+            </div>
+          </>
+        )}
+        <button className="taskbar-clock" onClick={toggleClockPopup}>
+          {clock ?? "--:--"}
+        </button>
+      </div>
     </div>
   );
 }

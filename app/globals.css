@@ -229,6 +229,11 @@ input {
   border-bottom-color: rgba(255, 255, 255, 0.85);
 }
 
+.taskbar-clock-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
 .taskbar-clock {
   font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
   font-size: 11.5px;
@@ -240,6 +245,81 @@ input {
   border-left: 2px solid rgba(0, 0, 0, 0.35);
   border-right: 2px solid rgba(255, 255, 255, 0.7);
   border-bottom: 2px solid rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+}
+
+.taskbar-clock:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.taskbar-clock-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+}
+
+.taskbar-clock-popup {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  right: 0;
+  z-index: 50;
+  width: 220px;
+  background: #0a0e0c;
+  padding: 14px 16px;
+  border-top: 2px solid rgba(255, 255, 255, 0.4);
+  border-left: 2px solid rgba(255, 255, 255, 0.4);
+  border-right: 3px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 4px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 24px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.taskbar-clock-popup-head {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.taskbar-clock-popup-date {
+  font-size: 13px;
+  font-weight: 600;
+  color: #eef2ee;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.taskbar-clock-popup-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.taskbar-clock-popup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #cfd9d2;
+}
+
+.taskbar-clock-popup-row span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  color: #8b978f;
+}
+
+.taskbar-clock-popup-error {
+  margin-top: 10px;
+  font-size: 11px;
+  color: #ff8a7a;
 }
 
 /* ---------- Start Menu ---------- */
@@ -1321,8 +1401,8 @@ input {
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.02em;
-  color: #3a2400;
-  background: linear-gradient(135deg, #ffe484, #ffb300);
+  color: #04140a;
+  background: var(--accent);
   padding: 4px 9px;
   border-top: 1px solid rgba(255, 255, 255, 0.85);
   border-left: 1px solid rgba(255, 255, 255, 0.85);
@@ -1334,10 +1414,10 @@ input {
 @keyframes music-card-collected-glow {
   0%,
   100% {
-    box-shadow: 0 0 9px 1px rgba(255, 195, 40, 0.5);
+    box-shadow: 0 0 9px 1px color-mix(in srgb, var(--accent) 50%, transparent);
   }
   50% {
-    box-shadow: 0 0 18px 4px rgba(255, 195, 40, 0.9);
+    box-shadow: 0 0 18px 4px color-mix(in srgb, var(--accent) 90%, transparent);
   }
 }
 
@@ -3718,7 +3798,10 @@ input {
 .admin-contract-actions {
   flex-shrink: 0;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
+  max-width: 220px;
 }
 
 .admin-contract-btn {
@@ -4813,7 +4896,14 @@ body > div:has(> .landing-page) {
 }
 
 .gcw-tab.gcw-lifted {
-  bottom: 328px;
+  /* Was 328px, a rough guess that left ~65px of dead space above the real
+     MiniPlayer (measured live: default-docked height is 205px + its own
+     56px bottom offset = 261px from the viewport bottom to its top edge).
+     270px gives a small ~9px gap instead. Only matches the default docked
+     position — MiniPlayer is itself draggable, so this can't follow it
+     once dragged elsewhere (pre-existing, documented limitation, not
+     addressed here). */
+  bottom: 270px;
 }
 
 .gcw-tab-dot {
@@ -4855,7 +4945,7 @@ body > div:has(> .landing-page) {
 }
 
 .gcw-window.gcw-lifted {
-  bottom: 328px;
+  bottom: 270px;
 }
 
 .gcw-titlebar {

@@ -119,6 +119,61 @@ requested specifically so the catalog can grow (new tracks/albums = new
 token ids/mints on the existing contract, plus any logic fixes) without ever
 having to deploy a new contract address and fragment the collection.
 
+**What actually makes OpenSea (and Magic Eden for Solana) pick a
+collection up correctly — Dylan asked directly 2026-07-28, checklist for
+whoever writes the contracts:**
+- **EVM, required for OpenSea to render it at all:**
+  `supportsInterface` must correctly report ERC-721 (`0x80ac58cd`) — this
+  comes for free from any real ERC721A base, just don't break it.
+  `tokenURI(tokenId)` must return real metadata JSON (`name`,
+  `description`, `image`, `attributes`) — OpenSea refuses to display an
+  item with a broken/empty `tokenURI`.
+- **`contractURI()`** — not part of the ERC-721 standard itself, but an
+  OpenSea-specific convention (also adopted by most other EVM
+  marketplaces) for the *collection-level* page: name, description,
+  image, banner image, external link, and (historically) a
+  `seller_fee_basis_points`/`fee_recipient` pair for royalties. Without
+  this, items can still show up individually but the collection page
+  itself (banner, description, verified-looking presentation) will be
+  blank/wrong. Add it.
+- **ERC-2981 (`royaltyInfo()`)** — the on-chain royalty-signaling
+  standard. OpenSea does read this now (post royalty-wars), but see the
+  "Royalty — 6.9%" section below: reading it is not the same as any
+  marketplace being forced to pay it. Implement it anyway since it costs
+  nothing and is what OpenSea and most others actually check first, but
+  don't treat it as a guarantee.
+- **Chain support is still the one unverified precondition** — none of
+  the above matters if OpenSea doesn't index Robinhood Chain at all (see
+  the "yes, but it doesn't do what you'd expect" section right below,
+  already flags this as unverified). Confirm this before relying on
+  OpenSea for that chain specifically.
+- **Solana (Magic Eden is the real target there, not OpenSea — OpenSea's
+  own Solana support has always been secondary/limited) — mirrors what
+  the burn-checker verification already leans on**: real Metaplex Token
+  Metadata per mint (`name`, `symbol`, `uri` → real off-chain JSON,
+  `sellerFeeBasisPoints` for royalty display), and every edition
+  `verified` into the one Certified Collection NFT per the requirement
+  above — an unverified/orphaned mint will not group into the collection
+  page on Magic Eden or anywhere else. **Worth deciding explicitly**:
+  legacy (plain) Metaplex NFTs have royalties as an honor-system
+  suggestion just like EVM's ERC-2981, but Metaplex's newer
+  **Programmable NFT (pNFT)** standard can actually enforce
+  royalties at the protocol level via rule sets — the one real lever
+  Solana has that EVM doesn't for the unresolved 6.9%-royalty question
+  below. Not decided which to use yet; pNFTs are more restrictive
+  (transfer rules can block marketplaces that don't cooperate) so weigh
+  that against the enforcement benefit before picking.
+- **Metadata mutability** — OpenSea/Magic Eden both surface a warning
+  (sometimes to buyers directly) when a collection's metadata is
+  "unverified" or freezable/mutable by the creator. Decide and document
+  whether metadata is frozen/immutable after mint or intentionally
+  upgradable (leans toward upgradable here, given the "add tracks/albums
+  over time" requirement above uses an upgradable proxy already) — just
+  don't let this be an accidental default either way.
+- **None of the above is a substitute for OpenSea's own manual
+  collection verification** (the checkmark) — that is a social/support-
+  ticket process on their end, not something the contract can do.
+
 **Nothing about this is built yet** — this section exists so a future
 contract-writing session starts from the right architecture instead of
 naively spinning up a contract per track. If any contract work begins,
@@ -1041,8 +1096,20 @@ upgradable (see above), this isn't a one-time "Deploy" button — it needs
 distinct deploy (first time per chain) and upgrade (push new implementation
 to the existing proxy) actions, plus whatever "add a new track/album as a
 new tokenId on the existing collection" action looks like day-to-day. Design
-this panel around the fact there are exactly 3 target collections total
-(Robinhood Chain, Base, Solana) — not a generic "deploy any contract" tool.
+this panel around the fact there are exactly 4 target collections total
+(Robinhood Chain, Base, Ethereum, Solana — Ethereum added 2026-07-28) plus
+the optional marketplace contract — not a generic "deploy any contract"
+tool. `lib/admin.ts` `CONTRACT_TARGETS` is already this exact ordered list
+(with per-step `reason` strings), and `/admin`'s Contracts section already
+renders it as a numbered 1-5 sequence — the Deploy/Upgrade buttons there
+are still disabled placeholders since nothing is deployed yet, but the
+shape (`order`, `reason`, per-target `key`) already matches what real
+deploy tooling should read from, extend it rather than hardcoding a
+separate list. A third button, **"Mint #1-10 & List"**, is also already
+scaffolded next to Deploy/Upgrade for each of the 4 collection rows
+(disabled, same honest reasoning) — that is the concrete admin action for
+the "Deployment minting strategy" below, one per chain, not a single
+global button.
 
 ---
 
@@ -1058,7 +1125,8 @@ data "priority" over streaming data.
 
 ## Chains
 
-`lib/albums.ts` `CHAINS` / `ChainKey = "robinhood" | "base" | "solana"`.
+`lib/albums.ts` `CHAINS` / `ChainKey = "robinhood" | "base" | "solana" | "ethereum"`
+(Ethereum added 2026-07-28 — gas cheap enough now to be worth it).
 Real Robinhood Chain neon brand color is **`#CCFF00`** (verified by
 sampling the actual official chain-icon asset pixel data — NOT `#00C805`,
 which was wrong and used earlier before being corrected). `--accent` CSS

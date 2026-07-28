@@ -83,6 +83,28 @@ export default function MultichainOverview({ album }: { album: Album }) {
             {burnedView === "nfts" ? "NFTs burned" : "$Dyl Coin burned"}
           </span>
         </button>
+        {/* Real zero, not a placeholder — same honesty rule as the tile
+            above. This one specifically can not be computed at all yet,
+            not just "isn't live yet": ownership here is tracked per
+            browser in localStorage (see lib/holdings.ts), there is no
+            shared backend that knows what any OTHER wallet holds, so
+            "how many full albums has each person collected, summed
+            across everyone" genuinely has no real data source to read
+            from right now. Real once either a global holdings index or
+            the live on-chain contracts exist (chain state itself would
+            answer this directly at that point). */}
+        <div className="dash-quick-tile">
+          <span className="dash-quick-num">0</span>
+          <span className="dash-quick-label dash-vol-info" tabIndex={0}>
+            Full Albums Collected<span className="dash-vol-info-icon">ⓘ</span>
+            <span className="dash-vol-tip" role="tooltip">
+              Sum of every complete album each wallet holds across everyone —
+              e.g. one person holding 5 full albums counts as 5. Needs a
+              shared ownership index or live contracts to compute for real;
+              nothing is tracked across wallets yet.
+            </span>
+          </span>
+        </div>
       </div>
 
       {/* ---------- Multichain / crypto (priority) ---------- */}

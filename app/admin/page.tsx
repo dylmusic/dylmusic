@@ -157,6 +157,15 @@ export default function AdminPage() {
                     <button className="admin-contract-btn" disabled>
                       Upgrade
                     </button>
+                    {c.key !== "marketplace" && (
+                      <button
+                        className="admin-contract-btn"
+                        disabled
+                        title="Mints editions #1-10 to the admin wallet, then auto-lists them at $10-$100 (inverse to edition number) — see CLAUDE.md Deployment minting strategy"
+                      >
+                        Mint #1-10 &amp; List
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
