@@ -42,6 +42,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const onBurn = pathname === "/burn";
   const onBoard = pathname === "/board";
   const onAbout = pathname === "/about";
+  const onPrint = pathname === "/print";
   const accentColor = CHAINS.find((c) => c.key === chain)?.color ?? "#CCFF00";
 
   const pageTitle = onMusic
@@ -56,6 +57,8 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     ? "Burn"
     : onBoard
     ? "Board"
+    : onPrint
+    ? "SYSTEM_ALERT.exe"
     : onAbout
     ? "About"
     : onChat

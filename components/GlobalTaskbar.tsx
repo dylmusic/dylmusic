@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import PrintAdModal from "./PrintAdModal";
 
 const STAR_ICON_PIXELS: [number, number][] = [
   [7, 1], [7, 2], [7, 3], [7, 4], [7, 5],
@@ -24,6 +23,7 @@ const NAV_ITEMS: { href: string; label: string; match: (p: string) => boolean }[
   { href: "/beats", label: "Beats", match: (p) => p === "/beats" },
   { href: "/burn", label: "Burn", match: (p) => p === "/burn" },
   { href: "/board", label: "Board", match: (p) => p === "/board" },
+  { href: "/print", label: "Print", match: (p) => p === "/print" },
 ];
 
 // Persistent bottom taskbar, shared across every page — the anchor of the
@@ -39,7 +39,6 @@ export default function GlobalTaskbar({
   const router = useRouter();
   const [clock, setClock] = useState<string | null>(null);
   const windowsRef = useRef<HTMLDivElement>(null);
-  const [printAdOpen, setPrintAdOpen] = useState(false);
 
   useEffect(() => {
     function tick() {
@@ -178,7 +177,6 @@ export default function GlobalTaskbar({
   }, []);
 
   return (
-    <>
     <div className="site-taskbar">
       <button
         className="taskbar-start"
@@ -202,12 +200,6 @@ export default function GlobalTaskbar({
             {item.label}
           </Link>
         ))}
-        {/* Not a real page — opens the PrintAdModal easter egg instead of
-            navigating. Styled identically to the real nav buttons so it
-            reads as just another "window" until you click it. */}
-        <button className="taskbar-win-btn" onClick={() => setPrintAdOpen(true)}>
-          Print
-        </button>
       </div>
 
       <div className="taskbar-clock-wrap">
@@ -258,8 +250,6 @@ export default function GlobalTaskbar({
         </button>
       </div>
     </div>
-    {printAdOpen && <PrintAdModal onClose={() => setPrintAdOpen(false)} />}
-    </>
   );
 }
 
