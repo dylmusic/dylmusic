@@ -20,15 +20,26 @@ export default function BuyConfirmModal({
   track,
   entry,
   quantity,
+  album,
   defaultPayToken,
   buyStep,
   busy,
   onConfirm,
   onCancel,
 }: {
-  track: Track;
-  entry: OrderBookEntry;
+  track?: Track;
+  entry?: OrderBookEntry;
   quantity: number;
+  // Whole-album buy (Dylan: "when they buy an album, it still needs the buy
+  // button popup interface... that's going to execute a multi-buy for all
+  // 19 items at once") — one confirm/pay-with step covering every track in
+  // the album at once, instead of the modal's usual single-track display.
+  // Real contract implication (see CLAUDE.md): this is NOT the same shape
+  // as ERC721A's own mint(quantity) batch optimization, which only compresses
+  // storage across sequential ids under one track's own id range — an album
+  // buy mints across 19 DIFFERENT non-sequential ranges (one per track) in
+  // one wallet action, closer to a custom multicall than a single batch mint.
+  album?: { title: string; trackCount: number; totalUsd: number };
   defaultPayToken: DylToken;
   buyStep: 1 | 2 | null;
   busy: boolean;
@@ -40,7 +51,7 @@ export default function BuyConfirmModal({
 
   useEffect(() => {
     setPayToken(defaultPayToken);
-  }, [defaultPayToken, track.id]);
+  }, [defaultPayToken, track?.id, album?.title]);
 
   const isNative =
     payToken.chainId === defaultPayToken.chainId && payToken.address === defaultPayToken.address;
@@ -54,9 +65,11 @@ export default function BuyConfirmModal({
             <div className="buy-confirm-waiting-title">
               {buyStep === 1
                 ? `Swapping ${payToken.symbol} to ${defaultPayToken.symbol}`
-                : quantity > 1
-                  ? `Minting ${quantity} editions`
-                  : "Buying edition"}
+                : album
+                  ? `Minting ${album.trackCount} tracks`
+                  : quantity > 1
+                    ? `Minting ${quantity} editions`
+                    : "Buying edition"}
             </div>
             <div className="buy-confirm-waiting-sub">Step {buyStep} of 2</div>
             <div className="buy-confirm-dots">
@@ -69,7 +82,7 @@ export default function BuyConfirmModal({
             <div className="modal-head">
               <div>
                 <div className="modal-eyebrow">Confirm purchase</div>
-                <h3>{track.title}</h3>
+                <h3>{album ? album.title : track!.title}</h3>
               </div>
               <button className="modal-close" onClick={onCancel} aria-label="Close">
                 ×
@@ -78,15 +91,19 @@ export default function BuyConfirmModal({
 
             <div className="buy-confirm-track">
               <span className="buy-confirm-track-title">
-                {entry.type === "mint"
-                  ? quantity > 1
-                    ? `MINTING: ${quantity} EDITIONS (#${track.editionCap - (entry.remaining ?? 0) + 1}–#${
-                        track.editionCap - (entry.remaining ?? 0) + quantity
-                      })`
-                    : `MINTING: EDITION #${track.editionCap - (entry.remaining ?? 0) + 1}`
-                  : `PURCHASE: EDITION #${entry.editionNumber}`}
+                {album
+                  ? `MINTING: ${album.trackCount} TRACK${album.trackCount === 1 ? "" : "S"}`
+                  : entry!.type === "mint"
+                    ? quantity > 1
+                      ? `MINTING: ${quantity} EDITIONS (#${track!.editionCap - (entry!.remaining ?? 0) + 1}–#${
+                          track!.editionCap - (entry!.remaining ?? 0) + quantity
+                        })`
+                      : `MINTING: EDITION #${track!.editionCap - (entry!.remaining ?? 0) + 1}`
+                    : `PURCHASE: EDITION #${entry!.editionNumber}`}
               </span>
-              <span className="buy-confirm-track-price">${(entry.priceUsd * quantity).toFixed(2)}</span>
+              <span className="buy-confirm-track-price">
+                ${album ? album.totalUsd.toFixed(2) : (entry!.priceUsd * quantity).toFixed(2)}
+              </span>
             </div>
 
             <div>

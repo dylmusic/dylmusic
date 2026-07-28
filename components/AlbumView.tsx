@@ -7,6 +7,7 @@ import { localMintedCount, recordMint } from "@/lib/holdings";
 import { recordActivity } from "@/lib/activity";
 import { useStreamCountsLoaded } from "@/lib/streams";
 import { useTrackCommerce } from "@/lib/useTrackCommerce";
+import type { DylToken } from "@/lib/dylTokens";
 import TrackRow from "./TrackRow";
 import ListingsModal from "./ListingsModal";
 import OrderBookModal from "./OrderBookModal";
@@ -36,30 +37,59 @@ export default function AlbumView({
   const [sweepBusy, setSweepBusy] = useState(false);
   const [modalTrackId, setModalTrackId] = useState<string | null>(null);
   const [bookTrackId, setBookTrackId] = useState<string | null>(null);
+  const [albumBuyOpen, setAlbumBuyOpen] = useState(false);
+  const [albumBuyStep, setAlbumBuyStep] = useState<1 | 2 | null>(null);
 
   useStreamCountsLoaded();
   const commerce = useTrackCommerce(album.tracks, chain, walletAddress);
   const { minted, ownedEditions, listings, books } = commerce;
 
-  const sweepTracks = album.tracks.filter(
-    (t) => (ownedEditions[t.id]?.length ?? 0) === 0 && minted[t.id] < t.editionCap
-  );
+  // Buyable = still has supply left, regardless of whether the wallet
+  // already owns one — completing the album used to hard-disable this
+  // button ("Album complete"), which meant there was no way to buy a
+  // second full run once you'd bought one of everything. Dylan: "yes,
+  // indicate that [complete], but allow them to buy it again - duh." The
+  // ★ Collected badge below still shows the complete state; the button
+  // itself is only ever disabled by a REAL sellout (every track at cap).
+  const sweepTracks = album.tracks.filter((t) => minted[t.id] < t.editionCap);
   const sweepTotal = sweepTracks.reduce((sum, t) => sum + t.priceUsd, 0);
 
   const totalMinted = album.tracks.reduce((sum, t) => sum + minted[t.id], 0);
   const totalCap = album.tracks.reduce((sum, t) => sum + t.editionCap, 0);
   const soldPct = Math.round((totalMinted / totalCap) * 100);
 
-  // Bulk "buy the whole album" stays a single simulated action at native
-  // price, same as before — a Pay-With popup per track would make sweeping
-  // 19 tracks tedious, so this one path skips it on purpose.
-  async function buyAlbum() {
+  // Buying the whole album now goes through the same Pay-With confirm
+  // modal a single track uses (Dylan: "it still needs the buy button
+  // popup interface... that's going to execute a multi-buy for all 19
+  // items at once") — one confirmation, one optional swap-then-buy
+  // animation if paying with a non-native token, then every track mints
+  // in sequence underneath. See the `album` prop comment in
+  // BuyConfirmModal.tsx for the real contract-shape implication this has
+  // (not the same batch primitive as a single track's ERC721A
+  // mint(quantity) — 19 different tokenId ranges, not one).
+  function requestBuyAlbum() {
     if (!walletAddress) {
       onRequestConnect();
       return;
     }
     if (sweepBusy || sweepTracks.length === 0) return;
+    setAlbumBuyOpen(true);
+  }
+
+  async function confirmBuyAlbum(payToken: DylToken) {
+    if (!walletAddress) return;
     setSweepBusy(true);
+    const isNative =
+      payToken.chainId === commerce.defaultPayToken.chainId &&
+      payToken.address === commerce.defaultPayToken.address;
+    if (!isNative) {
+      setAlbumBuyStep(1);
+      await delay(900);
+      setAlbumBuyStep(2);
+      await delay(900);
+    } else {
+      await delay(450);
+    }
     for (const t of sweepTracks) {
       await delay(180);
       const current = baselineMinted(t, chain) + localMintedCount(chain, t.id);
@@ -76,6 +106,8 @@ export default function AlbumView({
       }
     }
     setSweepBusy(false);
+    setAlbumBuyStep(null);
+    setAlbumBuyOpen(false);
     commerce.refresh();
   }
 
@@ -152,13 +184,13 @@ export default function AlbumView({
 
           <button
             className="btn-sweep"
-            onClick={buyAlbum}
+            onClick={requestBuyAlbum}
             disabled={sweepBusy || sweepTracks.length === 0}
           >
             {sweepBusy
               ? "Buying album…"
               : sweepTracks.length === 0
-              ? "Album complete"
+              ? "Sold out"
               : `Buy Album · $${sweepTotal.toFixed(2)}`}
           </button>
         </div>
@@ -222,6 +254,20 @@ export default function AlbumView({
           busy={commerce.busyKey !== null}
           onConfirm={commerce.confirmPendingBuy}
           onCancel={commerce.cancelPendingBuy}
+        />
+      )}
+
+      {albumBuyOpen && (
+        <BuyConfirmModal
+          quantity={1}
+          album={{ title: album.title, trackCount: sweepTracks.length, totalUsd: sweepTotal }}
+          defaultPayToken={commerce.defaultPayToken}
+          buyStep={albumBuyStep}
+          busy={sweepBusy}
+          onConfirm={confirmBuyAlbum}
+          onCancel={() => {
+            if (!sweepBusy) setAlbumBuyOpen(false);
+          }}
         />
       )}
     </div>

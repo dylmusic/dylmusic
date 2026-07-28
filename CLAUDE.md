@@ -1079,6 +1079,33 @@ Open items for whoever builds this:
   something done by hand per track after the fact, given the catalog will
   keep growing per the upgradability requirement above.
 
+**"Buy Album" is a real, separate batch-mint shape — not the same as
+ERC721A's own `mint(quantity)`.** Shipped 2026-07-28 in the simulated
+flow (`components/AlbumView.tsx` `confirmBuyAlbum`, `components/
+BuyConfirmModal.tsx`'s `album` prop): buying a whole album now goes
+through the same Pay-With confirm modal a single track uses, one
+confirmation covering every track in the album in one go (Dylan: "when
+they do buy an album, it still needs the buy button popup interface...
+that's going to execute a multi-buy for all 19 items at once"). Also
+fixed the button in the same change: it used to hard-disable once every
+track was owned once ("Album complete"), with no way to buy a second
+full run — Dylan: "yes, indicate that, but allow them to buy it again -
+duh." The button is now only disabled by a real sellout (every track at
+its cap); the ★ Collected badge still shows the complete state.
+**The real contract implication, per Dylan's own ask to note it**:
+ERC721A's `mint(quantity)` batch-gas-savings only apply to *sequential
+token ids under one track's own id range* (see the ERC721A section
+above) — an album buy needs to mint across **19 different,
+non-sequential ranges (one per track)** in a single wallet action. That
+is not the same primitive at all. Two real options once contracts
+exist: (a) a custom `batchMintAcrossTracks(trackIds[], quantities[])`
+function on the collection contract itself, purpose-built for this, or
+(b) wrap N separate `mint(quantity)` calls (one per track) inside a
+Multicall3-style aggregator so it still lands as one signed
+transaction. Neither is built — this is scope for whoever writes the
+real contract, flagging it now so "buy album" isn't assumed to fall out
+of the single-track batch-mint work for free.
+
 ---
 
 ## Admin — `/admin`
