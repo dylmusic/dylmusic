@@ -336,12 +336,34 @@ data — verify further before hardcoding any of it into eligibility logic.
   on **ProtonMint** — was also mentioned as existing/planned but not yet
   detailed (no contract address supplied yet for either).
 
-**Burn → free-mint reward ratio, Ethereum (Dylan-supplied 2026-07-27):**
-Standard card = 3 mints, Gold card = 5 mints, Platinum card = 7 mints.
-**Diamond's reward count wasn't given yet**, and no reward ratios have been
-supplied yet for Solana, Tezos, or Polygon, or for the non-trading-card VIP
-NFT tier (Deluxe/Classic/Singles) — don't assume parity with the trading-card
-numbers above until Dylan confirms those too.
+**Burn → free-mint reward ratio (Dylan-supplied 2026-07-27, superseding an
+earlier draft of these numbers given moments before — use ONLY the table
+below, the initial 3/5/7 figures were revised before anything was built
+against them):**
+
+| Chain  | Asset burned              | Free mints |
+|--------|----------------------------|-----------:|
+| ETH    | Standard trading card      | 5          |
+| ETH    | Gold trading card          | 10         |
+| ETH    | Platinum trading card      | 20         |
+| ETH    | VIP NFT (the `1/200` tier) | 50         |
+| Solana | Standard trading card      | 5          |
+| Solana | Gold trading card          | 10         |
+| Solana | Platinum trading card      | 20         |
+| Tezos  | any 1 NFT                  | 1          |
+| —      | 1,000,000 total $DYL held  | 5          |
+| —      | 10,000,000 total $DYL held | 50         |
+
+**Still open / not yet specified**: Diamond tier's reward (ETH or Solana),
+whether Deluxe vs. Classic trading cards get the same ratio (recorded above
+as if they do — not confirmed), Polygon's ratio, and the other two ETH VIP
+sub-tiers (`1/10` Classic, `1/1` Singles). **$DYL is a threshold on total
+held balance, not a per-token burn count** — a fundamentally different
+mechanic from the NFT rows (burn N cards → get N×reward; here it's "hold
+≥1,000,000 $DYL" as a gate), likely checked by balance snapshot/proof
+rather than an actual burn transaction — confirm this distinction with
+Dylan before implementing, since "burn $DYL" vs. "hold $DYL" have very
+different UX and irreversibility implications.
 
 ---
 

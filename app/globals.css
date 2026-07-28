@@ -52,6 +52,12 @@ input {
 
 .landing-page {
   width: 100%;
+  /* Same reasoning as .landing below: this top-level wrapper's own box has
+     no visible background, but without this it still wins every hit-test
+     over the persistent desktop icons rendered behind it (z-index:-1 only
+     affects paint order, not click routing) — even in page regions where
+     nothing is actually drawn. Real content opts back in below. */
+  pointer-events: none;
 }
 
 .landing-wallet-corner {
@@ -59,12 +65,14 @@ input {
   top: 20px;
   right: 20px;
   z-index: 30;
+  pointer-events: auto;
 }
 
 .bio-section {
   padding: 90px 24px 110px;
   background: #05070a;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
+  pointer-events: auto;
 }
 
 .bio-inner {
@@ -129,6 +137,13 @@ input {
   justify-content: center;
   overflow: hidden;
   padding: 24px;
+  /* This box spans the full viewport (for centering), but has no visible
+     background of its own outside .landing-inner — without this, its empty
+     margin area sits on top of the desktop icons in the hit-test order and
+     silently eats every click aimed at them, even though nothing is drawn
+     there. .landing-inner opts back into pointer-events so real content is
+     unaffected. */
+  pointer-events: none;
 }
 
 .site-taskbar {
@@ -138,6 +153,7 @@ input {
   bottom: 0;
   z-index: 50;
   height: 40px;
+  pointer-events: auto;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -233,6 +249,7 @@ input {
   inset: 0;
   z-index: 40;
   background: rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
 }
 
 .start-menu {
@@ -240,6 +257,7 @@ input {
   left: 10px;
   bottom: 48px;
   z-index: 41;
+  pointer-events: auto;
   display: flex;
   width: min(420px, calc(100vw - 20px));
   max-height: 88vh;
@@ -299,9 +317,12 @@ input {
   text-transform: uppercase;
   color: #7c8a80;
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-  padding: 6px 12px;
+  border-radius: 0;
+  border-top: 2px solid rgba(255, 255, 255, 0.14);
+  border-left: 2px solid rgba(255, 255, 255, 0.14);
+  border-right: 2px solid rgba(0, 0, 0, 0.35);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.35);
+  padding: 5px 11px;
   cursor: pointer;
   transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
@@ -313,7 +334,10 @@ input {
 .start-menu-tab.active {
   color: #04140a;
   background: var(--accent);
-  border-color: var(--accent);
+  border-top-color: rgba(0, 0, 0, 0.35);
+  border-left-color: rgba(0, 0, 0, 0.35);
+  border-right-color: rgba(255, 255, 255, 0.55);
+  border-bottom-color: rgba(255, 255, 255, 0.55);
 }
 
 .start-menu-row {
@@ -470,6 +494,7 @@ input {
   grid-template-columns: 1.1fr 0.9fr;
   align-items: center;
   gap: 56px;
+  pointer-events: auto;
 }
 
 .landing-content {
@@ -643,9 +668,12 @@ input {
   font-size: 12px;
   color: #6b7a70;
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-  padding: 7px 12px;
+  border-radius: 0;
+  border-top: 2px solid rgba(0, 0, 0, 0.5);
+  border-left: 2px solid rgba(0, 0, 0, 0.5);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+  padding: 6px 11px;
 }
 
 .aim-mini-reply-send {
@@ -654,9 +682,19 @@ input {
   font-weight: 700;
   font-size: 11.5px;
   color: var(--accent);
-  padding: 7px 12px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  padding: 6px 11px;
+  border-radius: 0;
+  border-top: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  border-right: 2px solid rgba(0, 0, 0, 0.5);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.5);
+}
+
+.aim-mini-reply-send:active {
+  border-top-color: rgba(0, 0, 0, 0.5);
+  border-left-color: rgba(0, 0, 0, 0.5);
+  border-right-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 .aim-mini-reply:hover .aim-mini-reply-send {
@@ -688,17 +726,25 @@ input {
   color: #04140a;
   font-weight: 600;
   font-size: 15px;
-  padding: 14px 32px;
-  border-radius: 999px;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
-    0 8px 30px color-mix(in srgb, var(--accent) 18%, transparent);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  padding: 13px 31px;
+  border-radius: 0;
+  border-top: 2px solid rgba(255, 255, 255, 0.7);
+  border-left: 2px solid rgba(255, 255, 255, 0.7);
+  border-right: 2px solid rgba(0, 0, 0, 0.45);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 30px color-mix(in srgb, var(--accent) 18%, transparent);
+  transition: box-shadow 0.15s ease;
 }
 
 .btn-connect:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent),
-    0 10px 34px color-mix(in srgb, var(--accent) 28%, transparent);
+  box-shadow: 0 10px 34px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.btn-connect:active {
+  border-top-color: rgba(0, 0, 0, 0.45);
+  border-left-color: rgba(0, 0, 0, 0.45);
+  border-right-color: rgba(255, 255, 255, 0.7);
+  border-bottom-color: rgba(255, 255, 255, 0.7);
 }
 
 .btn-burn {
@@ -712,16 +758,26 @@ input {
   color: #2a0e00;
   font-weight: 700;
   font-size: 14px;
-  padding: 13px 20px;
-  border-radius: 999px;
+  padding: 12px 19px;
+  border-radius: 0;
+  border-top: 2px solid rgba(255, 255, 255, 0.55);
+  border-left: 2px solid rgba(255, 255, 255, 0.55);
+  border-right: 2px solid rgba(0, 0, 0, 0.4);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.4);
   margin-bottom: 20px;
-  box-shadow: 0 0 0 1px rgba(255, 107, 40, 0.4), 0 8px 26px rgba(255, 91, 31, 0.3);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 8px 26px rgba(255, 91, 31, 0.3);
+  transition: box-shadow 0.15s ease;
 }
 
 .btn-burn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 0 0 1px rgba(255, 107, 40, 0.6), 0 10px 32px rgba(255, 91, 31, 0.45);
+  box-shadow: 0 10px 32px rgba(255, 91, 31, 0.45);
+}
+
+.btn-burn:active {
+  border-top-color: rgba(0, 0, 0, 0.4);
+  border-left-color: rgba(0, 0, 0, 0.4);
+  border-right-color: rgba(255, 255, 255, 0.55);
+  border-bottom-color: rgba(255, 255, 255, 0.55);
 }
 
 .btn-burn-hero {
@@ -735,18 +791,26 @@ input {
   color: #04140a;
   font-weight: 700;
   font-size: 14px;
-  padding: 13px 20px;
-  border-radius: 999px;
+  padding: 12px 19px;
+  border-radius: 0;
+  border-top: 2px solid rgba(255, 255, 255, 0.7);
+  border-left: 2px solid rgba(255, 255, 255, 0.7);
+  border-right: 2px solid rgba(0, 0, 0, 0.45);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.45);
   margin-bottom: 20px;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
-    0 8px 26px color-mix(in srgb, var(--accent) 18%, transparent);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 8px 26px color-mix(in srgb, var(--accent) 18%, transparent);
+  transition: box-shadow 0.15s ease;
 }
 
 .btn-burn-hero:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent),
-    0 10px 32px color-mix(in srgb, var(--accent) 28%, transparent);
+  box-shadow: 0 10px 32px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.btn-burn-hero:active {
+  border-top-color: rgba(0, 0, 0, 0.45);
+  border-left-color: rgba(0, 0, 0, 0.45);
+  border-right-color: rgba(255, 255, 255, 0.7);
+  border-bottom-color: rgba(255, 255, 255, 0.7);
 }
 
 .landing-art {
@@ -822,10 +886,13 @@ input {
   font-size: 10px;
   letter-spacing: 0.06em;
   color: #9fada4;
-  padding: 5px 10px;
-  border-radius: 999px;
+  padding: 4px 9px;
+  border-radius: 0;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 2px solid rgba(255, 255, 255, 0.18);
+  border-left: 2px solid rgba(255, 255, 255, 0.18);
+  border-right: 2px solid rgba(0, 0, 0, 0.35);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.35);
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
@@ -999,7 +1066,7 @@ input {
   gap: 4px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 999px;
+  border-radius: 0;
   padding: 3px;
 }
 
@@ -1011,7 +1078,7 @@ input {
   text-decoration: none;
   color: #7c8a80;
   padding: 6px 13px;
-  border-radius: 999px;
+  border-radius: 0;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
@@ -1031,7 +1098,7 @@ input {
   gap: 6px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 999px;
+  border-radius: 0;
   padding: 4px;
 }
 
@@ -1044,7 +1111,7 @@ input {
   letter-spacing: 0.08em;
   color: #7c8a80;
   padding: 7px 14px;
-  border-radius: 999px;
+  border-radius: 0;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
@@ -1072,10 +1139,13 @@ input {
 .wallet-pill {
   font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
   font-size: 12px;
-  padding: 9px 16px;
-  border-radius: 999px;
+  padding: 8px 15px;
+  border-radius: 0;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 2px solid rgba(255, 255, 255, 0.16);
+  border-left: 2px solid rgba(255, 255, 255, 0.16);
+  border-right: 2px solid rgba(0, 0, 0, 0.35);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.35);
   color: #cfd9d2;
   display: flex;
   align-items: center;
@@ -1125,9 +1195,12 @@ input {
 .nickname-editor input {
   width: 130px;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-  border-radius: 999px;
-  padding: 8px 14px;
+  border-radius: 0;
+  border-top: 2px solid rgba(0, 0, 0, 0.4);
+  border-left: 2px solid rgba(0, 0, 0, 0.4);
+  border-right: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-bottom: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  padding: 7px 13px;
   color: #eef2ee;
   font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
   font-size: 12px;
@@ -1301,10 +1374,13 @@ input {
   letter-spacing: 0.03em;
   text-decoration: none;
   color: #9fada4;
-  padding: 6px 12px;
-  border-radius: 999px;
+  padding: 5px 11px;
+  border-radius: 0;
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 2px solid rgba(255, 255, 255, 0.18);
+  border-left: 2px solid rgba(255, 255, 255, 0.18);
+  border-right: 2px solid rgba(0, 0, 0, 0.35);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.35);
   transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
@@ -2125,6 +2201,7 @@ input {
   bottom: 56px;
   right: 20px;
   z-index: 20;
+  pointer-events: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -2426,6 +2503,8 @@ input {
 
 /* AIM-room vibe: a real "window" — tall and narrow, not a wide feed. */
 .aim-window {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 380px;
   height: min(640px, 100%);
@@ -2654,12 +2733,15 @@ input {
   align-items: center;
   gap: 6px;
   background: color-mix(in srgb, var(--accent) 12%, transparent);
-  border: 1px solid var(--accent);
+  border-radius: 0;
+  border-top: 2px solid color-mix(in srgb, var(--accent) 70%, white 30%);
+  border-left: 2px solid color-mix(in srgb, var(--accent) 70%, white 30%);
+  border-right: 2px solid rgba(0, 0, 0, 0.5);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.5);
   color: var(--accent);
   font-weight: 800;
   font-size: 0.9rem;
-  padding: 7px 14px;
-  border-radius: 999px;
+  padding: 6px 13px;
   cursor: pointer;
 }
 
@@ -2691,9 +2773,12 @@ input {
 .swap-flip-btn {
   width: 32px;
   height: 32px;
-  border-radius: 999px;
+  border-radius: 0;
   background: #12161a;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 2px solid rgba(255, 255, 255, 0.2);
+  border-left: 2px solid rgba(255, 255, 255, 0.2);
+  border-right: 2px solid rgba(0, 0, 0, 0.5);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.5);
   color: #cfd9d2;
   display: flex;
   align-items: center;
@@ -2724,9 +2809,12 @@ input {
 .swap-cta {
   width: 100%;
   margin-top: 14px;
-  padding: 14px;
-  border-radius: 999px;
-  border: none;
+  padding: 13px;
+  border-radius: 0;
+  border-top: 2px solid rgba(255, 255, 255, 0.7);
+  border-left: 2px solid rgba(255, 255, 255, 0.7);
+  border-right: 2px solid rgba(0, 0, 0, 0.45);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.45);
   background: var(--accent);
   color: #04140a;
   font-weight: 700;
@@ -2824,9 +2912,12 @@ input {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 5px 11px;
+  border-radius: 0;
+  border-top: 2px solid rgba(255, 255, 255, 0.16);
+  border-left: 2px solid rgba(255, 255, 255, 0.16);
+  border-right: 2px solid rgba(0, 0, 0, 0.35);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.35);
   background: rgba(255, 255, 255, 0.04);
   color: #7c8a80;
   font-size: 0.78rem;
@@ -2892,12 +2983,15 @@ input {
   align-items: center;
   gap: 6px;
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  border-top: 2px solid rgba(255, 255, 255, 0.18);
+  border-left: 2px solid rgba(255, 255, 255, 0.18);
+  border-right: 2px solid rgba(0, 0, 0, 0.4);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.4);
   color: #eef2ee;
   font-weight: 800;
   font-size: 0.82rem;
-  padding: 6px 12px 6px 6px;
-  border-radius: 999px;
+  padding: 5px 11px 5px 5px;
   cursor: pointer;
 }
 
@@ -3010,9 +3104,12 @@ input {
 
 .buy-confirm-cta {
   width: 100%;
-  padding: 13px;
-  border-radius: 999px;
-  border: none;
+  padding: 12px;
+  border-radius: 0;
+  border-top: 2px solid rgba(255, 255, 255, 0.7);
+  border-left: 2px solid rgba(255, 255, 255, 0.7);
+  border-right: 2px solid rgba(0, 0, 0, 0.45);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.45);
   background: var(--accent);
   color: #04140a;
   font-weight: 700;
@@ -3083,10 +3180,13 @@ input {
 /* ---------- Admin ---------- */
 
 .admin-wrap {
+  position: relative;
+  z-index: 1;
   min-height: 100vh;
   max-width: 640px;
   margin: 0 auto;
   padding: 40px 24px 100px;
+  background: #05070a;
 }
 
 .admin-head {
@@ -3247,6 +3347,8 @@ input {
 /* ---------- Win95 window chrome ---------- */
 
 .win95-window {
+  position: relative;
+  z-index: 1;
   max-width: 1100px;
   margin: 0 auto;
   background: #05070a;
@@ -3312,12 +3414,25 @@ input {
 
 /* ---------- Persistent desktop background ---------- */
 
+/* RainbowKitProvider renders an unstyled wrapper <div> around every page's
+   content (and around .desktop-bg, its sibling) with no class to hook —
+   on the homepage that wrapper's own box has no visible background of its
+   own but still geometrically covers the same footprint as the desktop
+   icons behind it, and (being a normal, non-none pointer-events box) wins
+   every hit-test over them regardless of .desktop-bg's z-index. Scoped via
+   :has() to only the homepage's specific child shape so no other route's
+   click behavior is touched. */
+body > div:has(> .landing-page) {
+  pointer-events: none;
+}
+
 .desktop-bg {
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: 0;
   overflow: hidden;
   background: #05070a;
+  pointer-events: auto;
 }
 
 .desktop-bg .visualizer-canvas {
@@ -3420,11 +3535,14 @@ input {
   flex-shrink: 0;
   background: rgba(255, 107, 40, 0.12);
   color: #ff8a3d;
-  border: 1px solid rgba(255, 107, 40, 0.35);
+  border-radius: 0;
+  border-top: 2px solid rgba(255, 107, 40, 0.4);
+  border-left: 2px solid rgba(255, 107, 40, 0.4);
+  border-right: 2px solid rgba(0, 0, 0, 0.35);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.35);
   font-weight: 700;
   font-size: 13px;
-  padding: 8px 16px;
-  border-radius: 999px;
+  padding: 7px 15px;
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -3522,4 +3640,217 @@ input {
 .burn-checker-row-count.has {
   color: var(--accent);
   font-weight: 700;
+}
+
+/* ---------- Board (bulletin board) ---------- */
+
+.board-wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 48px 24px 140px;
+}
+
+.board-head {
+  margin-bottom: 28px;
+}
+
+.board-eyebrow {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #7c8a80;
+  margin-bottom: 6px;
+}
+
+.board-head h1 {
+  font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+  margin: 0;
+  font-weight: 600;
+}
+
+.board-sub {
+  font-size: 14px;
+  color: #8b978f;
+  margin: 8px 0 0;
+  max-width: 520px;
+}
+
+.board-composer {
+  background: #12161a;
+  border-radius: 0;
+  border-top: 2px solid rgba(0, 0, 0, 0.5);
+  border-left: 2px solid rgba(0, 0, 0, 0.5);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+  padding: 14px;
+  margin-bottom: 32px;
+}
+
+.board-composer textarea {
+  width: 100%;
+  resize: none;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0;
+  border-top: 2px solid rgba(0, 0, 0, 0.4);
+  border-left: 2px solid rgba(0, 0, 0, 0.4);
+  border-right: 2px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.12);
+  padding: 10px 12px;
+  color: #eef2ee;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 14px;
+  outline: none;
+}
+
+.board-composer textarea::placeholder {
+  color: #566159;
+}
+
+.board-composer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.board-composer-count {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 11px;
+  color: #566159;
+}
+
+.board-composer-row button {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-weight: 700;
+  font-size: 13px;
+  color: #04140a;
+  background: var(--accent);
+  padding: 8px 18px;
+  border-radius: 0;
+  border-top: 2px solid rgba(255, 255, 255, 0.7);
+  border-left: 2px solid rgba(255, 255, 255, 0.7);
+  border-right: 2px solid rgba(0, 0, 0, 0.45);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.board-composer-row button:active:not(:disabled) {
+  border-top-color: rgba(0, 0, 0, 0.45);
+  border-left-color: rgba(0, 0, 0, 0.45);
+  border-right-color: rgba(255, 255, 255, 0.7);
+  border-bottom-color: rgba(255, 255, 255, 0.7);
+}
+
+.board-composer-row button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.board-error {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: #ff8a7a;
+}
+
+.corkboard {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px 18px;
+  padding: 24px 20px;
+  background: repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.015) 0px,
+      rgba(255, 255, 255, 0.015) 1px,
+      transparent 1px,
+      transparent 6px
+    ),
+    #241a12;
+  border-radius: 0;
+  border-top: 2px solid rgba(0, 0, 0, 0.55);
+  border-left: 2px solid rgba(0, 0, 0, 0.55);
+  border-right: 2px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.board-empty {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 13px;
+  color: #a89478;
+  padding: 20px;
+}
+
+.board-note {
+  position: relative;
+  width: 190px;
+  background: #f4e9c9;
+  color: #2a2416;
+  padding: 18px 12px 10px;
+  transform: rotate(var(--tilt));
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  transition: transform 0.15s ease;
+}
+
+.board-note:hover {
+  transform: rotate(var(--tilt)) translateY(-3px);
+  z-index: 2;
+}
+
+.board-note-pin {
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ff6b5c, #b3271a);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.board-note-text {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  word-break: break-word;
+  min-height: 40px;
+}
+
+.board-note-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(42, 36, 22, 0.3);
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #6b5f42;
+}
+
+.board-note-who {
+  font-weight: 700;
+  color: #4a3f26;
+}
+
+.board-note-unpin {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  width: 16px;
+  height: 16px;
+  line-height: 1;
+  font-size: 13px;
+  color: #8a2a1e;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  opacity: 0.5;
+}
+
+.board-note-unpin:hover {
+  opacity: 1;
 }

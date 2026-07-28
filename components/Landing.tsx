@@ -135,7 +135,7 @@ export default function Landing({
                   </span>
                 </button>
 
-                <button className="aim-msg" onClick={() => router.push("/chat")}>
+                <button className="aim-msg" onClick={() => router.push("/burn")}>
                   <Image
                     src="/brand/dyl-pfp.png"
                     alt="Dyl"

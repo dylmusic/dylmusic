@@ -1,0 +1,168 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { getNickname } from "@/lib/nicknames";
+import { isAdminWallet } from "@/lib/admin";
+import { useAppShell } from "@/components/AppShellContext";
+
+interface BoardNote {
+  id: string;
+  wallet: string;
+  chain: string;
+  text: string;
+  ts: number;
+}
+
+const CHAIN_LABEL: Record<string, string> = {
+  robinhood: "Robinhood",
+  base: "Base",
+  solana: "Solana",
+};
+
+// A handful of fixed tilt angles instead of Math.random() per render — keeps
+// the pinned-note look stable across re-renders/re-fetches instead of every
+// note jittering to a new angle each poll.
+const TILTS = [-3, 2, -1.5, 3, -2.5, 1, -1, 2.5];
+
+function truncate(addr: string) {
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
+function timeShort(ts: number) {
+  return new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+export default function BulletinBoard() {
+  const { chain, walletAddress, requestConnect } = useAppShell();
+  const [notes, setNotes] = useState<BoardNote[]>([]);
+  const [configured, setConfigured] = useState(true);
+  const [draft, setDraft] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const canPost = !!walletAddress;
+
+  async function load() {
+    try {
+      const res = await fetch("/api/board", { cache: "no-store" });
+      const data = await res.json();
+      setNotes(data.notes ?? []);
+      setConfigured(data.configured !== false);
+    } catch {
+      // best-effort — same tolerance as the rest of this prototype's telemetry
+    }
+  }
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 8000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function pin() {
+    const text = draft.trim();
+    if (!text || !walletAddress || posting) return;
+    setPosting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/board", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet: walletAddress, chain, text }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setDraft("");
+        await load();
+      } else {
+        setError(data.error ?? "Couldn't post — try again.");
+      }
+    } catch {
+      setError("Couldn't post — try again.");
+    } finally {
+      setPosting(false);
+    }
+  }
+
+  async function unpin(id: string) {
+    if (!walletAddress || !isAdminWallet(walletAddress)) return;
+    try {
+      await fetch("/api/board", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, wallet: walletAddress }),
+      });
+      await load();
+    } catch {
+      // best-effort
+    }
+  }
+
+  return (
+    <div className="board-wrap">
+      <div className="board-head">
+        <div className="board-eyebrow">Community</div>
+        <h1>The Board</h1>
+        <p className="board-sub">
+          Pin a short note for the community. Rough v1 — later, notes will sort by how
+          much $Dyl / how many editions the poster holds.
+        </p>
+      </div>
+
+      <div className="board-composer">
+        <textarea
+          value={draft}
+          maxLength={200}
+          rows={2}
+          placeholder={canPost ? "Pin a message…" : "Connect a wallet to post"}
+          disabled={!canPost}
+          onChange={(e) => setDraft(e.target.value)}
+          onClick={() => {
+            if (!walletAddress) requestConnect();
+          }}
+        />
+        <div className="board-composer-row">
+          <span className="board-composer-count">{draft.length}/200</span>
+          <button onClick={pin} disabled={!canPost || posting || !draft.trim()}>
+            {posting ? "Pinning…" : "Pin it"}
+          </button>
+        </div>
+        {error && <div className="board-error">{error}</div>}
+        {!configured && (
+          <div className="board-error">The board isn&apos;t configured on this deployment yet.</div>
+        )}
+      </div>
+
+      <div className="corkboard">
+        {notes.length === 0 && (
+          <div className="board-empty">Nothing pinned yet — be the first.</div>
+        )}
+        {notes.map((n, i) => {
+          const name = getNickname(n.wallet) ?? truncate(n.wallet);
+          const tilt = TILTS[i % TILTS.length];
+          return (
+            <div
+              key={n.id}
+              className="board-note"
+              style={{ "--tilt": `${tilt}deg` } as React.CSSProperties}
+            >
+              <span className="board-note-pin" />
+              <div className="board-note-text">{n.text}</div>
+              <div className="board-note-foot">
+                <span className="board-note-who">{name}</span>
+                <span className="board-note-chain">{CHAIN_LABEL[n.chain] ?? n.chain}</span>
+                <span className="board-note-date">{timeShort(n.ts)}</span>
+              </div>
+              {walletAddress && isAdminWallet(walletAddress) && (
+                <button className="board-note-unpin" onClick={() => unpin(n.id)} title="Remove (admin)">
+                  ×
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

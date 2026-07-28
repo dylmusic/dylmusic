@@ -81,17 +81,14 @@ export default function BurnWalletChecker() {
       <div className="burn-checker-head">
         <div>
           <div className="burn-checker-title">Ethereum Wallet Checker</div>
-          <div className="burn-checker-sub">
-            Counts real, on-chain holdings across every known old Dyl Ethereum NFT —
-            live RPC reads, not a marketplace cache.
-          </div>
+          <div className="burn-checker-sub">Check your Dyl NFTs + $Dyl Coin on ETH</div>
         </div>
         {!isConnected ? (
-          <button className="btn-burn burn-checker-btn" onClick={() => openConnectModal?.()}>
+          <button className="btn-burn-hero burn-checker-btn" onClick={() => openConnectModal?.()}>
             Connect Wallet
           </button>
         ) : (
-          <button className="btn-burn burn-checker-btn" onClick={checkWallet} disabled={checking}>
+          <button className="btn-burn-hero burn-checker-btn" onClick={checkWallet} disabled={checking}>
             {checking ? "Checking…" : "Check My Wallet"}
           </button>
         )}
