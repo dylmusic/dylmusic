@@ -5059,6 +5059,15 @@ body > div:has(> .landing-page) {
   border-bottom: 1px solid rgba(0, 0, 0, 0.35);
 }
 
+/* The X icon is an <svg width="7" height="7"> flex child of the button
+   above — as a replaced element with no explicit CSS width, flexbox's
+   auto flex-basis resolution collapsed its computed width to 1px (height
+   stayed correct at 7px), rendering as a barely-visible dot instead of an
+   X. flex-shrink:0 stops that. */
+.gcw-collapse svg {
+  flex-shrink: 0;
+}
+
 .gcw-collapse::after {
   content: "";
   position: absolute;
