@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -37,6 +37,7 @@ export default function GlobalTaskbar({
   const pathname = usePathname();
   const router = useRouter();
   const [clock, setClock] = useState<string | null>(null);
+  const windowsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function tick() {
@@ -45,6 +46,31 @@ export default function GlobalTaskbar({
     tick();
     const id = setInterval(tick, 15000);
     return () => clearInterval(id);
+  }, []);
+
+  // Mobile-only nudge: the nav row scrolls sideways (more pages than fit
+  // on a phone), but nothing about it visually signals that — no
+  // scrollbar (scrollbar-width:none), no visible cut-off edge. Once,
+  // shortly after mount, slide it right and back so first-time visitors
+  // notice it's draggable, same idea as the trending row hint in the
+  // sibling hoodprinter project.
+  useEffect(() => {
+    const el = windowsRef.current;
+    if (!el) return;
+    if (window.innerWidth > 640) return;
+    if (el.scrollWidth <= el.clientWidth + 4) return;
+
+    const hintDistance = Math.min(90, el.scrollWidth - el.clientWidth);
+    const showTimer = setTimeout(() => {
+      el.scrollTo({ left: hintDistance, behavior: "smooth" });
+    }, 1000);
+    const backTimer = setTimeout(() => {
+      el.scrollTo({ left: 0, behavior: "smooth" });
+    }, 2600);
+    return () => {
+      clearTimeout(showTimer);
+      clearTimeout(backTimer);
+    };
   }, []);
 
   return (
@@ -61,7 +87,7 @@ export default function GlobalTaskbar({
         Start
       </button>
 
-      <div className="taskbar-windows">
+      <div className="taskbar-windows" ref={windowsRef}>
         {NAV_ITEMS.map((item) => (
           <Link
             key={item.href}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Album } from "@/lib/albums";
-import { platformOverview, usdToEth, usdToSol } from "@/lib/platformStats";
+import { platformOverview, usdToEth, historicalVolumeUsd } from "@/lib/platformStats";
 import { streamsSeries, salesSeries } from "@/lib/dashboardStats";
 import { formatStreams, useStreamCountsLoaded } from "@/lib/streams";
 import StreamsChart from "./StreamsChart";
@@ -11,7 +11,7 @@ import RecentSales from "./RecentSales";
 
 export default function MultichainOverview({ album }: { album: Album }) {
   const [refreshKey, setRefreshKey] = useState(0);
-  const [volumeCurrency, setVolumeCurrency] = useState<"ETH" | "SOL">("ETH");
+  const [volumeView, setVolumeView] = useState<"total" | "v2">("total");
 
   useEffect(() => {
     setRefreshKey((k) => k + 1);
@@ -22,30 +22,39 @@ export default function MultichainOverview({ album }: { album: Album }) {
   const streams = streamsSeries(album);
   const sales = salesSeries();
 
-  const volumeDisplay =
-    volumeCurrency === "ETH"
-      ? usdToEth(overview.totalVolumeUsd).toFixed(3)
-      : usdToSol(overview.totalVolumeUsd).toFixed(2);
+  // "Total Volume" folds in real historical volume from Dyl's pre-v2
+  // collections (see lib/platformStats.ts historicalVolumeUsd — exact
+  // figures Dylan supplied) on top of this v2 platform's own volume;
+  // "V2 Volume" is this platform alone, same number the tile always
+  // showed before this toggle existed.
+  const v2VolumeUsd = overview.totalVolumeUsd;
+  const totalVolumeUsd = historicalVolumeUsd() + v2VolumeUsd;
+  const volumeUsd = volumeView === "total" ? totalVolumeUsd : v2VolumeUsd;
+  const volumeEth = usdToEth(volumeUsd);
 
   return (
     <div className="dash-wrap">
       <div className="dash-page-head">
         <div className="dash-eyebrow">Dashboard</div>
-        <h1>Platform Overview</h1>
-        <p className="swap-page-sub">Every chain, every track — starting with {album.title}.</p>
+        <h1>Dyl Music Stats</h1>
       </div>
 
       {/* ---------- Quick stats ---------- */}
       <div className="dash-quick-row">
         <button
           className="dash-quick-tile dash-quick-tile-click"
-          onClick={() => setVolumeCurrency((c) => (c === "ETH" ? "SOL" : "ETH"))}
-          title="Click to switch currency"
+          onClick={() => setVolumeView((v) => (v === "total" ? "v2" : "total"))}
+          title={
+            volumeView === "total"
+              ? "Includes historical NFT trading volume across collections and $Dyl coin"
+              : "Volume on this v2 platform only"
+          }
         >
           <span className="dash-quick-num">
-            {volumeDisplay} <span className="dash-quick-unit">{volumeCurrency}</span>
+            {volumeEth.toFixed(3)} <span className="dash-quick-unit">ETH</span>
           </span>
-          <span className="dash-quick-label">total volume</span>
+          <span className="dash-quick-usd">${volumeUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+          <span className="dash-quick-label">{volumeView === "total" ? "Total Volume" : "V2 Volume"}</span>
         </button>
         <div className="dash-quick-tile">
           <span className="dash-quick-num">{overview.totalMinted.toLocaleString()}</span>

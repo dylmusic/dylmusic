@@ -74,3 +74,16 @@ export function usdToEth(usd: number): number {
 export function usdToSol(usd: number): number {
   return usd / USD_PER_SOL;
 }
+
+// Real historical trading volume from Dyl's pre-v2 collections, as given
+// directly by Dylan — not derived from anything else in this codebase, and
+// not the same thing as this v2 platform's own on-chain volume above.
+// Kept in their original units and only converted to USD here (using the
+// same display-only rate above) so it can be added to the platform's own
+// USD-denominated volume for the "Total Volume" dashboard toggle.
+const HISTORICAL_VOLUME_ETH = 21.32 + 43.59 + 3.3; // 3 old ETH collections
+const HISTORICAL_VOLUME_USD = 70_000 + 6_000 + 500_000; // Solana + Tezos + $Dyl coin
+
+export function historicalVolumeUsd(): number {
+  return HISTORICAL_VOLUME_ETH * USD_PER_ETH + HISTORICAL_VOLUME_USD;
+}

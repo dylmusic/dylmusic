@@ -39,16 +39,12 @@ export default function BurnPage() {
         <div className="dash-eyebrow">Burn</div>
         <h1>Burn Old NFTs &amp; $Dyl Coin</h1>
         <p className="swap-page-sub">
-          Hold something from an old Dyl drop? Burn it here for a free mint on the new
-          collection — once burning is actually live.
+          Do you have Dyl NFTs or $Dyl? Burn it here to join the new ecosystem for free.
         </p>
       </div>
 
       <div className="burn-notice">
-        Burning isn&apos;t wired up yet. It destroys a real asset permanently, and there&apos;s
-        nothing real to mint back until the new collections are deployed — so this stays
-        Coming Soon until that&apos;s true. This page already lists every old contract that will
-        be eligible.
+        Burning isn&apos;t live yet, but you can check your free mints now.
       </div>
 
       <BurnWalletChecker />

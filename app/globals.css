@@ -1858,6 +1858,12 @@ input {
   opacity: 0.75;
 }
 
+.dash-quick-usd {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12px;
+  color: #7c8a80;
+}
+
 .dash-quick-label {
   font-size: 12px;
   color: #8b978f;
@@ -2419,10 +2425,6 @@ input {
     grid-template-columns: 1fr;
     gap: 36px;
     text-align: center;
-  }
-
-  .landing-art {
-    order: -1;
   }
 
   .landing-content h1 {
