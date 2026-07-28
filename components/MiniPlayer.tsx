@@ -128,8 +128,8 @@ export default function MiniPlayer({
           onClick={onClose}
           aria-label="Close player"
         >
-          <svg width="7" height="7" viewBox="0 0 8 8">
-            <path d="M1 1l6 6M7 1l-6 6" stroke="#04140a" strokeWidth="1.4" strokeLinecap="round" />
+          <svg width="10" height="10" viewBox="0 0 8 8">
+            <path d="M1 1l6 6M7 1l-6 6" stroke="#04140a" strokeWidth="2" strokeLinecap="round" />
           </svg>
         </button>
       </div>

@@ -117,7 +117,7 @@ export default function Landing({
                 Chat
               </div>
               <div className="aim-mini-body">
-                <button className="aim-msg" onClick={() => router.push("/chat")}>
+                <button className="aim-msg" onClick={() => router.push("/about")}>
                   <Image
                     src="/brand/dyl-pfp.png"
                     alt="Dyl"

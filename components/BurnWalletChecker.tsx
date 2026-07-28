@@ -81,7 +81,6 @@ export default function BurnWalletChecker() {
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const [checking, setChecking] = useState(false);
-  const [tierProgress, setTierProgress] = useState<string | null>(null);
   const [results, setResults] = useState<AssetResult[] | null>(null);
   const [dylResults, setDylResults] = useState<DylResult[] | null>(null);
   const [tierBreakdown, setTierBreakdown] = useState<TierBreakdown | null>(null);
@@ -101,7 +100,6 @@ export default function BurnWalletChecker() {
       transport: http(EVM_CHAIN_CONFIG.ethereum!.rpcUrl),
     });
 
-    setTierProgress("Reading every held tokenId's real tier…");
     const [nftResults, dyl, tiers] = await Promise.all([
       Promise.all(
         ETH_NFT_ASSETS.map(async (asset): Promise<AssetResult> => {
@@ -154,7 +152,6 @@ export default function BurnWalletChecker() {
     setResults(nftResults);
     setDylResults(dyl);
     setTierBreakdown(tiers);
-    setTierProgress(null);
     setChecking(false);
   }
 
@@ -220,7 +217,14 @@ export default function BurnWalletChecker() {
           </button>
         ) : (
           <button className="btn-burn-hero burn-checker-btn" onClick={checkWallet} disabled={checking}>
-            {checking ? tierProgress ?? "Checking…" : "Check My Wallet"}
+            {checking ? (
+              <>
+                <span className="btn-spinner" />
+                Checking Wallet…
+              </>
+            ) : (
+              "Check My Wallet"
+            )}
           </button>
         )}
       </div>
