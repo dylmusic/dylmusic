@@ -62,12 +62,42 @@ export default function BurnPage() {
         Burning isn&apos;t live yet, but you can check your free mints now.
       </div>
 
+      <div className="burn-step-head">
+        <span className="burn-step-num">1</span>
+        <span className="burn-step-title">Check NFTs</span>
+      </div>
       <div className="burn-checkers">
         <BurnWalletChecker onSpendableChange={setEvmSpendable} />
         <SolanaWalletChecker onSpendableChange={setSolanaSpendable} />
         <TezosWalletChecker onSpendableChange={setTezosSpendable} />
       </div>
 
+      <div className="burn-step-head">
+        <span className="burn-step-num">2</span>
+        <span className="burn-step-title">Burn NFTs</span>
+      </div>
+      <div className="burn-chain-row">
+        {["EVM", "Solana", "Tezos"].map((chain) => (
+          <button
+            key={chain}
+            className="burn-chain-btn"
+            disabled
+            title="Coming soon — burning is not live yet"
+          >
+            Burn {chain} NFTs
+          </button>
+        ))}
+      </div>
+      <div className="burn-step-note">
+        Once live: each button burns everything found for that chain (NFTs
+        and $Dyl coin together where possible) in one guided signing flow,
+        then shows &quot;Burned ✓ Tx: 0x1234…&quot; in place of the button.
+      </div>
+
+      <div className="burn-step-head">
+        <span className="burn-step-num">3</span>
+        <span className="burn-step-title">Choose how to spend it</span>
+      </div>
       <div className="burn-checker burn-total-card">
         <div className="burn-total-row">
           <span className="burn-total-num">{totalSpendable.toLocaleString()}</span>
@@ -75,6 +105,19 @@ export default function BurnPage() {
         </div>
         <MintAllocator spendable={totalSpendable} />
       </div>
+
+      <div className="burn-step-head">
+        <span className="burn-step-num">4</span>
+        <span className="burn-step-title">Mint</span>
+      </div>
+      <button
+        className="burn-chain-btn"
+        disabled
+        title="Coming soon — minting is not live yet"
+        style={{ marginBottom: 28 }}
+      >
+        Mint
+      </button>
 
       <button
         className="burn-contracts-toggle"

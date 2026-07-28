@@ -3726,6 +3726,70 @@ body > div:has(> .landing-page) {
   margin-bottom: 8px;
 }
 
+.burn-step-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 36px 0 16px;
+}
+
+.burn-step-head:first-of-type {
+  margin-top: 0;
+}
+
+.burn-step-num {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 13px;
+  font-weight: 800;
+  color: #04140a;
+  background: var(--accent);
+}
+
+.burn-step-title {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #eef2ee;
+}
+
+.burn-chain-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.burn-chain-btn {
+  flex: 1;
+  min-width: 160px;
+  background: rgba(255, 107, 40, 0.12);
+  color: #ff8a3d;
+  border-radius: 0;
+  border-top: 2px solid rgba(255, 107, 40, 0.4);
+  border-left: 2px solid rgba(255, 107, 40, 0.4);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+  font-weight: 700;
+  font-size: 13px;
+  padding: 14px 16px;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.burn-step-note {
+  font-size: 12px;
+  color: #7c8a80;
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+
 .burn-checkers .burn-checker {
   margin-bottom: 0;
 }
