@@ -4406,10 +4406,29 @@ body > div:has(> .landing-page) {
 
 .credits-alloc-num {
   font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 14px;
   font-weight: 700;
   color: var(--accent);
-  min-width: 22px;
+  width: 56px;
   text-align: center;
+  background: rgba(255, 255, 255, 0.05);
+  border-top: 2px solid rgba(0, 0, 0, 0.3);
+  border-left: 2px solid rgba(0, 0, 0, 0.3);
+  border-right: 2px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.12);
+  padding: 3px 2px;
+  -moz-appearance: textfield;
+}
+
+.credits-alloc-num::-webkit-outer-spin-button,
+.credits-alloc-num::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.credits-alloc-num:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .credits-alloc-note {

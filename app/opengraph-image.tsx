@@ -10,6 +10,11 @@ export const contentType = "image/png";
 const ACCENT = "#ccff00";
 const BG = "#05070a";
 const INK = "#eef2ee";
+// Red/orange, OG-image-only — everywhere else on the site the burn CTA is
+// the same lime accent as every other button (see .btn-burn-hero), but on
+// a small social-preview thumbnail a same-color button blends into the
+// title bar/taskbar instead of standing out as its own distinct action.
+const BURN_RED = "#ff4d2e";
 
 // Deliberately generic — no album art, no per-release copy. This is meant
 // to sit on the share card for every album that ever ships, so it only
@@ -24,12 +29,6 @@ export default async function Image() {
     readFile(join(process.cwd(), "public/brand/dyl-logo-white.png")),
   ]);
   const logoSrc = `data:image/png;base64,${logo.toString("base64")}`;
-
-  const chains: { label: string; color: string }[] = [
-    { label: "Robinhood", color: ACCENT },
-    { label: "Base", color: "#3b82f6" },
-    { label: "Solana", color: "#c084fc" },
-  ];
 
   return new ImageResponse(
     (
@@ -161,52 +160,20 @@ export default async function Image() {
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 14 }}>
-              {chains.map((c) => (
-                <div
-                  key={c.label}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    fontSize: 18,
-                    fontWeight: 700,
-                    color: INK,
-                    padding: "8px 18px",
-                    background: "rgba(255,255,255,0.05)",
-                    borderTop: "2px solid rgba(255,255,255,0.5)",
-                    borderLeft: "2px solid rgba(255,255,255,0.5)",
-                    borderRight: "2px solid rgba(0,0,0,0.4)",
-                    borderBottom: "2px solid rgba(0,0,0,0.4)",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: 999,
-                      background: c.color,
-                    }}
-                  />
-                  {c.label}
-                </div>
-              ))}
-            </div>
-
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 10,
-                fontSize: 18,
+                gap: 14,
+                fontSize: 30,
                 fontWeight: 800,
-                color: "#04140a",
-                background: ACCENT,
-                padding: "10px 24px",
-                borderTop: "2px solid rgba(255,255,255,0.7)",
-                borderLeft: "2px solid rgba(255,255,255,0.7)",
-                borderRight: "2px solid rgba(0,0,0,0.45)",
-                borderBottom: "2px solid rgba(0,0,0,0.45)",
+                color: "#fff",
+                background: BURN_RED,
+                padding: "18px 40px",
+                borderTop: "3px solid rgba(255,255,255,0.55)",
+                borderLeft: "3px solid rgba(255,255,255,0.55)",
+                borderRight: "3px solid rgba(0,0,0,0.5)",
+                borderBottom: "3px solid rgba(0,0,0,0.5)",
               }}
             >
               Burn Old NFTs &amp; $Dyl Coin

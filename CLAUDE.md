@@ -21,7 +21,7 @@ must consolidate into a single OpenSea collection page.
 
 Concretely, when contracts get built:
 
-- **EVM chains (Robinhood Chain, Base): one ERC721A contract per chain**,
+- **EVM chains (Robinhood Chain, Base, Ethereum): one ERC721A contract per chain**,
   not one contract per track and not one contract per album, and **not
   ERC-1155** (decided against 2026-07-28, see below). Each edition is a
   real, unique ERC-721 token id — not a fungible copy count under a shared
@@ -48,13 +48,15 @@ Concretely, when contracts get built:
   NFT must be `verified` into that single Collection NFT so marketplaces
   (Magic Eden, OpenSea's Solana support, etc.) group them into one
   collection page. Do not mint uncollectioned/orphaned NFTs.
-- **Base and Robinhood Chain are separate contracts from each other**
+- **Every EVM chain is a separate contract from every other one**
   (cross-chain, can't share one contract) — the single-collection rule
   applies **per chain**, not across all chains combined. So the real target
-  is: exactly one EVM collection on Robinhood Chain, exactly one EVM
-  collection on Base, exactly one Solana collection. Three collections
-  total, not one-per-track (would be 19+ contracts) and not one shared
-  contract across chains (impossible anyway — different VMs).
+  is: exactly one EVM collection each on Robinhood Chain, Base, and
+  Ethereum, plus exactly one Solana collection. Four collections total
+  (Ethereum added 2026-07-28, gas cheap enough now to be worth it — see
+  lib/albums.ts CHAINS), not one-per-track (would be 19+ contracts) and
+  not one shared contract across chains (impossible anyway — different
+  VMs).
 
 **Decided 2026-07-28: ERC721A, not ERC-1155, for the EVM contracts.**
 Dylan on 2026-07-27: "i think we should do ERC721A" (flagged as an
@@ -64,6 +66,51 @@ erc1155. that was the old way, really bad. ERC721A is the right way
 because everyone likes unique 721s. 1155s are trash." This is now the
 standing requirement — the bullet above reflects it. Do not build an
 ERC-1155 version of these contracts.
+
+**ERC721A specifics, confirmed research (Dylan supplied 2026-07-28,
+matches how Azuki's actual implementation works) — read before building:**
+- **Standard ERC-721 has no batch-mint function at all** — that has to be
+  a feature of the specific contract. ERC721A adds a `mint(quantity)` that
+  compresses ownership storage across a consecutive run, making each
+  additional token in the same transaction to the same wallet
+  meaningfully cheaper than a separate mint call would be. The savings
+  come specifically from **consecutive tokens minted to the SAME address
+  in ONE transaction** — this is exactly the "buyer grabbing several
+  editions in one tx" case already called out above, and exactly the
+  multi-buy feature already shipped in `lib/useTrackCommerce.ts`
+  (`mintTrack(t, quantity)`, the order-book quantity stepper) for the
+  *simulated* buy flow — when the real contract exists, that function is
+  the natural place to call a real `mint(quantity)` instead of looping N
+  separate single mints.
+- **ERC721A is a gas-optimized implementation of ERC-721, not a different
+  standard** — fully compatible with every normal wallet/marketplace/
+  ERC-721 tool. Every minted token is still fully separate afterward:
+  its own unique tokenId, its own metadata, individually transferable/
+  approvable, shows up on OpenSea etc. exactly like a normal 721. This
+  directly confirms the per-track tokenId-range partitioning scheme two
+  bullets up is sound — batch-minting a run of ids under ERC721A doesn't
+  change that each one is a real independent token afterward.
+- **ERC721A does NOT include ERC721Enumerable** (the optional extension
+  for "list every token a wallet owns" / "list every token that
+  exists"). Marketplaces don't need it — they index `Transfer` events
+  instead — but **this site's own code will**, the exact same way
+  `lib/solanaCollectionCheck.ts` and the Ethereum legacy-collection
+  enumeration gap already documented under "Credits system" above hit
+  this same wall for a pre-existing collection with no enumeration
+  support. Do not repeat that gap on a NEW contract we control: either
+  add a custom view function (e.g. a per-owner token list, or at least a
+  per-owner-per-track balance) at build time, or plan on an indexer
+  (Alchemy — an API key is already stored as `ALCHEMY_API_KEY` in Vercel
+  production env, added 2026-07-28 for exactly this class of problem)
+  from day one rather than discovering the gap after deploy.
+- **Batch savings apply best to "mint N to one wallet in one tx"**, less
+  to airdrops/mints spread across many different wallets (a custom
+  airdrop function still beats N separate transactions on overhead, just
+  not by as much), and OpenZeppelin's `ERC721Consecutive` (a different,
+  even-cheaper batch primitive) only works at contract *construction*
+  time, not for after-deploy public minting — not applicable here since
+  editions mint over time as tracks/albums are added, not all at once at
+  deploy.
 
 **Contracts must be upgradable** (proxy pattern — UUPS or Transparent Proxy
 for EVM; Solana's own program-upgrade authority model for the Solana side).

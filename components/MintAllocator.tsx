@@ -49,6 +49,20 @@ export default function MintAllocator({ spendable }: { spendable: number }) {
     setAllocation({ ...allocation, [chain]: nextVal });
   }
 
+  // Typing a number directly instead of stepping one at a time. Clamped to
+  // [0, however much is left once this chain's own current amount is added
+  // back in] so a raw type-in can never push the total over what was
+  // actually earned — the "left to place" indicator above already shows
+  // the same ceiling, this just enforces it instead of only displaying it.
+  function setExact(chain: AllocationChain, raw: string) {
+    if (!allocation) return;
+    const parsed = raw.trim() === "" ? 0 : parseInt(raw, 10);
+    if (Number.isNaN(parsed)) return;
+    const maxForThis = allocation[chain] + remaining;
+    const clamped = Math.max(0, Math.min(parsed, maxForThis));
+    setAllocation({ ...allocation, [chain]: clamped });
+  }
+
   if (spendable <= 0) return null;
 
   return (
@@ -72,7 +86,16 @@ export default function MintAllocator({ spendable }: { spendable: number }) {
                 <button onClick={() => adjust(c, -1)} disabled={allocation[c] <= 0} aria-label={`Fewer on ${CHAIN_LABEL[c]}`}>
                   −
                 </button>
-                <span className="credits-alloc-num">{allocation[c]}</span>
+                <input
+                  className="credits-alloc-num"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={allocation[c] + remaining}
+                  value={allocation[c]}
+                  onChange={(e) => setExact(c, e.target.value)}
+                  aria-label={`Editions on ${CHAIN_LABEL[c]}`}
+                />
                 <button onClick={() => adjust(c, 1)} disabled={remaining <= 0} aria-label={`More on ${CHAIN_LABEL[c]}`}>
                   +
                 </button>
