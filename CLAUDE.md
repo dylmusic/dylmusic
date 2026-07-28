@@ -180,6 +180,44 @@ naively spinning up a contract per track. If any contract work begins,
 re-read this section first and confirm the plan still satisfies "one
 contract = one collection = all volume" before writing Solidity/Anchor.
 
+### NFT traits/attributes — Artist + Title now, extensible later
+
+Dylan, 2026-07-28: "Lets make each NFT have metadata for Artist and
+Title... we can always add more metadata later right" — clarified he
+means the `attributes` (`trait_type`/`value`) array both OpenSea and
+Magic Eden render as an NFT's visible traits, not generic off-chain data.
+
+- **Artist** and **Title** map directly onto data that already exists
+  (`Album.artist`, `Track.title` in `lib/albums.ts`) — no new fields
+  needed, just surface them as `attributes` entries when the metadata
+  endpoint gets built.
+- **Yes, more traits can be added later — but only if `tokenURI` is
+  served dynamically, not frozen on static IPFS JSON.** A static
+  IPFS-pinned JSON file's `attributes` array is fixed forever at mint
+  time unless the contract also supports repointing that specific
+  token's URI (real extra complexity to build in up front). The simpler
+  path, consistent with this app's existing architecture and the
+  "leans toward upgradable metadata" note above: `tokenURI` resolves to
+  **our own API route** (e.g. `/api/metadata/[chain]/[tokenId]`),
+  generating JSON on request from live `lib/albums.ts` data — new
+  traits ship by editing that route, no contract call ever needed.
+  Media itself (art/audio) can still be pinned to IPFS for permanence —
+  only the JSON wrapper needs to stay dynamic. Both marketplaces have a
+  manual "refresh metadata" action for picking up changes on
+  already-indexed tokens.
+- **Solana equivalent**: Metaplex Token Metadata's off-chain JSON (the
+  file the on-chain `uri` field points to) uses the identical
+  `attributes: [{trait_type, value}]` shape by convention, deliberately
+  kept OpenSea-compatible — same Artist/Title traits, same
+  dynamic-endpoint approach applies (point `uri` at our own API route
+  instead of a static Arweave/IPFS file).
+- Natural additional traits once this gets built (not required now,
+  just obvious candidates given the existing data model): Album,
+  Edition Number (out of 100), Chain.
+
+Still nothing built — this just records the trait decision for whoever
+writes the metadata endpoint.
+
 ---
 
 ## "Our own marketplace contract" — yes, but it doesn't do what you'd expect on OpenSea
