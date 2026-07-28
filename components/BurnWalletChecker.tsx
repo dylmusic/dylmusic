@@ -185,6 +185,15 @@ export default function BurnWalletChecker({
           <div className="burn-checker-sub">Check all EVM wallets at once</div>
         </div>
         <div className="checker-head-actions">
+          {results && (
+            <button
+              className="checker-toggle"
+              onClick={() => setOpen((v) => !v)}
+              aria-label={open ? "Collapse results" : "Expand results"}
+            >
+              {open ? "▲" : "▼"}
+            </button>
+          )}
           {!isConnected ? (
             <button className="btn-burn-hero burn-checker-btn" onClick={() => openConnectModal?.()}>
               Connect Wallet
@@ -206,15 +215,6 @@ export default function BurnWalletChecker({
               ) : (
                 "Check My Wallet"
               )}
-            </button>
-          )}
-          {results && (
-            <button
-              className="checker-toggle"
-              onClick={() => setOpen((v) => !v)}
-              aria-label={open ? "Collapse results" : "Expand results"}
-            >
-              {open ? "▲" : "▼"}
             </button>
           )}
         </div>

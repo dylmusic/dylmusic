@@ -3905,6 +3905,13 @@ body > div:has(> .landing-page) {
   display: flex;
   align-items: center;
   gap: 8px;
+  /* Anchors this block to the right edge of its own line regardless of
+     whether .burn-checker-head has wrapped onto two lines (it does on
+     narrow screens) — without this, the block is only right-anchored via
+     the parent's space-between when it shares a line with the title, so
+     the check button would shift position on mobile even with the toggle
+     arrow moved to the front (see checker-toggle ordering below). */
+  margin-left: auto;
 }
 
 .checker-toggle {

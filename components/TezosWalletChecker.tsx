@@ -47,6 +47,15 @@ export default function TezosWalletChecker({
           </div>
         </div>
         <div className="checker-head-actions">
+          {result && (
+            <button
+              className="checker-toggle"
+              onClick={() => setOpen((v) => !v)}
+              aria-label={open ? "Collapse results" : "Expand results"}
+            >
+              {open ? "▲" : "▼"}
+            </button>
+          )}
           {!address ? (
             <button className="btn-burn-hero burn-checker-btn" onClick={connect} disabled={connecting}>
               {connecting ? (
@@ -75,15 +84,6 @@ export default function TezosWalletChecker({
               ) : (
                 "Check My Wallet"
               )}
-            </button>
-          )}
-          {result && (
-            <button
-              className="checker-toggle"
-              onClick={() => setOpen((v) => !v)}
-              aria-label={open ? "Collapse results" : "Expand results"}
-            >
-              {open ? "▲" : "▼"}
             </button>
           )}
         </div>

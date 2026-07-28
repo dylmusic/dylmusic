@@ -66,6 +66,15 @@ export default function SolanaWalletChecker({
           <div className="burn-checker-sub">Check your Trading Cards + $Dyl on Solana, with Phantom</div>
         </div>
         <div className="checker-head-actions">
+          {result && (
+            <button
+              className="checker-toggle"
+              onClick={() => setOpen((v) => !v)}
+              aria-label={open ? "Collapse results" : "Expand results"}
+            >
+              {open ? "▲" : "▼"}
+            </button>
+          )}
           {!address ? (
             <button className="btn-burn-hero burn-checker-btn" onClick={connect}>
               {hasPhantom ? "Connect Phantom" : "Install Phantom"}
@@ -87,15 +96,6 @@ export default function SolanaWalletChecker({
               ) : (
                 "Check My Wallet"
               )}
-            </button>
-          )}
-          {result && (
-            <button
-              className="checker-toggle"
-              onClick={() => setOpen((v) => !v)}
-              aria-label={open ? "Collapse results" : "Expand results"}
-            >
-              {open ? "▲" : "▼"}
             </button>
           )}
         </div>
