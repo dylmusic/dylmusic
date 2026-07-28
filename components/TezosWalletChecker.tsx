@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTezosWallet } from "@/lib/tezosBeacon";
 import { checkTezosWallet, TezosCheckResult } from "@/lib/tezosCollectionCheck";
 
@@ -8,7 +8,11 @@ function truncateAddr(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
-export default function TezosWalletChecker() {
+export default function TezosWalletChecker({
+  onSpendableChange,
+}: {
+  onSpendableChange?: (n: number) => void;
+}) {
   const { address, connect, disconnect, connecting, error: connectError } = useTezosWallet();
   const [checking, setChecking] = useState(false);
   const [open, setOpen] = useState(false);
@@ -25,17 +29,17 @@ export default function TezosWalletChecker() {
   const count = result?.count ?? 0;
   const spendable = count; // Tezos: 1 NFT = 1 mint, flat, per CLAUDE.md
 
+  useEffect(() => {
+    onSpendableChange?.(spendable);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spendable]);
+
   return (
     <div className="burn-checker">
       <div className="burn-checker-head">
         <div>
           <div className="burn-checker-title">
             Tezos Wallet Checker
-            {result && (
-              <span className="checker-mints-badge">
-                {spendable.toLocaleString()} free mint{spendable === 1 ? "" : "s"}
-              </span>
-            )}
             {result && <span className="checker-checked-badge">✓ Checked</span>}
           </div>
           <div className="burn-checker-sub">
@@ -55,14 +59,19 @@ export default function TezosWalletChecker() {
               )}
             </button>
           ) : (
-            <button className="btn-burn-hero burn-checker-btn" onClick={checkWallet} disabled={checking}>
+            <button
+              className="btn-burn-hero burn-checker-btn"
+              onClick={checkWallet}
+              disabled={checking}
+              title={result ? "Click to re-check" : undefined}
+            >
               {checking ? (
                 <>
                   <span className="btn-spinner" />
                   Checking…
                 </>
               ) : result ? (
-                "Re-check"
+                `${spendable.toLocaleString()} Free Mint${spendable === 1 ? "" : "s"} ↻`
               ) : (
                 "Check My Wallet"
               )}

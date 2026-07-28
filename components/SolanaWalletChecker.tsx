@@ -1,11 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSolanaWallet } from "@/lib/solana";
 import { checkSolanaWallet, SolanaCheckResult } from "@/lib/solanaCollectionCheck";
 import { CARD_TIER_MINTS, dylMintsForBalance } from "@/lib/burnCredits";
 
-export default function SolanaWalletChecker() {
+export default function SolanaWalletChecker({
+  onSpendableChange,
+}: {
+  onSpendableChange?: (n: number) => void;
+}) {
   const { address, connect, hasPhantom } = useSolanaWallet();
   const [checking, setChecking] = useState(false);
   const [open, setOpen] = useState(false);
@@ -37,17 +41,17 @@ export default function SolanaWalletChecker() {
     return { dylMints: dMints, spendable: tCredits + dMints };
   }, [tiers, result]);
 
+  useEffect(() => {
+    onSpendableChange?.(spendable);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spendable]);
+
   return (
     <div className="burn-checker">
       <div className="burn-checker-head">
         <div>
           <div className="burn-checker-title">
             Solana Wallet Checker
-            {result && (
-              <span className="checker-mints-badge">
-                {spendable.toLocaleString()} free mint{spendable === 1 ? "" : "s"}
-              </span>
-            )}
             {result && <span className="checker-checked-badge">✓ Checked</span>}
           </div>
           <div className="burn-checker-sub">Check your Trading Cards + $Dyl on Solana, with Phantom</div>
@@ -58,14 +62,19 @@ export default function SolanaWalletChecker() {
               {hasPhantom ? "Connect Phantom" : "Install Phantom"}
             </button>
           ) : (
-            <button className="btn-burn-hero burn-checker-btn" onClick={checkWallet} disabled={checking}>
+            <button
+              className="btn-burn-hero burn-checker-btn"
+              onClick={checkWallet}
+              disabled={checking}
+              title={result ? "Click to re-check" : undefined}
+            >
               {checking ? (
                 <>
                   <span className="btn-spinner" />
                   Checking Wallet…
                 </>
               ) : result ? (
-                "Re-check"
+                `${spendable.toLocaleString()} Free Mint${spendable === 1 ? "" : "s"} ↻`
               ) : (
                 "Check My Wallet"
               )}

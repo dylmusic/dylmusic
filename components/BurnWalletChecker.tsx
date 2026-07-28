@@ -1,18 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { createPublicClient, http, getAddress, formatUnits, Chain } from "viem";
 import { mainnet, base, polygon } from "viem/chains";
 import { LEGACY_ASSETS, LegacyAsset, LegacyChain } from "@/lib/legacyCollections";
-import {
-  CARD_TIER_MINTS,
-  VIP_MINTS_ESTIMATE,
-  dylMintsForBalance,
-  ALLOCATION_CHAINS,
-  AllocationChain,
-} from "@/lib/burnCredits";
+import { CARD_TIER_MINTS, VIP_MINTS_ESTIMATE, dylMintsForBalance } from "@/lib/burnCredits";
 import { fetchTieredCollectionBreakdown, TierBreakdown } from "@/lib/tieredCollectionCheck";
 
 const ERC721_BALANCE_ABI = [
@@ -71,13 +65,11 @@ interface DylResult {
   error?: string;
 }
 
-const CHAIN_LABEL: Record<AllocationChain, string> = {
-  robinhood: "Robinhood",
-  base: "Base",
-  solana: "Solana",
-};
-
-export default function BurnWalletChecker() {
+export default function BurnWalletChecker({
+  onSpendableChange,
+}: {
+  onSpendableChange?: (n: number) => void;
+}) {
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const [checking, setChecking] = useState(false);
@@ -85,7 +77,6 @@ export default function BurnWalletChecker() {
   const [results, setResults] = useState<AssetResult[] | null>(null);
   const [dylResults, setDylResults] = useState<DylResult[] | null>(null);
   const [tierBreakdown, setTierBreakdown] = useState<TierBreakdown | null>(null);
-  const [allocation, setAllocation] = useState<Record<AllocationChain, number> | null>(null);
 
   async function checkWallet() {
     if (!address) return;
@@ -93,7 +84,6 @@ export default function BurnWalletChecker() {
     setResults(null);
     setDylResults(null);
     setTierBreakdown(null);
-    setAllocation(null);
     const checked = getAddress(address);
 
     const ethClient = createPublicClient({
@@ -156,9 +146,9 @@ export default function BurnWalletChecker() {
     setChecking(false);
   }
 
-  const { totalCount, totalDylBalance, tieredCredits, untieredCount, spendable } = useMemo(() => {
+  const { totalCount, totalDylBalance, untieredCount, spendable } = useMemo(() => {
     if (!results) {
-      return { totalCount: 0, totalDylBalance: 0, tieredCredits: 0, untieredCount: 0, spendable: 0 };
+      return { totalCount: 0, totalDylBalance: 0, untieredCount: 0, spendable: 0 };
     }
     let untiered = 0;
     for (const r of results) untiered += r.count;
@@ -174,36 +164,15 @@ export default function BurnWalletChecker() {
     return {
       totalCount: untiered + (tiers?.total ?? 0),
       totalDylBalance: dylBalance,
-      tieredCredits: tCredits,
       untieredCount: untiered,
       spendable: tCredits + dylMints,
     };
   }, [results, dylResults, tierBreakdown]);
 
-  function initAllocation() {
-    if (allocation) return;
-    const base = Math.floor(spendable / ALLOCATION_CHAINS.length);
-    let remainder = spendable - base * ALLOCATION_CHAINS.length;
-    const next = {} as Record<AllocationChain, number>;
-    for (const c of ALLOCATION_CHAINS) {
-      next[c] = base + (remainder > 0 ? 1 : 0);
-      if (remainder > 0) remainder -= 1;
-    }
-    setAllocation(next);
-  }
-
-  const allocatedTotal = allocation ? ALLOCATION_CHAINS.reduce((s, c) => s + allocation[c], 0) : 0;
-  const remaining = spendable - allocatedTotal;
-
-  function adjust(chain: AllocationChain, delta: number) {
-    if (!allocation) return;
-    const next = { ...allocation };
-    const nextVal = next[chain] + delta;
-    if (nextVal < 0) return;
-    if (delta > 0 && remaining <= 0) return;
-    next[chain] = nextVal;
-    setAllocation(next);
-  }
+  useEffect(() => {
+    onSpendableChange?.(spendable);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spendable]);
 
   return (
     <div className="burn-checker">
@@ -211,11 +180,6 @@ export default function BurnWalletChecker() {
         <div>
           <div className="burn-checker-title">
             EVM Wallet Checker
-            {results && (
-              <span className="checker-mints-badge">
-                {spendable.toLocaleString()} free mint{spendable === 1 ? "" : "s"}
-              </span>
-            )}
             {results && <span className="checker-checked-badge">✓ Checked</span>}
           </div>
           <div className="burn-checker-sub">Check all EVM wallets at once</div>
@@ -226,14 +190,19 @@ export default function BurnWalletChecker() {
               Connect Wallet
             </button>
           ) : (
-            <button className="btn-burn-hero burn-checker-btn" onClick={checkWallet} disabled={checking}>
+            <button
+              className="btn-burn-hero burn-checker-btn"
+              onClick={checkWallet}
+              disabled={checking}
+              title={results ? "Click to re-check" : undefined}
+            >
               {checking ? (
                 <>
                   <span className="btn-spinner" />
                   Checking Wallet…
                 </>
               ) : results ? (
-                "Re-check"
+                `${spendable.toLocaleString()} Free Mint${spendable === 1 ? "" : "s"} ↻`
               ) : (
                 "Check My Wallet"
               )}
@@ -370,47 +339,6 @@ export default function BurnWalletChecker() {
                 </div>
               )}
             </div>
-
-            {spendable > 0 && (
-              <>
-                <div className="credits-spendable">
-                  <span className="credits-spendable-num">{spendable}</span>
-                  <span className="credits-spendable-label">spendable credit{spendable === 1 ? "" : "s"}</span>
-                </div>
-
-                {!allocation ? (
-                  <button className="btn-burn-hero credits-plan-btn" onClick={initAllocation}>
-                    Plan how to spend it
-                  </button>
-                ) : (
-                  <div className="credits-allocator">
-                    <div className="credits-allocator-head">
-                      <span>Split your {spendable} credits across chains</span>
-                      <span className={`credits-remaining${remaining !== 0 ? " warn" : ""}`}>
-                        {remaining === 0 ? "All allocated" : `${remaining} left to place`}
-                      </span>
-                    </div>
-                    {ALLOCATION_CHAINS.map((c) => (
-                      <div className="credits-alloc-row" key={c}>
-                        <span className="credits-alloc-chain">{CHAIN_LABEL[c]}</span>
-                        <div className="credits-alloc-stepper">
-                          <button onClick={() => adjust(c, -1)} disabled={allocation[c] <= 0} aria-label={`Fewer on ${CHAIN_LABEL[c]}`}>
-                            −
-                          </button>
-                          <span className="credits-alloc-num">{allocation[c]}</span>
-                          <button onClick={() => adjust(c, 1)} disabled={remaining <= 0} aria-label={`More on ${CHAIN_LABEL[c]}`}>
-                            +
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                    <div className="credits-alloc-note">
-                      Not submitted anywhere yet — this just plans it out. Real burning + minting isn&apos;t live.
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
           </div>
         </>
       )}

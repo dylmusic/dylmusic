@@ -5,6 +5,7 @@ import { LEGACY_ASSETS, LegacyAsset } from "@/lib/legacyCollections";
 import BurnWalletChecker from "@/components/BurnWalletChecker";
 import SolanaWalletChecker from "@/components/SolanaWalletChecker";
 import TezosWalletChecker from "@/components/TezosWalletChecker";
+import MintAllocator from "@/components/MintAllocator";
 
 function truncate(addr: string, head = 8, tail = 6) {
   if (addr.length <= head + tail + 1) return addr;
@@ -38,6 +39,15 @@ function AssetRow({ asset }: { asset: LegacyAsset }) {
 export default function BurnPage() {
   const [showContracts, setShowContracts] = useState(false);
 
+  // Each checker reports its own spendable total up here so the page can
+  // show one combined number and plan a chain split against the real
+  // grand total, not just whichever checker happens to have the allocator
+  // built into it (see components/MintAllocator.tsx).
+  const [evmSpendable, setEvmSpendable] = useState(0);
+  const [solanaSpendable, setSolanaSpendable] = useState(0);
+  const [tezosSpendable, setTezosSpendable] = useState(0);
+  const totalSpendable = evmSpendable + solanaSpendable + tezosSpendable;
+
   return (
     <div className="dash-wrap">
       <div className="dash-page-head">
@@ -53,9 +63,17 @@ export default function BurnPage() {
       </div>
 
       <div className="burn-checkers">
-        <BurnWalletChecker />
-        <SolanaWalletChecker />
-        <TezosWalletChecker />
+        <BurnWalletChecker onSpendableChange={setEvmSpendable} />
+        <SolanaWalletChecker onSpendableChange={setSolanaSpendable} />
+        <TezosWalletChecker onSpendableChange={setTezosSpendable} />
+      </div>
+
+      <div className="burn-checker burn-total-card">
+        <div className="burn-total-row">
+          <span className="burn-total-num">{totalSpendable.toLocaleString()}</span>
+          <span className="burn-total-label">Total Free Mints</span>
+        </div>
+        <MintAllocator spendable={totalSpendable} />
       </div>
 
       <button

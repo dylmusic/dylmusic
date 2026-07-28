@@ -734,6 +734,7 @@ input {
   border-bottom: 2px solid rgba(0, 0, 0, 0.45);
   box-shadow: 0 8px 30px color-mix(in srgb, var(--accent) 18%, transparent);
   transition: box-shadow 0.15s ease;
+  margin-bottom: 20px;
 }
 
 .btn-connect:hover {
@@ -3734,6 +3735,30 @@ body > div:has(> .landing-page) {
   margin-bottom: 0;
 }
 
+.burn-total-card {
+  margin-bottom: 20px;
+}
+
+.burn-total-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.burn-total-num {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.burn-total-label {
+  font-size: 12px;
+  color: #8b978f;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .burn-contracts-toggle {
   display: block;
   width: 100%;
@@ -3879,17 +3904,6 @@ body > div:has(> .landing-page) {
   color: #04140a;
   background: var(--accent);
   padding: 3px 8px;
-}
-
-.checker-mints-badge {
-  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  padding: 2px 8px;
 }
 
 .checker-head-actions {

@@ -68,6 +68,13 @@ export default function MultichainOverview({ album }: { album: Album }) {
           <span className="dash-quick-num">{formatStreams(streams.total)}</span>
           <span className="dash-quick-label">total streams</span>
         </div>
+        {/* Real zero, not a placeholder — burning isn't wired up on-chain
+            yet (see /burn), so there's genuinely nothing to count. Same
+            "show the true zero" call already made for RWA Pools. */}
+        <div className="dash-quick-tile">
+          <span className="dash-quick-num">0</span>
+          <span className="dash-quick-label">NFTs burned</span>
+        </div>
       </div>
 
       {/* ---------- Multichain / crypto (priority) ---------- */}

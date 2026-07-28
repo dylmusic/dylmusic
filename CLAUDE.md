@@ -48,6 +48,21 @@ Concretely, when contracts get built:
   total, not one-per-track (would be 19+ contracts) and not one shared
   contract across chains (impossible anyway — different VMs).
 
+**Explore later: ERC721A for the EVM contracts** (Dylan, 2026-07-27: "i
+think we should do ERC721A"). Not evaluated yet — flagging the real
+tension before anyone builds against it: ERC721A (Azuki's gas-optimized
+standard) is a batch-mint optimization for **ERC-721**, not ERC-1155,
+and its savings come from minting several sequential token IDs to one
+buyer in a single transaction. The requirement above locks each EVM
+chain into one ERC-1155 contract with one `tokenId` per track (so
+"edition #14 of track X" and "edition #3 of track Y" can share a
+contract without being the same token). Before building, resolve
+whether ERC721A's batch-mint savings even apply to this app's actual
+mint flow (mostly one edition at a time, not bulk buys) and whether an
+ERC-721-based shape can still satisfy the one-collection-per-chain rule
+above (e.g. token ID ranges partitioned per track) without regressing
+the ERC-1155 approach's clean per-track supply tracking.
+
 **Contracts must be upgradable** (proxy pattern — UUPS or Transparent Proxy
 for EVM; Solana's own program-upgrade authority model for the Solana side).
 Dyl's own wallet (see Admin below) should hold upgrade authority. This is
