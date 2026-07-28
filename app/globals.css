@@ -5133,3 +5133,271 @@ body > div:has(> .landing-page) {
   line-height: 1.7;
   color: #cfd9d2;
 }
+
+/* ---------- $PRINT ad easter egg ---------- */
+
+.print-ad-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  /* Explicit, not inherited — GlobalTaskbar (and this modal) render inside
+     .landing-page on the homepage, which is pointer-events:none by design
+     (see that rule's own comment) so real desktop icons behind it stay
+     clickable. Without opting back in here, this modal silently inherited
+     that none and every click — including the close button — passed
+     straight through to whatever was underneath. Caught live: a real
+     dispatched click on .print-ad-close did nothing until this was added. */
+  pointer-events: auto;
+}
+
+@keyframes print-ad-border-spin {
+  to {
+    background-position: 300% 0;
+  }
+}
+
+.print-ad-window {
+  position: relative;
+  width: min(420px, 100%);
+  padding: 4px;
+  background: linear-gradient(
+    90deg,
+    #ff2d55,
+    #ffb300,
+    #39ff6a,
+    #00c8ff,
+    #b95cff,
+    #ff2d55
+  );
+  background-size: 300% 100%;
+  animation: print-ad-border-spin 3.5s linear infinite;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.print-ad-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  background: #ff2d2d;
+  color: #fff;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.print-ad-titlebar-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  animation: print-ad-blink 1s steps(1) infinite;
+}
+
+.print-ad-titlebar-icon {
+  display: inline-block;
+  animation: print-ad-wiggle 0.6s ease-in-out infinite;
+}
+
+@keyframes print-ad-wiggle {
+  0%,
+  100% {
+    transform: rotate(-8deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+}
+
+@keyframes print-ad-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.35;
+  }
+}
+
+.print-ad-close {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #ff2d2d;
+  background: #fff;
+  border-top: 1px solid rgba(255, 255, 255, 0.9);
+  border-left: 1px solid rgba(255, 255, 255, 0.9);
+  border-right: 1px solid rgba(0, 0, 0, 0.4);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+  flex-shrink: 0;
+}
+
+.print-ad-close:hover {
+  background: #ffe4e4;
+}
+
+.print-ad-marquee {
+  overflow: hidden;
+  white-space: nowrap;
+  background: repeating-linear-gradient(
+    135deg,
+    #ffcc00,
+    #ffcc00 10px,
+    #111 10px,
+    #111 20px
+  );
+  color: #111;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 4px 0;
+}
+
+.print-ad-marquee span {
+  display: inline-block;
+  padding-left: 100%;
+  animation: print-ad-marquee-scroll 14s linear infinite;
+}
+
+@keyframes print-ad-marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+.print-ad-body {
+  background: #05070a;
+  padding: 26px 22px 20px;
+  text-align: center;
+}
+
+.print-ad-badge {
+  display: inline-block;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #111;
+  background: #ffcc00;
+  padding: 3px 10px;
+  margin-bottom: 14px;
+  animation: print-ad-blink 0.8s steps(1) infinite;
+}
+
+.print-ad-logo {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 10px;
+  background: linear-gradient(90deg, #39ff6a, #00c8ff, #b95cff, #39ff6a);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: print-ad-border-spin 4s linear infinite;
+}
+
+.print-ad-tagline {
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.5;
+  color: #eef2ee;
+  margin-bottom: 16px;
+}
+
+.print-ad-emojis {
+  font-size: 26px;
+  letter-spacing: 4px;
+  margin-bottom: 16px;
+}
+
+.print-ad-emojis span,
+.print-ad-emojis {
+  display: inline-block;
+}
+
+.print-ad-counter {
+  display: inline-block;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #39ff6a;
+  background: #0a1a0e;
+  border: 1px solid rgba(57, 255, 106, 0.4);
+  padding: 6px 12px;
+  margin-bottom: 20px;
+  letter-spacing: 0.03em;
+}
+
+.print-ad-counter span {
+  color: #fff;
+  text-shadow: 0 0 6px rgba(57, 255, 106, 0.8);
+}
+
+.print-ad-ctas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+@keyframes print-ad-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(57, 255, 106, 0.6);
+  }
+  50% {
+    transform: scale(1.035);
+    box-shadow: 0 0 0 10px rgba(57, 255, 106, 0);
+  }
+}
+
+.print-ad-buy {
+  display: block;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 15px;
+  font-weight: 800;
+  color: #04140a;
+  background: #39ff6a;
+  padding: 14px 18px;
+  text-decoration: none;
+  border-top: 2px solid rgba(255, 255, 255, 0.8);
+  border-left: 2px solid rgba(255, 255, 255, 0.8);
+  border-right: 2px solid rgba(0, 0, 0, 0.45);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.45);
+  animation: print-ad-pulse 1.4s ease-in-out infinite;
+}
+
+.print-ad-no {
+  font-size: 11px;
+  color: #566159;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.print-ad-no:hover {
+  color: #8b978f;
+}
+
+.print-ad-fine {
+  font-size: 10px;
+  font-style: italic;
+  line-height: 1.5;
+  color: #45514a;
+}
