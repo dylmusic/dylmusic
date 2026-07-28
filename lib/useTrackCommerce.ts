@@ -24,6 +24,10 @@ const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 export interface PendingBuy {
   track: Track;
   entry: OrderBookEntry;
+  // Only meaningful for entry.type === "mint" — a resale entry is one
+  // specific already-numbered edition, there's nothing to multiply.
+  // Defaults to 1, clamped to entry.remaining when set.
+  quantity: number;
 }
 
 // Shared buy/sell/order-book logic — used anywhere a track needs full
@@ -76,17 +80,24 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     setTick((n) => n + 1);
   }
 
-  async function mintTrack(t: Track) {
+  // Mints up to `quantity` sequential fresh editions in one go (clamped to
+  // whatever's actually left) — the "mint 10 copies at once" case. Each
+  // edition still gets its own recordMint/recordActivity call, same
+  // granularity a real multi-mint transaction's individual Transfer events
+  // would have; only the UI/confirmation step treats it as one action.
+  async function mintTrack(t: Track, quantity = 1) {
     if (!walletAddress) return;
-    const current = baselineMinted(t, chain) + localMintedCount(chain, t.id);
-    if (current < t.editionCap) {
-      recordMint(chain, walletAddress, t.id, current + 1);
+    let current = baselineMinted(t, chain) + localMintedCount(chain, t.id);
+    const n = Math.max(1, Math.floor(quantity));
+    for (let i = 0; i < n && current < t.editionCap; i++) {
+      current += 1;
+      recordMint(chain, walletAddress, t.id, current);
       recordActivity({
         type: "buy",
         chain,
         wallet: walletAddress,
         trackTitle: t.title,
-        editionNumber: current + 1,
+        editionNumber: current,
         priceUsd: t.priceUsd,
       });
     }
@@ -113,16 +124,23 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     if (busyKey || pendingBuy) return;
     const floor = books[t.id]?.[0];
     if (!floor) return;
-    setPendingBuy({ track: t, entry: floor });
+    setPendingBuy({ track: t, entry: floor, quantity: 1 });
   }
 
-  function requestBuyFromBook(t: Track, entry: OrderBookEntry, onRequestConnect?: () => void) {
+  function requestBuyFromBook(
+    t: Track,
+    entry: OrderBookEntry,
+    onRequestConnect?: () => void,
+    quantity = 1
+  ) {
     if (!walletAddress) {
       onRequestConnect?.();
       return;
     }
     if (busyKey || pendingBuy) return;
-    setPendingBuy({ track: t, entry });
+    const clamped =
+      entry.type === "mint" ? Math.min(Math.max(1, quantity), entry.remaining ?? 1) : 1;
+    setPendingBuy({ track: t, entry, quantity: clamped });
   }
 
   function cancelPendingBuy() {
@@ -132,7 +150,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
 
   async function confirmPendingBuy(payToken: DylToken) {
     if (!pendingBuy || !walletAddress) return;
-    const { track: t, entry } = pendingBuy;
+    const { track: t, entry, quantity } = pendingBuy;
     const entryKey = entry.type === "mint" ? "mint" : `${entry.editionNumber}`;
     setBusyKey(`${t.id}:${entryKey}`);
     if (!isNativePayToken(payToken, getNativeTokenForChain(chain))) {
@@ -143,7 +161,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     } else {
       await delay(450);
     }
-    if (entry.type === "mint") await mintTrack(t);
+    if (entry.type === "mint") await mintTrack(t, quantity);
     else await buyResaleEntry(t, entry);
     setBusyKey(null);
     setBuyStep(null);

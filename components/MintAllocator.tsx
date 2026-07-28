@@ -13,6 +13,7 @@ const CHAIN_LABEL: Record<AllocationChain, string> = {
   robinhood: "Robinhood",
   base: "Base",
   solana: "Solana",
+  ethereum: "Ethereum",
 };
 
 export default function MintAllocator({ spendable }: { spendable: number }) {

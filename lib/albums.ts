@@ -2,7 +2,7 @@
 // album without touching any UI code. Real tracklist/art/audio links go here
 // when ready; these are placeholders so the concept can be demoed now.
 
-export type ChainKey = "base" | "robinhood" | "solana";
+export type ChainKey = "base" | "robinhood" | "solana" | "ethereum";
 
 export interface ChainInfo {
   key: ChainKey;
@@ -12,10 +12,19 @@ export interface ChainInfo {
   live: boolean;
 }
 
+// Ethereum added 2026-07-28 (Dylan: "gas is so low now, I think we should
+// allow people to mint there... nothing to lose") — a muted purple-grey
+// rather than Ethereum's usual saturated blue-purple brand color
+// (#627EEA), since Base already owns blue in this palette and a
+// near-identical hue next to it would read as a mistake, not a 4th
+// distinct chain. Reads as a calmer, more "established chain" tone next
+// to Robinhood's neon green / Base's electric blue / Solana's vivid
+// purple, deliberately distinct from all three.
 export const CHAINS: ChainInfo[] = [
   { key: "robinhood", label: "Robinhood", shortLabel: "Robinhood", color: "#CCFF00", live: true },
   { key: "base", label: "Base", shortLabel: "Base", color: "#0052FF", live: true },
   { key: "solana", label: "Solana", shortLabel: "Solana", color: "#9945FF", live: true },
+  { key: "ethereum", label: "Ethereum", shortLabel: "Ethereum", color: "#8B8FA8", live: true },
 ];
 
 export interface Track {

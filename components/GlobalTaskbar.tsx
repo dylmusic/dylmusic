@@ -71,6 +71,14 @@ export default function GlobalTaskbar({
     let paused = false;
     let resumeAt = 0;
     let last = 0;
+    // Tracked separately from el.scrollLeft, which the browser rounds to a
+    // whole pixel on every write — at 14px/sec and a ~60fps rAF, each
+    // frame's step is well under 1px, so reading el.scrollLeft back and
+    // adding to it (the original approach) always re-reads the same
+    // rounded-down integer and the fractional progress never accumulates,
+    // permanently stuck at 0. A local float accumulator, written to
+    // el.scrollLeft but never read back from it, fixes that.
+    let pos = 0;
 
     function stop() {
       stopped = true;
@@ -86,12 +94,14 @@ export default function GlobalTaskbar({
       if (paused) {
         if (now >= resumeAt) paused = false;
       } else {
-        el.scrollLeft += direction * PX_PER_SEC * dt;
-        if (direction === 1 && el.scrollLeft >= max - 1) {
+        pos += direction * PX_PER_SEC * dt;
+        pos = Math.min(max, Math.max(0, pos));
+        el.scrollLeft = pos;
+        if (direction === 1 && pos >= max - 1) {
           direction = -1;
           paused = true;
           resumeAt = now + PAUSE_MS;
-        } else if (direction === -1 && el.scrollLeft <= 1) {
+        } else if (direction === -1 && pos <= 1) {
           direction = 1;
           paused = true;
           resumeAt = now + PAUSE_MS;
@@ -101,6 +111,7 @@ export default function GlobalTaskbar({
     }
 
     startTimer = window.setTimeout(() => {
+      pos = el.scrollLeft;
       last = performance.now();
       rafId = requestAnimationFrame(step);
     }, 1000);

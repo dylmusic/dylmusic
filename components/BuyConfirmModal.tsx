@@ -19,6 +19,7 @@ const ALL_PINNED = [...PINNED_TOKENS.robinhood, ...PINNED_TOKENS.base, ...PINNED
 export default function BuyConfirmModal({
   track,
   entry,
+  quantity,
   defaultPayToken,
   buyStep,
   busy,
@@ -27,6 +28,7 @@ export default function BuyConfirmModal({
 }: {
   track: Track;
   entry: OrderBookEntry;
+  quantity: number;
   defaultPayToken: DylToken;
   buyStep: 1 | 2 | null;
   busy: boolean;
@@ -50,7 +52,11 @@ export default function BuyConfirmModal({
           <div className="buy-confirm-waiting">
             <div className="buy-confirm-ring" />
             <div className="buy-confirm-waiting-title">
-              {buyStep === 1 ? `Swapping ${payToken.symbol} to ${defaultPayToken.symbol}` : "Buying edition"}
+              {buyStep === 1
+                ? `Swapping ${payToken.symbol} to ${defaultPayToken.symbol}`
+                : quantity > 1
+                  ? `Minting ${quantity} editions`
+                  : "Buying edition"}
             </div>
             <div className="buy-confirm-waiting-sub">Step {buyStep} of 2</div>
             <div className="buy-confirm-dots">
@@ -73,10 +79,14 @@ export default function BuyConfirmModal({
             <div className="buy-confirm-track">
               <span className="buy-confirm-track-title">
                 {entry.type === "mint"
-                  ? `MINTING: EDITION #${track.editionCap - (entry.remaining ?? 0) + 1}`
+                  ? quantity > 1
+                    ? `MINTING: ${quantity} EDITIONS (#${track.editionCap - (entry.remaining ?? 0) + 1}–#${
+                        track.editionCap - (entry.remaining ?? 0) + quantity
+                      })`
+                    : `MINTING: EDITION #${track.editionCap - (entry.remaining ?? 0) + 1}`
                   : `PURCHASE: EDITION #${entry.editionNumber}`}
               </span>
-              <span className="buy-confirm-track-price">${entry.priceUsd.toFixed(2)}</span>
+              <span className="buy-confirm-track-price">${(entry.priceUsd * quantity).toFixed(2)}</span>
             </div>
 
             <div>

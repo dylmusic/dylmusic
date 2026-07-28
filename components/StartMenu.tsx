@@ -185,9 +185,9 @@ export default function StartMenu({
               ? commerce.busyKey.split(":")[1]
               : null
           }
-          onBuyMint={() => {
+          onBuyMint={(qty) => {
             const mintEntry = commerce.books[bookTrack.id]?.find((e) => e.type === "mint");
-            if (mintEntry) commerce.requestBuyFromBook(bookTrack, mintEntry, onRequestConnect);
+            if (mintEntry) commerce.requestBuyFromBook(bookTrack, mintEntry, onRequestConnect, qty);
           }}
           onBuyResale={(entry) => commerce.requestBuyFromBook(bookTrack, entry, onRequestConnect)}
           onClose={() => setBookTrackId(null)}
@@ -198,6 +198,7 @@ export default function StartMenu({
         <BuyConfirmModal
           track={commerce.pendingBuy.track}
           entry={commerce.pendingBuy.entry}
+          quantity={commerce.pendingBuy.quantity}
           defaultPayToken={commerce.defaultPayToken}
           buyStep={commerce.buyStep}
           busy={commerce.busyKey !== null}

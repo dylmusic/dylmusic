@@ -1,6 +1,6 @@
 import { createPublicClient, http, isAddress, getAddress } from "viem";
 import { robinhoodChain } from "./web3";
-import { base } from "wagmi/chains";
+import { base, mainnet } from "wagmi/chains";
 import type { ChainKey } from "./albums";
 
 // Curated token list for the real Swap page — same "Select Token" pattern
@@ -48,6 +48,19 @@ const ETH_ROBINHOOD: DylToken = {
 
 const ETH_BASE: DylToken = {
   chainId: base.id,
+  address: NATIVE_ETH,
+  symbol: "ETH",
+  name: "Ethereum",
+  decimals: 18,
+  isNative: true,
+};
+
+// Ethereum mainnet added 2026-07-28 as a site chain — just the native asset
+// for now (same minimal shape as the other two), not a full WETH/USDC pair
+// list; the real Swap page's own multi-token picker (SWAP_CHAINS below) is
+// a separate, bigger question not touched by this.
+const ETH_ETHEREUM: DylToken = {
+  chainId: mainnet.id,
   address: NATIVE_ETH,
   symbol: "ETH",
   name: "Ethereum",
@@ -122,10 +135,11 @@ const USDG_SOLANA: DylToken = {
   logo: "https://coin-images.coingecko.com/coins/images/51281/large/GDN_USDG_Token_200x200.png",
 };
 
-export const PINNED_TOKENS: Record<"robinhood" | "base" | "solana", DylToken[]> = {
+export const PINNED_TOKENS: Record<"robinhood" | "base" | "solana" | "ethereum", DylToken[]> = {
   robinhood: [ETH_ROBINHOOD, WETH_ROBINHOOD, USDG_ROBINHOOD],
   base: [ETH_BASE, WETH_BASE, USDC_BASE],
   solana: [SOL_NATIVE, USDC_SOLANA, USDG_SOLANA],
+  ethereum: [ETH_ETHEREUM],
 };
 
 export const CURATED_TOKENS: DylToken[] = [
@@ -147,6 +161,7 @@ export function isSolanaChain(chainId: number): boolean {
 export function chainIdForKey(chain: ChainKey): number {
   if (chain === "base") return base.id;
   if (chain === "solana") return SOLANA_CHAIN_ID;
+  if (chain === "ethereum") return mainnet.id;
   return robinhoodChain.id;
 }
 

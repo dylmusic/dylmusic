@@ -111,7 +111,7 @@ export default function ConsolePanel({
           <span>·</span>
           <span>{liveAlbum.tracks.length} TRACKS</span>
           <span>·</span>
-          <span>3 CHAINS</span>
+          <span>{overview.perChain.length} CHAINS</span>
         </div>
       </div>
     </div>

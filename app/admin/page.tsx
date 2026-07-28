@@ -126,19 +126,26 @@ export default function AdminPage() {
 
           <div className="admin-section">
             <div className="admin-section-head">
-              <h2>Contracts</h2>
+              <h2>Contracts — deploy in this order</h2>
             </div>
             <div className="admin-empty" style={{ marginBottom: 14 }}>
               One upgradable collection contract per chain — every track/album mints onto the
-              existing contract as a new tokenId, never a new contract. See CLAUDE.md &quot;Contract
-              Requirement&quot; before writing any of these.
+              existing contract as a new tokenId, never a new contract. ERC721A, not ERC-1155
+              (decided 2026-07-28). See CLAUDE.md &quot;Contract Requirement&quot; before writing any
+              of these. Steps 1–4 are required; step 5 (marketplace) is optional — only do it if
+              OpenSea&apos;s own listing flow (Seaport) turns out not to be enough.
             </div>
             <div className="admin-contract-list">
               {CONTRACT_TARGETS.map((c) => (
-                <div key={c.key} className="admin-contract-row">
+                <div key={c.key} className={`admin-contract-row${c.optional ? " optional" : ""}`}>
+                  <div className="admin-contract-step">{c.order}</div>
                   <div className="admin-contract-info">
-                    <div className="admin-contract-chain">{c.chainName}</div>
+                    <div className="admin-contract-chain">
+                      {c.chainName}
+                      {c.optional && <span className="admin-contract-optional-tag">Optional</span>}
+                    </div>
                     <div className="admin-contract-standard">{c.standard}</div>
+                    <div className="admin-contract-reason">{c.reason}</div>
                     <div className="admin-contract-addr">
                       {c.address ?? "Not deployed"}
                     </div>

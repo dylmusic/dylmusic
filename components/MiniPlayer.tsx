@@ -269,9 +269,9 @@ export default function MiniPlayer({
           track={track}
           book={book}
           busyKey={commerce.busyKey?.startsWith(`${track.id}:`) ? commerce.busyKey.split(":")[1] : null}
-          onBuyMint={() => {
+          onBuyMint={(qty) => {
             const mintEntry = book.find((e) => e.type === "mint");
-            if (mintEntry) commerce.requestBuyFromBook(track, mintEntry, onRequestConnect);
+            if (mintEntry) commerce.requestBuyFromBook(track, mintEntry, onRequestConnect, qty);
           }}
           onBuyResale={(entry) => commerce.requestBuyFromBook(track, entry, onRequestConnect)}
           onClose={() => setBookOpen(false)}
@@ -282,6 +282,7 @@ export default function MiniPlayer({
         <BuyConfirmModal
           track={commerce.pendingBuy.track}
           entry={commerce.pendingBuy.entry}
+          quantity={commerce.pendingBuy.quantity}
           defaultPayToken={commerce.defaultPayToken}
           buyStep={commerce.buyStep}
           busy={commerce.busyKey !== null}

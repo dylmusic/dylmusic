@@ -41,7 +41,8 @@ export function mintsForCardTier(tier: CardTier): number | null {
 }
 
 // Robinhood Chain isn't in this reward table yet (it's the live/current
-// chain, not a "legacy" one) — allocation targets are just the 3 chains
-// the new collection actually mints on.
-export const ALLOCATION_CHAINS = ["robinhood", "base", "solana"] as const;
+// chain, not a "legacy" one) — allocation targets are just the chains
+// the new collection actually mints on (Ethereum added 2026-07-28
+// alongside lib/albums.ts CHAINS — see that file for why).
+export const ALLOCATION_CHAINS = ["robinhood", "base", "solana", "ethereum"] as const;
 export type AllocationChain = (typeof ALLOCATION_CHAINS)[number];

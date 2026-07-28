@@ -64,7 +64,7 @@ export default async function Image() {
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              height: 74,
+              height: 60,
               padding: "0 28px",
               background: ACCENT,
               color: "#04140a",
@@ -126,16 +126,16 @@ export default async function Image() {
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-              gap: 26,
+              gap: 14,
             }}
           >
-            <img src={logoSrc} width={104} height={83} alt="" />
+            <img src={logoSrc} width={80} height={64} alt="" />
 
             <div
               style={{
-                fontSize: 24,
+                fontSize: 20,
                 fontWeight: 700,
-                letterSpacing: 7,
+                letterSpacing: 6,
                 color: ACCENT,
               }}
             >
@@ -147,16 +147,16 @@ export default async function Image() {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: 10,
+                gap: 6,
               }}
             >
-              <div style={{ fontSize: 38, fontWeight: 700, color: INK }}>
+              <div style={{ fontSize: 32, fontWeight: 700, color: INK }}>
                 Every mint starts at $0.99
               </div>
-              <div style={{ fontSize: 38, fontWeight: 500, color: INK }}>
+              <div style={{ fontSize: 32, fontWeight: 500, color: INK }}>
                 Buy with any coin from any chain
               </div>
-              <div style={{ fontSize: 38, fontWeight: 500, color: INK }}>
+              <div style={{ fontSize: 32, fontWeight: 500, color: INK }}>
                 Only 100 NFTs per song, on each chain
               </div>
             </div>
@@ -192,6 +192,25 @@ export default async function Image() {
                 </div>
               ))}
             </div>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                fontSize: 18,
+                fontWeight: 800,
+                color: "#04140a",
+                background: ACCENT,
+                padding: "10px 24px",
+                borderTop: "2px solid rgba(255,255,255,0.7)",
+                borderLeft: "2px solid rgba(255,255,255,0.7)",
+                borderRight: "2px solid rgba(0,0,0,0.45)",
+                borderBottom: "2px solid rgba(0,0,0,0.45)",
+              }}
+            >
+              Burn Old NFTs &amp; $Dyl Coin
+            </div>
           </div>
 
           {/* taskbar */}
@@ -200,15 +219,15 @@ export default async function Image() {
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              height: 68,
+              height: 56,
               padding: "0 28px",
               background: ACCENT,
               color: "#04140a",
               borderTop: "3px solid rgba(255,255,255,0.5)",
             }}
           >
-            <div style={{ fontSize: 30, fontWeight: 800 }}>nft.dylmusic.com</div>
-            <div style={{ fontSize: 18, fontWeight: 700, opacity: 0.75 }}>
+            <div style={{ fontSize: 26, fontWeight: 800 }}>nft.dylmusic.com</div>
+            <div style={{ fontSize: 16, fontWeight: 700, opacity: 0.75 }}>
               MUSIC NFTS · ONCHAIN
             </div>
           </div>
