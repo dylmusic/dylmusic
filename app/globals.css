@@ -188,8 +188,8 @@ input {
   padding: 5px 12px;
   border-top: 2px solid rgba(255, 255, 255, 0.55);
   border-left: 2px solid rgba(255, 255, 255, 0.55);
-  border-right: 2px solid rgba(0, 0, 0, 0.3);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.3);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   white-space: nowrap;
 }
 
@@ -218,8 +218,8 @@ input {
   padding: 5px 12px 5px 8px;
   border-top: 2px solid rgba(255, 255, 255, 0.85);
   border-left: 2px solid rgba(255, 255, 255, 0.85);
-  border-right: 2px solid rgba(0, 0, 0, 0.45);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.45);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
 }
 
 .taskbar-start:active {
@@ -264,8 +264,8 @@ input {
   background: #0a0e0c;
   border-top: 2px solid rgba(255, 255, 255, 0.4);
   border-left: 2px solid rgba(255, 255, 255, 0.4);
-  border-right: 3px solid rgba(0, 0, 0, 0.75);
-  border-bottom: 4px solid rgba(0, 0, 0, 0.75);
+  border-right: 3px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 4px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
@@ -320,8 +320,8 @@ input {
   border-radius: 0;
   border-top: 2px solid rgba(255, 255, 255, 0.14);
   border-left: 2px solid rgba(255, 255, 255, 0.14);
-  border-right: 2px solid rgba(0, 0, 0, 0.35);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.35);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   padding: 5px 11px;
   cursor: pointer;
   transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
@@ -444,16 +444,16 @@ input {
   background: #12161a;
   border-top: 1.5px solid rgba(255, 255, 255, 0.22);
   border-left: 1.5px solid rgba(255, 255, 255, 0.22);
-  border-right: 1.5px solid rgba(0, 0, 0, 0.6);
-  border-bottom: 1.5px solid rgba(0, 0, 0, 0.6);
+  border-right: 1.5px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.15);
 }
 
 .desktop-file.active .desktop-file-icon {
   background: #0d1f13;
   border-top-color: color-mix(in srgb, var(--accent) 50%, transparent);
   border-left-color: color-mix(in srgb, var(--accent) 50%, transparent);
-  border-right-color: rgba(0, 0, 0, 0.6);
-  border-bottom-color: rgba(0, 0, 0, 0.6);
+  border-right-color: rgba(255, 255, 255, 0.15);
+  border-bottom-color: rgba(255, 255, 255, 0.15);
   box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
@@ -559,8 +559,8 @@ input {
   background: #0a0e0c;
   border-top: 2px solid rgba(255, 255, 255, 0.4);
   border-left: 2px solid rgba(255, 255, 255, 0.4);
-  border-right: 3px solid rgba(0, 0, 0, 0.75);
-  border-bottom: 4px solid rgba(0, 0, 0, 0.75);
+  border-right: 3px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 4px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 24px color-mix(in srgb, var(--accent) 18%, transparent);
   text-align: left;
 }
@@ -686,8 +686,8 @@ input {
   border-radius: 0;
   border-top: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
   border-left: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
-  border-right: 2px solid rgba(0, 0, 0, 0.5);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.5);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
 }
 
 .aim-mini-reply-send:active {
@@ -730,8 +730,8 @@ input {
   border-radius: 0;
   border-top: 2px solid rgba(255, 255, 255, 0.7);
   border-left: 2px solid rgba(255, 255, 255, 0.7);
-  border-right: 2px solid rgba(0, 0, 0, 0.45);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.45);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 8px 30px color-mix(in srgb, var(--accent) 18%, transparent);
   transition: box-shadow 0.15s ease;
 }
@@ -762,8 +762,8 @@ input {
   border-radius: 0;
   border-top: 2px solid rgba(255, 255, 255, 0.55);
   border-left: 2px solid rgba(255, 255, 255, 0.55);
-  border-right: 2px solid rgba(0, 0, 0, 0.4);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.4);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   margin-bottom: 20px;
   box-shadow: 0 8px 26px rgba(255, 91, 31, 0.3);
   transition: box-shadow 0.15s ease;
@@ -795,8 +795,8 @@ input {
   border-radius: 0;
   border-top: 2px solid rgba(255, 255, 255, 0.7);
   border-left: 2px solid rgba(255, 255, 255, 0.7);
-  border-right: 2px solid rgba(0, 0, 0, 0.45);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.45);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   margin-bottom: 20px;
   box-shadow: 0 8px 26px color-mix(in srgb, var(--accent) 18%, transparent);
   transition: box-shadow 0.15s ease;
@@ -891,8 +891,8 @@ input {
   background: rgba(255, 255, 255, 0.05);
   border-top: 2px solid rgba(255, 255, 255, 0.18);
   border-left: 2px solid rgba(255, 255, 255, 0.18);
-  border-right: 2px solid rgba(0, 0, 0, 0.35);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.35);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
@@ -1144,8 +1144,8 @@ input {
   background: rgba(255, 255, 255, 0.05);
   border-top: 2px solid rgba(255, 255, 255, 0.16);
   border-left: 2px solid rgba(255, 255, 255, 0.16);
-  border-right: 2px solid rgba(0, 0, 0, 0.35);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.35);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   color: #cfd9d2;
   display: flex;
   align-items: center;
@@ -1379,8 +1379,8 @@ input {
   background: rgba(255, 255, 255, 0.06);
   border-top: 2px solid rgba(255, 255, 255, 0.18);
   border-left: 2px solid rgba(255, 255, 255, 0.18);
-  border-right: 2px solid rgba(0, 0, 0, 0.35);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.35);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
@@ -1824,8 +1824,8 @@ input {
   background: color-mix(in srgb, var(--accent) 8%, #12161a);
   border-top: 2px solid rgba(255, 255, 255, 0.3);
   border-left: 2px solid rgba(255, 255, 255, 0.3);
-  border-right: 2px solid rgba(0, 0, 0, 0.5);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.5);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   text-align: left;
 }
 
@@ -2210,8 +2210,8 @@ input {
   background: #0a0e0c;
   border-top: 2px solid rgba(255, 255, 255, 0.4);
   border-left: 2px solid rgba(255, 255, 255, 0.4);
-  border-right: 3px solid rgba(0, 0, 0, 0.75);
-  border-bottom: 4px solid rgba(0, 0, 0, 0.75);
+  border-right: 3px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 4px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 16px 50px rgba(0, 0, 0, 0.55), 0 0 34px color-mix(in srgb, var(--accent) 12%, transparent);
   width: min(360px, calc(100vw - 32px));
 }
@@ -2258,8 +2258,8 @@ input {
   justify-content: center;
   border-top: 2px solid rgba(255, 255, 255, 0.7);
   border-left: 2px solid rgba(255, 255, 255, 0.7);
-  border-right: 2px solid rgba(0, 0, 0, 0.45);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.45);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
 }
 
 .mini-player-skip {
@@ -2274,8 +2274,8 @@ input {
   justify-content: center;
   border-top: 2px solid rgba(255, 255, 255, 0.18);
   border-left: 2px solid rgba(255, 255, 255, 0.18);
-  border-right: 2px solid rgba(0, 0, 0, 0.4);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.4);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
 }
 
 .mini-player-skip:hover:not(:disabled) {
@@ -2347,8 +2347,8 @@ input {
   background: rgba(4, 20, 10, 0.18);
   border-top: 1px solid rgba(255, 255, 255, 0.6);
   border-left: 1px solid rgba(255, 255, 255, 0.6);
-  border-right: 1px solid rgba(0, 0, 0, 0.35);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.35);
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .mini-player-close:hover {
@@ -2550,8 +2550,8 @@ input {
   background: #0a0e0c;
   border-top: 2px solid rgba(255, 255, 255, 0.4);
   border-left: 2px solid rgba(255, 255, 255, 0.4);
-  border-right: 3px solid rgba(0, 0, 0, 0.75);
-  border-bottom: 4px solid rgba(0, 0, 0, 0.75);
+  border-right: 3px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 4px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
@@ -2598,6 +2598,43 @@ input {
 
 .aim-line {
   word-break: break-word;
+}
+
+.aim-line.pinned {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-left: 2px solid var(--accent);
+  padding: 3px 6px;
+  margin: 2px 0;
+}
+
+.aim-line-pin-flag {
+  display: inline-block;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #04140a;
+  background: var(--accent);
+  padding: 1px 5px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.aim-line-admin {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: 8px;
+}
+
+.aim-line-admin button {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 9.5px;
+  color: #566159;
+  text-decoration: underline;
+}
+
+.aim-line-admin button:hover {
+  color: var(--accent);
 }
 
 .aim-line-time {
@@ -2773,8 +2810,8 @@ input {
   border-radius: 0;
   border-top: 2px solid color-mix(in srgb, var(--accent) 70%, white 30%);
   border-left: 2px solid color-mix(in srgb, var(--accent) 70%, white 30%);
-  border-right: 2px solid rgba(0, 0, 0, 0.5);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.5);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   color: var(--accent);
   font-weight: 800;
   font-size: 0.9rem;
@@ -2814,8 +2851,8 @@ input {
   background: #12161a;
   border-top: 2px solid rgba(255, 255, 255, 0.2);
   border-left: 2px solid rgba(255, 255, 255, 0.2);
-  border-right: 2px solid rgba(0, 0, 0, 0.5);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.5);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   color: #cfd9d2;
   display: flex;
   align-items: center;
@@ -2850,8 +2887,8 @@ input {
   border-radius: 0;
   border-top: 2px solid rgba(255, 255, 255, 0.7);
   border-left: 2px solid rgba(255, 255, 255, 0.7);
-  border-right: 2px solid rgba(0, 0, 0, 0.45);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.45);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   background: var(--accent);
   color: #04140a;
   font-weight: 700;
@@ -2953,8 +2990,8 @@ input {
   border-radius: 0;
   border-top: 2px solid rgba(255, 255, 255, 0.16);
   border-left: 2px solid rgba(255, 255, 255, 0.16);
-  border-right: 2px solid rgba(0, 0, 0, 0.35);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.35);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   background: rgba(255, 255, 255, 0.04);
   color: #7c8a80;
   font-size: 0.78rem;
@@ -3023,8 +3060,8 @@ input {
   border-radius: 0;
   border-top: 2px solid rgba(255, 255, 255, 0.18);
   border-left: 2px solid rgba(255, 255, 255, 0.18);
-  border-right: 2px solid rgba(0, 0, 0, 0.4);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.4);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   color: #eef2ee;
   font-weight: 800;
   font-size: 0.82rem;
@@ -3145,8 +3182,8 @@ input {
   border-radius: 0;
   border-top: 2px solid rgba(255, 255, 255, 0.7);
   border-left: 2px solid rgba(255, 255, 255, 0.7);
-  border-right: 2px solid rgba(0, 0, 0, 0.45);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.45);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   background: var(--accent);
   color: #04140a;
   font-weight: 700;
@@ -3391,8 +3428,8 @@ input {
   background: #05070a;
   border-top: 2px solid rgba(255, 255, 255, 0.35);
   border-left: 2px solid rgba(255, 255, 255, 0.35);
-  border-right: 3px solid rgba(0, 0, 0, 0.75);
-  border-bottom: 4px solid rgba(0, 0, 0, 0.75);
+  border-right: 3px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 4px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
 }
 
@@ -3424,8 +3461,8 @@ input {
   background: rgba(4, 20, 10, 0.18);
   border-top: 1px solid rgba(255, 255, 255, 0.6);
   border-left: 1px solid rgba(255, 255, 255, 0.6);
-  border-right: 1px solid rgba(0, 0, 0, 0.35);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.35);
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .win95-body {
@@ -3576,8 +3613,8 @@ body > div:has(> .landing-page) {
   border-radius: 0;
   border-top: 2px solid rgba(255, 107, 40, 0.4);
   border-left: 2px solid rgba(255, 107, 40, 0.4);
-  border-right: 2px solid rgba(0, 0, 0, 0.35);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.35);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   font-weight: 700;
   font-size: 13px;
   padding: 7px 15px;
@@ -3847,8 +3884,8 @@ body > div:has(> .landing-page) {
   font-weight: 700;
   border-top: 2px solid rgba(255, 255, 255, 0.18);
   border-left: 2px solid rgba(255, 255, 255, 0.18);
-  border-right: 2px solid rgba(0, 0, 0, 0.4);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.4);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
 }
 
 .credits-alloc-stepper button:disabled {
@@ -3961,8 +3998,8 @@ body > div:has(> .landing-page) {
   border-radius: 0;
   border-top: 2px solid rgba(255, 255, 255, 0.4);
   border-left: 2px solid rgba(255, 255, 255, 0.4);
-  border-right: 2px solid rgba(0, 0, 0, 0.5);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.5);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   cursor: pointer;
   padding: 0;
 }
@@ -3995,8 +4032,8 @@ body > div:has(> .landing-page) {
   border-radius: 0;
   border-top: 2px solid rgba(255, 255, 255, 0.7);
   border-left: 2px solid rgba(255, 255, 255, 0.7);
-  border-right: 2px solid rgba(0, 0, 0, 0.45);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.45);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   cursor: pointer;
 }
 
@@ -4132,6 +4169,41 @@ body > div:has(> .landing-page) {
   opacity: 1;
 }
 
+.board-note.featured {
+  box-shadow: 0 0 0 2px #04140a, 0 0 0 4px #ffd75e, 0 8px 16px rgba(0, 0, 0, 0.5);
+}
+
+.board-note-featured-flag {
+  display: block;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #6b5f42;
+  margin-bottom: 3px;
+}
+
+.board-note-admin {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.board-note-admin button {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 8.5px;
+  text-decoration: underline;
+  color: #4a3f26;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.board-note-admin button:hover {
+  color: #04140a;
+}
+
 /* ---------- Global chat dock (collapsible, bottom-right, every page) ---------- */
 
 .gcw-tab {
@@ -4152,8 +4224,8 @@ body > div:has(> .landing-page) {
   border-radius: 0;
   border-top: 2px solid rgba(255, 255, 255, 0.7);
   border-left: 2px solid rgba(255, 255, 255, 0.7);
-  border-right: 2px solid rgba(0, 0, 0, 0.45);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.45);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   transition: bottom 0.15s ease;
 }
@@ -4194,8 +4266,8 @@ body > div:has(> .landing-page) {
   background: #0a0e0c;
   border-top: 2px solid rgba(255, 255, 255, 0.4);
   border-left: 2px solid rgba(255, 255, 255, 0.4);
-  border-right: 3px solid rgba(0, 0, 0, 0.75);
-  border-bottom: 4px solid rgba(0, 0, 0, 0.75);
+  border-right: 3px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 4px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 16px 50px rgba(0, 0, 0, 0.55), 0 0 34px color-mix(in srgb, var(--accent) 12%, transparent);
   transition: bottom 0.15s ease;
 }
@@ -4234,8 +4306,8 @@ body > div:has(> .landing-page) {
   background: rgba(4, 20, 10, 0.18);
   border-top: 1px solid rgba(255, 255, 255, 0.6);
   border-left: 1px solid rgba(255, 255, 255, 0.6);
-  border-right: 1px solid rgba(0, 0, 0, 0.35);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.35);
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .gcw-collapse:hover {
@@ -4261,6 +4333,13 @@ body > div:has(> .landing-page) {
   font-size: 12px;
   line-height: 1.6;
   color: #cfd9d2;
+}
+
+.gcw-line.pinned {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-left: 2px solid var(--accent);
+  padding: 3px 6px;
+  margin: 2px 0;
 }
 
 .gcw-line-time {
@@ -4313,8 +4392,8 @@ body > div:has(> .landing-page) {
   border-radius: 0;
   border-top: 2px solid rgba(255, 255, 255, 0.7);
   border-left: 2px solid rgba(255, 255, 255, 0.7);
-  border-right: 2px solid rgba(0, 0, 0, 0.45);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.45);
+  border-right: 2px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
 }
 
 .gcw-composer button:disabled {
@@ -4322,7 +4401,7 @@ body > div:has(> .landing-page) {
   cursor: not-allowed;
 }
 
-/* ---------- About page (AIM-bubble explainer) ---------- */
+/* ---------- About page (readme.txt style) ---------- */
 
 .about-wrap {
   max-width: 860px;
@@ -4330,16 +4409,27 @@ body > div:has(> .landing-page) {
   padding: 48px 24px 140px;
 }
 
-.about-window {
-  max-width: 640px;
-  margin: 0 auto;
-  width: 100%;
+.about-readme {
+  background: #05070a;
+  border-top: 2px solid rgba(255, 255, 255, 0.35);
+  border-left: 2px solid rgba(255, 255, 255, 0.35);
+  border-right: 3px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 4px solid rgba(255, 255, 255, 0.15);
 }
 
-.about-msg {
-  cursor: default;
+.about-readme-titlebar {
+  background: var(--accent);
+  color: #04140a;
+  padding: 6px 10px;
 }
 
-.about-msg:hover {
-  background: none;
+.about-readme-body {
+  margin: 0;
+  padding: 22px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: #cfd9d2;
 }

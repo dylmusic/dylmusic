@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Album } from "@/lib/albums";
 import { platformOverview, usdToEth, usdToSol } from "@/lib/platformStats";
 import { streamsSeries, salesSeries } from "@/lib/dashboardStats";
-import { formatStreams } from "@/lib/streams";
+import { formatStreams, useStreamCountsLoaded } from "@/lib/streams";
 import StreamsChart from "./StreamsChart";
 import SalesChart from "./SalesChart";
 import RecentSales from "./RecentSales";
@@ -17,6 +17,7 @@ export default function MultichainOverview({ album }: { album: Album }) {
     setRefreshKey((k) => k + 1);
   }, []);
 
+  useStreamCountsLoaded();
   const overview = platformOverview(album);
   const streams = streamsSeries(album);
   const sales = salesSeries();

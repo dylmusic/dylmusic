@@ -589,6 +589,104 @@ to visibly "look active," since a flat dark dot sitting on the same
 accent-green background it was trying to indicate status against read as
 inert.
 
+### Real per-token tier lookup for the burn checker — Dylan called out the estimate, and he was right to
+
+The min-max range described above was replaced with **exact** tiers.
+Dylan's reaction to the range: "why cant you check the types? ... Actually
+check them" — correct pushback. The earlier "blocker" (a raw
+`eth_getLogs` full-history call rejected by `ethereum-rpc.publicnode.com`,
+block-range capped) was a real dead end, but giving up there was wrong —
+**Blockscout's public REST API** (`eth.blockscout.com/api/v2/tokens/
+{contract}/instances?holder_address_hash={wallet}`) indexes exactly this:
+every tokenId a wallet currently holds for a contract, paginated (50/page,
+`next_page_params` cursor), **with full metadata (including the `Edition`
+trait) inline in the response** — no separate per-token IPFS fetch needed
+at all, no API key, CORS wide open (`access-control-allow-origin: *`), so
+it runs straight from the browser. Verified live against Dylan's own
+wallet before shipping: 235 tokens across 5 pages, exactly matching the
+earlier `balanceOf` count, classified as 199 Standard / 14 Gold / 2
+Platinum / 1 Diamond / 16 VIP (album covers, singles, PFP) / 3 unrevealed
+Mystery cards. `lib/tieredCollectionCheck.ts` does this lookup;
+`BurnWalletChecker.tsx`'s credits panel now shows the real per-tier
+breakdown and an exact spendable total (Diamond and Mystery-tier tokens
+are shown but excluded from the total — still genuinely unpriced/
+unknown, not estimated away). **Lesson for future sessions**: when a
+public RPC method fails, that's evidence against that specific method, not
+against the underlying question being answerable — a block explorer's own
+indexed API is often the right tool for "what does this wallet hold,"
+not raw log scanning.
+
+### Real, server-tracked stream counts (`lib/streamsStore.ts`, `/api/streams`)
+
+Dylan: "wire it up to track every single stream, whether it gets played in
+miniplayer or on the music page. start tracking the streams now... this
+will be the start of the real running stream count. We'll need to store
+that data in vercel along with our other data storage." Replaced
+`lib/streams.ts`'s old per-browser localStorage + deterministic-pseudo-
+random baseline entirely — real counts now live in the same Upstash Redis
+already used for chat/board (`dylmusic:streams:counts`, one Redis hash,
+`HINCRBY` per play). **Every play funnels through one choke point**:
+`PlayerContext.tsx`'s `toggleTrack` is the single call site for
+`recordStream()`, regardless of whether playback started from MiniPlayer,
+the `/music` track list, the homepage console preview, or a desktop-icon
+click — so wiring it once there covers every trigger, no per-component
+changes needed. Starts at **zero** for every track, no blended baseline,
+per Dylan's own framing ("this will be the start of the real running
+count"). Client-side (`getStreamCount`) reads a small in-memory cache
+populated by one `/api/streams` GET, with a `useStreamCountsLoaded()`
+hook components call once to trigger that fetch and re-render when it
+lands (`AlbumView.tsx`, `MultichainOverview.tsx`) — kept as a plain
+synchronous `getStreamCount(track)` read rather than converting every
+call site to a hook, to avoid a bigger refactor.
+
+### "Why can't board/chat data live on Vercel?" — it already does
+
+Dylan asked this directly. Short answer: it already does, via the same
+mechanism every other piece of real shared state on this site uses —
+Upstash Redis, which is exactly what **Vercel's own "Marketplace
+Database Storage — Upstash for Redis"** integration provisions (Vercel
+doesn't run its own Redis; the old first-party "Vercel KV" product was
+Upstash under the hood too, now folded into this marketplace integration).
+`getRedis()` in `lib/chatStore.ts`/`boardStore.ts`/`streamsStore.ts`
+already reads either env var naming convention
+(`UPSTASH_REDIS_REST_URL/TOKEN` or `KV_REST_API_URL/TOKEN`) so it works
+with either the direct Upstash dashboard or the Vercel-integration flow
+with zero code changes. **If a feature ever shows "isn't configured on
+this deployment yet"** (seen live on `/board` during this session's own
+testing), the store code isn't the issue — it means those env vars
+genuinely aren't set on that specific Vercel deployment/environment yet.
+Fix is in the Vercel dashboard, not code: Project → Storage → connect (or
+verify) the Upstash integration for the environment being tested
+(Production vs. Preview have separate env var sets), or confirm the var
+names actually match one of the two pairs above.
+
+### Admin wallet (0x9e01...35b5) — always-post, delete, and pin, chat + board
+
+Dylan: "give my wallet ... access so that i can always write in chat,
+delete messages in chat and board, and i can pin stuff to board and pin
+something in chat." Delete already existed for both (gated on
+`isAdminWallet` from `lib/admin.ts`) — added the rest:
+- **Always-post**: `/chat` and `GlobalChatWidget.tsx`'s `canPost` now
+  reads `isAdminWallet(address) || ownsAnyEdition(...)` — the admin
+  wallet bypasses the hold-an-edition gate everyone else needs.
+- **Pin in chat**: new `PATCH /api/chat` (`{id, wallet, pinned}`,
+  admin-only) → `lib/chatStore.ts` `setMessagePinned()` (read-modify-
+  rewrite the list, same technique `deleteMessage` already used — no
+  per-item Redis key exists to target directly). `readMessages()` now
+  sorts pinned-first. Pinned messages get a visible highlight (accent
+  left-border + a small "PINNED" flag) in both `/chat` and the global
+  dock, and admin sees inline Pin/Delete text-buttons on every line.
+- **"Pin" to board**: board posts were already unrestricted (any
+  connected wallet can post — no edition-gate there), so this became a
+  distinct **Feature** concept instead of literally "let admin post" —
+  `BoardNote.pinned`, `PATCH /api/board` → `setNotePinned()` (same
+  rewrite technique), pinned/featured notes sort first and get a gold
+  ring (`.board-note.featured`) + a "★ FEATURED" flag. Deliberately
+  named "Feature"/"Unfeature" in the board's own admin buttons (not
+  "Pin") since every board note is already conceptually "pinned" to the
+  corkboard — reusing that word there would've been confusing next to
+  the *composer's* own "Pin it" (= post) button.
+
 ---
 
 ## Current state: everything is a local simulated ledger

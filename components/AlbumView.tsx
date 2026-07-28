@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Album, ChainKey, Track, baselineMinted } from "@/lib/albums";
 import { localMintedCount, recordMint } from "@/lib/holdings";
 import { recordActivity } from "@/lib/activity";
+import { useStreamCountsLoaded } from "@/lib/streams";
 import { useTrackCommerce } from "@/lib/useTrackCommerce";
 import TrackRow from "./TrackRow";
 import ListingsModal from "./ListingsModal";
@@ -36,6 +37,7 @@ export default function AlbumView({
   const [modalTrackId, setModalTrackId] = useState<string | null>(null);
   const [bookTrackId, setBookTrackId] = useState<string | null>(null);
 
+  useStreamCountsLoaded();
   const commerce = useTrackCommerce(album.tracks, chain, walletAddress);
   const { minted, ownedEditions, listings, books } = commerce;
 

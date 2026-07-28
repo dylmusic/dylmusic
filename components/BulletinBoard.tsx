@@ -13,6 +13,7 @@ interface BoardNote {
   text: string;
   color: NoteColor;
   ts: number;
+  pinned?: boolean;
 }
 
 const CHAIN_LABEL: Record<string, string> = {
@@ -88,13 +89,27 @@ export default function BulletinBoard() {
     }
   }
 
-  async function unpin(id: string) {
+  async function removeNote(id: string) {
     if (!walletAddress || !isAdminWallet(walletAddress)) return;
     try {
       await fetch("/api/board", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, wallet: walletAddress }),
+      });
+      await load();
+    } catch {
+      // best-effort
+    }
+  }
+
+  async function toggleFeature(n: BoardNote) {
+    if (!walletAddress || !isAdminWallet(walletAddress)) return;
+    try {
+      await fetch("/api/board", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: n.id, wallet: walletAddress, pinned: !n.pinned }),
       });
       await load();
     } catch {
@@ -162,10 +177,11 @@ export default function BulletinBoard() {
           return (
             <div
               key={n.id}
-              className="board-note"
+              className={`board-note${n.pinned ? " featured" : ""}`}
               style={{ "--tilt": `${tilt}deg`, "--note-bg": n.color } as React.CSSProperties}
             >
               <span className="board-note-pin" />
+              {n.pinned && <span className="board-note-featured-flag">★ FEATURED</span>}
               <div className="board-note-text">{n.text}</div>
               <div className="board-note-foot">
                 <span className="board-note-who">{name}</span>
@@ -173,9 +189,14 @@ export default function BulletinBoard() {
                 <span className="board-note-date">{timeShort(n.ts)}</span>
               </div>
               {walletAddress && isAdminWallet(walletAddress) && (
-                <button className="board-note-unpin" onClick={() => unpin(n.id)} title="Remove (admin)">
-                  ×
-                </button>
+                <div className="board-note-admin">
+                  <button onClick={() => toggleFeature(n)} title={n.pinned ? "Unfeature" : "Feature at top"}>
+                    {n.pinned ? "Unfeature" : "Feature"}
+                  </button>
+                  <button className="board-note-unpin" onClick={() => removeNote(n.id)} title="Remove (admin)">
+                    ×
+                  </button>
+                </div>
               )}
             </div>
           );

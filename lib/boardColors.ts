@@ -3,8 +3,13 @@
 // kept out of lib/boardStore.ts on purpose so the client bundle doesn't
 // need to pull in that file's @upstash/redis import just for these
 // constants.
-
-export const NOTE_COLORS = ["#f4e04d", "#ff9ecb", "#7CFF6B", "#6ec8ff", "#ffb454", "#c792ea"] as const;
+//
+// Deliberately just the 3 chain colors from lib/albums.ts CHAINS (not a
+// separate palette) — a note's color reads as "which chain this poster is
+// repping," not an arbitrary decoration. Kept as plain string literals
+// here rather than imported from albums.ts to avoid pulling client-only
+// album/track data into the server route's bundle for 3 hex codes.
+export const NOTE_COLORS = ["#CCFF00", "#0052FF", "#9945FF"] as const;
 export type NoteColor = (typeof NOTE_COLORS)[number];
 export const DEFAULT_NOTE_COLOR: NoteColor = NOTE_COLORS[0];
 

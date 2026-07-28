@@ -23,6 +23,7 @@ export interface ChatMessage {
   chain: string;
   text: string;
   ts: number;
+  pinned?: boolean;
 }
 
 export async function postMessage(msg: Omit<ChatMessage, "id" | "ts">): Promise<ChatMessage | null> {
@@ -38,11 +39,14 @@ export async function postMessage(msg: Omit<ChatMessage, "id" | "ts">): Promise<
   return entry;
 }
 
+// Pinned messages first (newest-pinned first), then everything else
+// newest-first — same list, just re-ordered on read so a pin doesn't need
+// its own separate key/store.
 export async function readMessages(limit = 100): Promise<ChatMessage[]> {
   const redis = getRedis();
   if (!redis) return [];
   const raw = await redis.lrange(CHAT_KEY, 0, limit - 1);
-  return raw
+  const parsed = raw
     .map((r) => {
       try {
         return typeof r === "string" ? (JSON.parse(r) as ChatMessage) : (r as unknown as ChatMessage);
@@ -52,6 +56,9 @@ export async function readMessages(limit = 100): Promise<ChatMessage[]> {
     })
     .filter((m): m is ChatMessage => m !== null)
     .reverse();
+  const pinned = parsed.filter((m) => m.pinned);
+  const rest = parsed.filter((m) => !m.pinned);
+  return [...pinned, ...rest];
 }
 
 // Admin moderation — the list has no per-item key to target, so this reads
@@ -72,6 +79,33 @@ export async function deleteMessage(id: string): Promise<boolean> {
   if (kept.length === raw.length) return false;
   await redis.del(CHAT_KEY);
   if (kept.length > 0) await redis.rpush(CHAT_KEY, ...kept);
+  return true;
+}
+
+// Admin-only: mark/unmark a message as pinned. Same read-modify-rewrite
+// approach as deleteMessage, since there's no per-item key.
+export async function setMessagePinned(id: string, pinned: boolean): Promise<boolean> {
+  const redis = getRedis();
+  if (!redis) return false;
+  const raw = await redis.lrange(CHAT_KEY, 0, -1);
+  let found = false;
+  const next: string[] = [];
+  for (const r of raw) {
+    try {
+      const parsed = typeof r === "string" ? (JSON.parse(r) as ChatMessage) : (r as unknown as ChatMessage);
+      if (parsed.id === id) {
+        found = true;
+        next.push(JSON.stringify({ ...parsed, pinned }));
+      } else {
+        next.push(JSON.stringify(parsed));
+      }
+    } catch {
+      // skip unparseable entries rather than risk corrupting the rewrite
+    }
+  }
+  if (!found) return false;
+  await redis.del(CHAT_KEY);
+  if (next.length > 0) await redis.rpush(CHAT_KEY, ...next);
   return true;
 }
 

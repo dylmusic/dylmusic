@@ -7,6 +7,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { ALBUMS } from "@/lib/albums";
 import { ownsAnyEdition } from "@/lib/holdings";
 import { getNickname } from "@/lib/nicknames";
+import { isAdminWallet } from "@/lib/admin";
 import { usePlayer } from "./PlayerContext";
 
 interface ChatMessage {
@@ -15,6 +16,7 @@ interface ChatMessage {
   chain: string;
   text: string;
   ts: number;
+  pinned?: boolean;
 }
 
 const ALL_TRACK_IDS = ALBUMS.flatMap((a) => a.tracks.map((t) => t.id));
@@ -45,7 +47,8 @@ export default function GlobalChatWidget() {
   const [sending, setSending] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
 
-  const canPost = !!address && ownsAnyEdition("robinhood", address, ALL_TRACK_IDS);
+  const isAdmin = isAdminWallet(address);
+  const canPost = !!address && (isAdmin || ownsAnyEdition("robinhood", address, ALL_TRACK_IDS));
 
   async function load() {
     try {
@@ -91,6 +94,34 @@ export default function GlobalChatWidget() {
     }
   }
 
+  async function removeMessage(id: string) {
+    if (!address || !isAdmin) return;
+    try {
+      await fetch("/api/chat", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, wallet: address }),
+      });
+      await load();
+    } catch {
+      // best-effort
+    }
+  }
+
+  async function togglePin(m: ChatMessage) {
+    if (!address || !isAdmin) return;
+    try {
+      await fetch("/api/chat", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: m.id, wallet: address, pinned: !m.pinned }),
+      });
+      await load();
+    } catch {
+      // best-effort
+    }
+  }
+
   if (pathname === "/chat") return null;
 
   const liftForPlayer = player.playingTrack ? "gcw-lifted" : "";
@@ -122,9 +153,16 @@ export default function GlobalChatWidget() {
         {messages.map((m) => {
           const name = getNickname(m.wallet) ?? truncate(m.wallet);
           return (
-            <div key={m.id} className="gcw-line">
+            <div key={m.id} className={`gcw-line${m.pinned ? " pinned" : ""}`}>
+              {m.pinned && <span className="aim-line-pin-flag">PINNED</span>}
               <span className="gcw-line-time">[{timeShort(m.ts)}]</span>{" "}
               <span className="gcw-line-who">{name}:</span> <span className="gcw-line-text">{m.text}</span>
+              {isAdmin && (
+                <span className="aim-line-admin">
+                  <button onClick={() => togglePin(m)}>{m.pinned ? "Unpin" : "Pin"}</button>
+                  <button onClick={() => removeMessage(m.id)}>Delete</button>
+                </span>
+              )}
             </div>
           );
         })}

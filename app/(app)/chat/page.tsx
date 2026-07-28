@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ALBUMS } from "@/lib/albums";
 import { ownsAnyEdition } from "@/lib/holdings";
 import { getNickname } from "@/lib/nicknames";
+import { isAdminWallet } from "@/lib/admin";
 import { useAppShell } from "@/components/AppShellContext";
 
 interface ChatMessage {
@@ -12,6 +13,7 @@ interface ChatMessage {
   chain: string;
   text: string;
   ts: number;
+  pinned?: boolean;
 }
 
 const ALL_TRACK_IDS = ALBUMS.flatMap((a) => a.tracks.map((t) => t.id));
@@ -32,7 +34,8 @@ export default function ChatPage() {
   const [tick, setTick] = useState(0);
   const logRef = useRef<HTMLDivElement>(null);
 
-  const canPost = !!walletAddress && ownsAnyEdition(chain, walletAddress, ALL_TRACK_IDS);
+  const isAdmin = isAdminWallet(walletAddress);
+  const canPost = !!walletAddress && (isAdmin || ownsAnyEdition(chain, walletAddress, ALL_TRACK_IDS));
 
   async function load() {
     try {
@@ -82,6 +85,34 @@ export default function ChatPage() {
     }
   }
 
+  async function removeMessage(id: string) {
+    if (!walletAddress || !isAdmin) return;
+    try {
+      await fetch("/api/chat", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, wallet: walletAddress }),
+      });
+      await load();
+    } catch {
+      // best-effort
+    }
+  }
+
+  async function togglePin(m: ChatMessage) {
+    if (!walletAddress || !isAdmin) return;
+    try {
+      await fetch("/api/chat", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: m.id, wallet: walletAddress, pinned: !m.pinned }),
+      });
+      await load();
+    } catch {
+      // best-effort
+    }
+  }
+
   return (
     <div className="chat-page-wrap">
       <div className="aim-window">
@@ -97,10 +128,21 @@ export default function ChatPage() {
           {messages.map((m) => {
             const name = getNickname(m.wallet) ?? truncate(m.wallet);
             return (
-              <div key={m.id} className="aim-line">
+              <div key={m.id} className={`aim-line${m.pinned ? " pinned" : ""}`}>
+                {m.pinned && <span className="aim-line-pin-flag">PINNED</span>}
                 <span className="aim-line-time">[{timeShort(m.ts)}]</span>{" "}
                 <span className="aim-line-who">{name}:</span>{" "}
                 <span className="aim-line-text">{m.text}</span>
+                {isAdmin && (
+                  <span className="aim-line-admin">
+                    <button onClick={() => togglePin(m)} title={m.pinned ? "Unpin" : "Pin"}>
+                      {m.pinned ? "Unpin" : "Pin"}
+                    </button>
+                    <button onClick={() => removeMessage(m.id)} title="Delete">
+                      Delete
+                    </button>
+                  </span>
+                )}
               </div>
             );
           })}

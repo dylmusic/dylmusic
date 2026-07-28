@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { postNote, readNotes, deleteNote, boardConfigured, isNoteColor, DEFAULT_NOTE_COLOR } from "@/lib/boardStore";
+import {
+  postNote,
+  readNotes,
+  deleteNote,
+  setNotePinned,
+  boardConfigured,
+  isNoteColor,
+  DEFAULT_NOTE_COLOR,
+} from "@/lib/boardStore";
 import { isAdminWallet } from "@/lib/admin";
 
 export async function GET() {
@@ -43,5 +51,20 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Missing note id." }, { status: 400 });
   }
   const ok = await deleteNote(id);
+  return NextResponse.json({ ok });
+}
+
+export async function PATCH(req: NextRequest) {
+  const body = await req.json().catch(() => null);
+  const id = typeof body?.id === "string" ? body.id : "";
+  const wallet = typeof body?.wallet === "string" ? body.wallet : "";
+  const pinned = body?.pinned === true;
+  if (!isAdminWallet(wallet)) {
+    return NextResponse.json({ error: "Not authorized." }, { status: 403 });
+  }
+  if (!id) {
+    return NextResponse.json({ error: "Missing note id." }, { status: 400 });
+  }
+  const ok = await setNotePinned(id, pinned);
   return NextResponse.json({ ok });
 }
