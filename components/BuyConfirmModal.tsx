@@ -48,6 +48,13 @@ export default function BuyConfirmModal({
 }) {
   const [payToken, setPayToken] = useState<DylToken>(defaultPayToken);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Beta is live now (Dylan: "if anyone clicks confirm buy or confirm sell
+  // on the NFTs, tell them its not live yet... let them see all the
+  // interface, but at the last step let them know it doesnt work"). The
+  // whole flow — Pay With, token picker, price — stays fully explorable;
+  // only this final click is gated, and onConfirm (the actual simulated
+  // mint) is never reached anymore.
+  const [notLive, setNotLive] = useState(false);
 
   useEffect(() => {
     setPayToken(defaultPayToken);
@@ -59,7 +66,19 @@ export default function BuyConfirmModal({
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onCancel}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        {buyStep !== null ? (
+        {notLive ? (
+          <div className="modal-not-live">
+            <div className="modal-not-live-icon">🚧</div>
+            <h3>Not live yet</h3>
+            <p>
+              NFT buying is not live yet — you are looking at the real beta interface, but the
+              contracts behind it are not deployed. Nothing was charged.
+            </p>
+            <button className="buy-confirm-cta" onClick={onCancel}>
+              Got it
+            </button>
+          </div>
+        ) : buyStep !== null ? (
           <div className="buy-confirm-waiting">
             <div className="buy-confirm-ring" />
             <div className="buy-confirm-waiting-title">
@@ -125,7 +144,12 @@ export default function BuyConfirmModal({
               )}
             </div>
 
-            <button className="buy-confirm-cta" disabled={busy} onClick={() => onConfirm(payToken)}>
+            {/* Temporarily gated for beta (see notLive above) — onConfirm
+                still receives the real simulated-purchase callback from
+                every caller, just not invoked from here right now.
+                Re-enabling later is a one-line swap back to
+                onConfirm(payToken). */}
+            <button className="buy-confirm-cta" disabled={busy} onClick={() => setNotLive(true)}>
               {busy ? "Confirming…" : "Confirm Buy"}
             </button>
           </div>

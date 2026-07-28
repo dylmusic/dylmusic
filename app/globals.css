@@ -3525,6 +3525,37 @@ input {
   text-align: center;
 }
 
+.modal-not-live {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 8px 8px;
+  text-align: center;
+}
+
+.modal-not-live-icon {
+  font-size: 30px;
+  margin-bottom: 4px;
+}
+
+.modal-not-live h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #eef2ee;
+}
+
+.modal-not-live p {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: #8b978f;
+}
+
+.modal-not-live .buy-confirm-cta {
+  width: 100%;
+}
+
 .buy-confirm-ring {
   width: 48px;
   height: 48px;
