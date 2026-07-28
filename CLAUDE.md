@@ -395,9 +395,37 @@ entry of its own since it's the live chain, not a legacy one) with +/−
 steppers, defaulting to an even split (remainder distributed to the first
 chains). Purely local UI state — **nothing is submitted anywhere**, no
 API call, no on-chain action; real burning still isn't wired up (see the
-"Burning isn't wired up yet" notice already on the page). Solana and Tezos
-wallet checkers are the explicitly-deferred next step (Dylan: "Then next
-will be Solana and Objkt / Tezos") — not built yet, only ETH.
+"Burning isn't wired up yet" notice already on the page).
+
+**Solana and Tezos wallet checkers shipped 2026-07-27** (`components/
+SolanaWalletChecker.tsx` + `lib/solanaCollectionCheck.ts`;
+`components/TezosWalletChecker.tsx` + `lib/tezosCollectionCheck.ts`) —
+same collapsible-header pattern as the ETH checker (closed by default,
+"✓ Checked" badge + toggle once results exist). `/burn` now shows only
+the three checkers' header rows by default (Dylan: "only show this part
+by default... make the rest of it collapsible"); the full
+`LEGACY_ASSETS` contract list sits behind a separate "View every
+eligible contract" toggle, closed by default. Solana has no verified
+per-token tier lookup yet (same "min–max range, conservative side
+counted" treatment as the ETH tiered collection); Tezos is a flat 1
+NFT = 1 mint. Tezos deliberately has no real Temple/Trust Wallet SDK
+connection — no Beacon SDK dependency was added — it's a paste-your-
+tz1-address flow instead (exactly what both wallets' own "Copy Address"
+feature gives you), reasoned as too large a lift to build blind without
+a real Temple extension to test against.
+
+### Explore: fully-random free mints (not built yet)
+
+Dylan, 2026-07-27: *"I want the free mints to be totally random. so if
+you have 20 mints, you might get 5 of the same song."* Idea is that
+spending N free mints wouldn't let a user hand-pick which N tracks they
+get — each mint would roll a random track from the target album/chain,
+so a large mint count could land duplicates instead of one-of-each.
+Worth exploring against the allocator above (`components/
+BurnWalletChecker.tsx`'s "Plan how to spend it" — currently a chain-level
+split only, no track-level choice at all yet) once real burning/minting
+is actually wired up — not evaluated for feasibility yet, just captured
+here per Dylan's request so it isn't lost.
 
 ### Starting mint stats — flat 10% everywhere, not a random "looks alive" number
 

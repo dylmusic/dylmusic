@@ -81,6 +81,7 @@ export default function BurnWalletChecker() {
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const [checking, setChecking] = useState(false);
+  const [open, setOpen] = useState(false);
   const [results, setResults] = useState<AssetResult[] | null>(null);
   const [dylResults, setDylResults] = useState<DylResult[] | null>(null);
   const [tierBreakdown, setTierBreakdown] = useState<TierBreakdown | null>(null);
@@ -153,6 +154,7 @@ export default function BurnWalletChecker() {
     setDylResults(dyl);
     setTierBreakdown(tiers);
     setChecking(false);
+    setOpen(true);
   }
 
   const { totalCount, totalDylBalance, tieredCredits, untieredCount, spendable } = useMemo(() => {
@@ -208,28 +210,44 @@ export default function BurnWalletChecker() {
     <div className="burn-checker">
       <div className="burn-checker-head">
         <div>
-          <div className="burn-checker-title">EVM Wallet Checker</div>
+          <div className="burn-checker-title">
+            EVM Wallet Checker
+            {results && <span className="checker-checked-badge">✓ Checked</span>}
+          </div>
           <div className="burn-checker-sub">Check all EVM wallets at once</div>
         </div>
-        {!isConnected ? (
-          <button className="btn-burn-hero burn-checker-btn" onClick={() => openConnectModal?.()}>
-            Connect Wallet
-          </button>
-        ) : (
-          <button className="btn-burn-hero burn-checker-btn" onClick={checkWallet} disabled={checking}>
-            {checking ? (
-              <>
-                <span className="btn-spinner" />
-                Checking Wallet…
-              </>
-            ) : (
-              "Check My Wallet"
-            )}
-          </button>
-        )}
+        <div className="checker-head-actions">
+          {!isConnected ? (
+            <button className="btn-burn-hero burn-checker-btn" onClick={() => openConnectModal?.()}>
+              Connect Wallet
+            </button>
+          ) : (
+            <button className="btn-burn-hero burn-checker-btn" onClick={checkWallet} disabled={checking}>
+              {checking ? (
+                <>
+                  <span className="btn-spinner" />
+                  Checking Wallet…
+                </>
+              ) : results ? (
+                "Re-check"
+              ) : (
+                "Check My Wallet"
+              )}
+            </button>
+          )}
+          {results && (
+            <button
+              className="checker-toggle"
+              onClick={() => setOpen((v) => !v)}
+              aria-label={open ? "Collapse results" : "Expand results"}
+            >
+              {open ? "▲" : "▼"}
+            </button>
+          )}
+        </div>
       </div>
 
-      {results && (
+      {results && open && (
         <>
           <div className="burn-checker-total burn-checker-total-combined">
             <div className="burn-checker-total-part">

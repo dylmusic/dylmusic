@@ -16,13 +16,13 @@ const STAR_ICON_PIXELS: [number, number][] = [
 
 const NAV_ITEMS: { href: string; label: string; match: (p: string) => boolean }[] = [
   { href: "/music", label: "Music", match: (p) => p === "/music" || p.startsWith("/music/") },
+  { href: "/about", label: "About", match: (p) => p === "/about" },
   { href: "/dashboard", label: "Dashboard", match: (p) => p === "/dashboard" },
   { href: "/chat", label: "Chat", match: (p) => p === "/chat" },
   { href: "/swap", label: "Swap", match: (p) => p === "/swap" },
   { href: "/beats", label: "Beats", match: (p) => p === "/beats" },
   { href: "/burn", label: "Burn", match: (p) => p === "/burn" },
   { href: "/board", label: "Board", match: (p) => p === "/board" },
-  { href: "/about", label: "About", match: (p) => p === "/about" },
 ];
 
 // Persistent bottom taskbar, shared across every page — the anchor of the
@@ -50,26 +50,69 @@ export default function GlobalTaskbar({
 
   // Mobile-only nudge: the nav row scrolls sideways (more pages than fit
   // on a phone), but nothing about it visually signals that — no
-  // scrollbar (scrollbar-width:none), no visible cut-off edge. Once,
-  // shortly after mount, slide it right and back so first-time visitors
-  // notice it's draggable, same idea as the trending row hint in the
-  // sibling hoodprinter project.
+  // scrollbar (scrollbar-width:none), no visible cut-off edge. A single
+  // snap-scroll-and-back read as a jarring bounce, not a hint — this
+  // instead drifts very slowly right, pauses, drifts back, pauses, on
+  // loop, so it's an obvious-but-gentle ongoing signal rather than a
+  // one-shot. Stops for good the moment a real person touches/scrolls it
+  // themselves, so it never fights actual use.
   useEffect(() => {
-    const el = windowsRef.current;
-    if (!el) return;
+    const maybeEl = windowsRef.current;
+    if (!maybeEl) return;
     if (window.innerWidth > 640) return;
-    if (el.scrollWidth <= el.clientWidth + 4) return;
+    const el: HTMLDivElement = maybeEl;
 
-    const hintDistance = Math.min(90, el.scrollWidth - el.clientWidth);
-    const showTimer = setTimeout(() => {
-      el.scrollTo({ left: hintDistance, behavior: "smooth" });
+    const PX_PER_SEC = 14; // slow drift, not a snap
+    const PAUSE_MS = 1100;
+    let rafId = 0;
+    let startTimer = 0;
+    let stopped = false;
+    let direction: 1 | -1 = 1;
+    let paused = false;
+    let resumeAt = 0;
+    let last = 0;
+
+    function stop() {
+      stopped = true;
+      cancelAnimationFrame(rafId);
+    }
+
+    function step(now: number) {
+      if (stopped) return;
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 4) return;
+      const dt = (now - last) / 1000;
+      last = now;
+      if (paused) {
+        if (now >= resumeAt) paused = false;
+      } else {
+        el.scrollLeft += direction * PX_PER_SEC * dt;
+        if (direction === 1 && el.scrollLeft >= max - 1) {
+          direction = -1;
+          paused = true;
+          resumeAt = now + PAUSE_MS;
+        } else if (direction === -1 && el.scrollLeft <= 1) {
+          direction = 1;
+          paused = true;
+          resumeAt = now + PAUSE_MS;
+        }
+      }
+      rafId = requestAnimationFrame(step);
+    }
+
+    startTimer = window.setTimeout(() => {
+      last = performance.now();
+      rafId = requestAnimationFrame(step);
     }, 1000);
-    const backTimer = setTimeout(() => {
-      el.scrollTo({ left: 0, behavior: "smooth" });
-    }, 2600);
+
+    el.addEventListener("pointerdown", stop, { once: true });
+    el.addEventListener("wheel", stop, { once: true });
+
     return () => {
-      clearTimeout(showTimer);
-      clearTimeout(backTimer);
+      clearTimeout(startTimer);
+      stop();
+      el.removeEventListener("pointerdown", stop);
+      el.removeEventListener("wheel", stop);
     };
   }, []);
 

@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { LEGACY_ASSETS, LegacyAsset } from "@/lib/legacyCollections";
 import BurnWalletChecker from "@/components/BurnWalletChecker";
+import SolanaWalletChecker from "@/components/SolanaWalletChecker";
+import TezosWalletChecker from "@/components/TezosWalletChecker";
 
 function truncate(addr: string, head = 8, tail = 6) {
   if (addr.length <= head + tail + 1) return addr;
@@ -33,6 +36,8 @@ function AssetRow({ asset }: { asset: LegacyAsset }) {
 }
 
 export default function BurnPage() {
+  const [showContracts, setShowContracts] = useState(false);
+
   return (
     <div className="dash-wrap">
       <div className="dash-page-head">
@@ -47,13 +52,26 @@ export default function BurnPage() {
         Burning isn&apos;t live yet, but you can check your free mints now.
       </div>
 
-      <BurnWalletChecker />
-
-      <div className="burn-list">
-        {LEGACY_ASSETS.map((a) => (
-          <AssetRow key={`${a.chain}-${a.address}-${a.tokenId ?? ""}-${a.kind}`} asset={a} />
-        ))}
+      <div className="burn-checkers">
+        <BurnWalletChecker />
+        <SolanaWalletChecker />
+        <TezosWalletChecker />
       </div>
+
+      <button
+        className="burn-contracts-toggle"
+        onClick={() => setShowContracts((v) => !v)}
+      >
+        {showContracts ? "▲ Hide" : "▼ View"} every eligible contract ({LEGACY_ASSETS.length})
+      </button>
+
+      {showContracts && (
+        <div className="burn-list">
+          {LEGACY_ASSETS.map((a) => (
+            <AssetRow key={`${a.chain}-${a.address}-${a.tokenId ?? ""}-${a.kind}`} asset={a} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

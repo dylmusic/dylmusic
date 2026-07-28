@@ -83,6 +83,8 @@ export default function AlbumView({
     (sum, t) => sum + (ownedEditions[t.id]?.length ?? 0),
     0
   );
+  const fullyCollected =
+    album.tracks.length > 0 && album.tracks.every((t) => (ownedEditions[t.id]?.length ?? 0) > 0);
 
   const modalTrack = modalTrackId ? album.tracks.find((t) => t.id === modalTrackId)! : null;
   const modalEditions = modalTrack
@@ -116,7 +118,10 @@ export default function AlbumView({
 
         <div className="album-meta">
           <div className="album-eyebrow">Album · {album.year}</div>
-          <h1>{album.title}</h1>
+          <h1>
+            {album.title}
+            {fullyCollected && <span className="music-card-collected album-collected">★ Collected</span>}
+          </h1>
           <div className="album-artist-row">
             <div className="album-artist">{album.artist}</div>
             <a

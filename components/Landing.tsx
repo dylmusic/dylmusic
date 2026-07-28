@@ -80,10 +80,10 @@ export default function Landing({
 
             <div className="landing-tagline">the OG crypto rapper</div>
 
-            <h1>Only 100 NFTs per song on each chain</h1>
+            <h1>Every mint starts at $0.99</h1>
 
-            <div className="landing-price">Every mint starts at $0.99</div>
             <div className="landing-price">Buy with any coin from any chain</div>
+            <div className="landing-price">Only 100 NFTs per song on each chain</div>
 
             <div className="landing-chain-select">
               <div className="chain-switch landing-chain-switch" role="tablist" aria-label="Select chain">
@@ -148,7 +148,7 @@ export default function Landing({
                       Dyl <span className="aim-msg-dot" />
                     </span>
                     <span className="aim-msg-text">
-                      if you had any of my old NFTs, burn them and get free mints
+                      if you had any of my old NFTs or $Dyl coin, burn them and get free mints
                     </span>
                   </span>
                 </button>

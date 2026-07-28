@@ -5,10 +5,29 @@ import { PlayerProvider } from "@/components/PlayerContext";
 import DesktopBackground from "@/components/DesktopBackground";
 import GlobalChatWidget from "@/components/GlobalChatWidget";
 
+const SITE_URL = "https://dylmusic.vercel.app";
+const TITLE = "Dyl - Music NFTs. Onchain Music. Crypto Rich.";
+const DESCRIPTION =
+  "Only 100 NFTs per song, on each chain. Every mint starts at $0.99 — buy with any coin from any chain. Dyl's Crypto Rich (Deluxe), owned by the fans.";
+
 export const metadata: Metadata = {
-  title: "Dyl - Music NFTs by the OG Crypto Rapper",
-  description:
-    "Only 100 NFTs per song, on each chain. Every mint starts at $0.99 — buy with any coin from any chain. Dyl's Crypto Rich (Deluxe), owned by the fans.",
+  metadataBase: new URL(SITE_URL),
+  title: TITLE,
+  description: DESCRIPTION,
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    url: SITE_URL,
+    siteName: "Dyl",
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: TITLE }],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: ["/og.png"],
+  },
 };
 
 export default function RootLayout({
