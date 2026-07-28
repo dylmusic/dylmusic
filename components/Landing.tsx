@@ -107,8 +107,8 @@ export default function Landing({
               </div>
             </div>
 
-            <button className="btn-burn-hero" onClick={() => router.push("/burn")}>
-              Burn Old NFTs &amp; $Dyl Coin
+            <button className="btn-connect" onClick={onConnect}>
+              Enter App
             </button>
 
             <div className="aim-mini-window">
@@ -159,8 +159,8 @@ export default function Landing({
               </button>
             </div>
 
-            <button className="btn-connect" onClick={onConnect}>
-              Enter App
+            <button className="btn-burn-hero" onClick={() => router.push("/burn")}>
+              Burn Old NFTs &amp; $Dyl Coin
             </button>
           </div>
 
