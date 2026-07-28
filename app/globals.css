@@ -619,7 +619,7 @@ input {
   display: block;
   height: 40px;
   width: auto;
-  margin: 0 auto 18px;
+  margin: 0 auto 14px;
   opacity: 0.95;
 }
 
@@ -629,7 +629,7 @@ input {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--accent);
-  margin-bottom: 15px;
+  margin-bottom: 11px;
 }
 
 .landing-content h1 {
@@ -651,7 +651,11 @@ input {
   margin-bottom: 6px;
 }
 
-.landing-price:last-of-type {
+/* Note: :last-of-type only counts by tag name among ALL siblings, not
+   filtered by class — .landing-chain-select is also a sibling div right
+   after this, so :last-of-type here would never actually match. Using an
+   explicit class instead. */
+.landing-price-last {
   margin-bottom: 18px;
 }
 

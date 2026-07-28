@@ -83,7 +83,7 @@ export default function Landing({
             <h1>Every mint starts at $0.99</h1>
 
             <div className="landing-price">Buy with any coin from any chain</div>
-            <div className="landing-price">Only 100 NFTs per song on each chain</div>
+            <div className="landing-price landing-price-last">Only 100 NFTs per song on each chain</div>
 
             <div className="landing-chain-select">
               <div className="chain-switch landing-chain-switch" role="tablist" aria-label="Select chain">
