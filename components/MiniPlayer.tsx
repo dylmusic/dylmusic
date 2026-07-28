@@ -122,7 +122,12 @@ export default function MiniPlayer({
         onPointerUp={handleDragEnd}
       >
         <span className="mini-player-titlebar-label">Now Playing</span>
-        <button className="mini-player-close" onClick={onClose} aria-label="Close player">
+        <button
+          className="mini-player-close"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onClose}
+          aria-label="Close player"
+        >
           <svg width="7" height="7" viewBox="0 0 8 8">
             <path d="M1 1l6 6M7 1l-6 6" stroke="#04140a" strokeWidth="1.4" strokeLinecap="round" />
           </svg>

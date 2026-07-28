@@ -3638,6 +3638,17 @@ body > div:has(> .landing-page) {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.burn-checker-total-combined {
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.burn-checker-total-part {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
 .burn-checker-total-num {
   font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
   font-size: 30px;
@@ -4128,6 +4139,7 @@ body > div:has(> .landing-page) {
   right: 20px;
   bottom: 56px;
   z-index: 25;
+  pointer-events: auto;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -4155,6 +4167,18 @@ body > div:has(> .landing-page) {
   height: 6px;
   border-radius: 999px;
   background: #04140a;
+  box-shadow: 0 0 0 2px #04140a, 0 0 7px 2px #39ff6a;
+  animation: gcw-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes gcw-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px #04140a, 0 0 6px 1px #39ff6a;
+  }
+  50% {
+    box-shadow: 0 0 0 2px #04140a, 0 0 10px 3px #39ff6a;
+  }
 }
 
 .gcw-window {
@@ -4162,6 +4186,7 @@ body > div:has(> .landing-page) {
   right: 20px;
   bottom: 56px;
   z-index: 25;
+  pointer-events: auto;
   display: flex;
   flex-direction: column;
   width: min(300px, calc(100vw - 32px));
@@ -4295,4 +4320,26 @@ body > div:has(> .landing-page) {
 .gcw-composer button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ---------- About page (AIM-bubble explainer) ---------- */
+
+.about-wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 48px 24px 140px;
+}
+
+.about-window {
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.about-msg {
+  cursor: default;
+}
+
+.about-msg:hover {
+  background: none;
 }

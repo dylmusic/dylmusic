@@ -525,6 +525,70 @@ just for the color constants. Sorting by token/edition holdings is the
 explicitly-deferred next step, not built yet — this is "the rough idea,"
 per Dylan's own framing.
 
+### BurnWalletChecker → "EVM Wallet Checker" (checks Ethereum + Base + Polygon at once)
+
+Dylan: "Check all EVM wallets at once... 787 eligible NFTs found and XXX
+$Dyl coin found. Display the total for both NFTs and Dyl Coin right
+there." NFT checks are still Ethereum-only (no known Base/Polygon NFT
+contract addresses exist yet — the old Polygon collection was on
+MintSongs, which is defunct, no address recorded), but $DYL is now read
+on all 3 EVM chains it actually has a deployed address on
+(`EVM_DYL_TOKENS` in the component, sourced from `LEGACY_ASSETS`) —
+same wallet address, 3 separate `createPublicClient` reads (mainnet via
+the existing public RPC, Base/Polygon via viem's own default chain RPCs,
+no custom URL needed). The combined $DYL total across all 3 chains is
+what the burn-credit threshold table applies to, not each chain
+separately. A prominent two-part hero stat
+(`.burn-checker-total-combined`) now shows both totals side by side —
+"N eligible NFTs found" and "N $DYL coin found" — instead of just the NFT
+count that was there before.
+
+### `/about` — AIM-bubble explainer page
+
+Dylan: "add an About page to the right of Board... explain whats going on
+here... make it in a chat format like the chat on the homepage. like im
+describing it to you via AIM in a chat." Reuses the exact same
+`.aim-mini-window`/`.aim-msg` bubble components the homepage's mini chat
+preview uses (not the scrolling-log `.aim-window` style `/chat` uses) —
+just widened (`.about-window`, `max-width:640px`) and non-interactive
+(plain `<div>`s, not buttons — `.about-msg` cancels the hover highlight
+so it doesn't read as clickable). Content is a fixed, honest 7-bubble
+explanation in Dyl's voice covering: who he is, what dylmusic is, the
+100-editions-per-chain mint model, the legacy-NFT burn program, /board +
+/chat, and an explicit "this is still early, no real contracts yet"
+disclaimer — no fabricated stats or promises, matching the site's own
+existing honesty conventions elsewhere. Nav order: Music/Dashboard/Chat/
+Swap/Beats/Burn/Board/**About** (last, right of Board, per Dylan's exact
+placement request) — `GlobalTaskbar.tsx` `NAV_ITEMS` + `(app)/layout.tsx`
+`pageTitle`.
+
+### Two real bugs caught testing the batch above, both fixed same session
+
+- **Clicking the collapsed chat tab did nothing, homepage only**: the
+  `body > div:has(> .landing-page) { pointer-events: none }` rule from
+  the earlier desktop-icon fix also covers `GlobalChatWidget`'s own
+  markup, since it's mounted as a sibling of `.landing-page` inside that
+  same RainbowKit wrapper div (root layout renders
+  `<DesktopBackground/>{children}<GlobalChatWidget/>` all as siblings).
+  Fixed with explicit `pointer-events: auto` on `.gcw-tab`/`.gcw-window`,
+  same pattern as `.mini-player`/`.site-taskbar`/etc already needed.
+- **MiniPlayer's × close button didn't work** (dragging worked fine):
+  the button lives inside `.mini-player-titlebar`, which calls
+  `setPointerCapture` on itself (`e.currentTarget`) on every
+  `pointerdown` to support dragging — capturing the pointer to the
+  titlebar hijacks the subsequent click synthesis on the button inside
+  it. Fixed with `onPointerDown={(e) => e.stopPropagation()}` on the
+  close button itself, so a click on it never reaches the drag handler
+  at all. Classic "interactive element nested inside its own custom
+  drag handle" bug — same fix would apply to any future button added
+  inside that titlebar.
+
+Also: `.gcw-tab-dot` (and the titlebar's matching dot) got a pulsing
+green glow (`box-shadow` + a `gcw-pulse` keyframe) per Dylan wanting it
+to visibly "look active," since a flat dark dot sitting on the same
+accent-green background it was trying to indicate status against read as
+inert.
+
 ---
 
 ## Current state: everything is a local simulated ledger

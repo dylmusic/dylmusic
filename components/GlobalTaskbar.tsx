@@ -22,6 +22,7 @@ const NAV_ITEMS: { href: string; label: string; match: (p: string) => boolean }[
   { href: "/beats", label: "Beats", match: (p) => p === "/beats" },
   { href: "/burn", label: "Burn", match: (p) => p === "/burn" },
   { href: "/board", label: "Board", match: (p) => p === "/board" },
+  { href: "/about", label: "About", match: (p) => p === "/about" },
 ];
 
 // Persistent bottom taskbar, shared across every page — the anchor of the

@@ -41,6 +41,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const onBeats = pathname === "/beats";
   const onBurn = pathname === "/burn";
   const onBoard = pathname === "/board";
+  const onAbout = pathname === "/about";
   const accentColor = CHAINS.find((c) => c.key === chain)?.color ?? "#CCFF00";
 
   const pageTitle = onMusic
@@ -55,6 +56,8 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     ? "Burn"
     : onBoard
     ? "Board"
+    : onAbout
+    ? "About"
     : onChat
     ? "Chat"
     : "Dyl";
