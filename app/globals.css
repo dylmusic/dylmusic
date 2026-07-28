@@ -5357,6 +5357,13 @@ body > div:has(> .landing-page) {
   margin-bottom: 16px;
 }
 
+@media (max-width: 420px) {
+  .print-ad-emojis {
+    font-size: 19px;
+    letter-spacing: 1px;
+  }
+}
+
 .print-ad-emojis span,
 .print-ad-emojis {
   display: inline-block;
