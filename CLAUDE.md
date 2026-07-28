@@ -365,6 +365,166 @@ rather than an actual burn transaction — confirm this distinction with
 Dylan before implementing, since "burn $DYL" vs. "hold $DYL" have very
 different UX and irreversibility implications.
 
+### Credits system + mint allocator (`lib/burnCredits.ts`, `components/BurnWalletChecker.tsx`) — shipped 2026-07-27
+
+The reward table above is now wired into the live ETH wallet checker on
+`/burn`, plus a "plan how to spend it" allocator. Real constraint hit while
+building this: **there's no cheap way to know which specific tokenIds a
+wallet holds in the tiered "Old Dyl NFT collection"
+(`0x253bfce1757bb2e5f9159738f8309c73dafe09ea`) from a public RPC** — a live
+`eth_getLogs` call for that contract's full Transfer history was tried and
+rejected by `ethereum-rpc.publicnode.com` (public nodes cap the block
+range), so there's no cheap way to enumerate a wallet's exact held
+tokenIds and look up each one's real tier. Rather than fabricate a single
+precise-looking number, the checker shows a **min–max range** for that one
+collection (min = every held item priced as Standard/5, max = every item
+priced as VIP/50) and uses the **conservative min** as the actual
+spendable total — so the allocator can never let someone plan against
+credits they might not really have. Real per-token enumeration (an
+indexer/Etherscan-style API, or a self-hosted archive node) is the next
+step if exact tiers matter later. The second ERC-721
+(`0x6764aE...`) and the 4 OpenSea Shared Storefront items have no reward
+value from Dylan at all yet — shown in the breakdown as held but "Not
+priced yet," contributing 0 to the total rather than guessing. $DYL
+(Ethereum) is exact (real `balanceOf`/`decimals` read, real threshold
+math) since it's a simple balance check, not a tier lookup.
+
+**Allocator**: once a spendable total exists, "Plan how to spend it" reveals
+3 chain rows (Robinhood/Base/Solana — Robinhood Chain has no reward-table
+entry of its own since it's the live chain, not a legacy one) with +/−
+steppers, defaulting to an even split (remainder distributed to the first
+chains). Purely local UI state — **nothing is submitted anywhere**, no
+API call, no on-chain action; real burning still isn't wired up (see the
+"Burning isn't wired up yet" notice already on the page). Solana and Tezos
+wallet checkers are the explicitly-deferred next step (Dylan: "Then next
+will be Solana and Objkt / Tezos") — not built yet, only ETH.
+
+### Starting mint stats — flat 10% everywhere, not a random "looks alive" number
+
+`lib/albums.ts` `baselineMinted()` used to return a deterministic
+pseudo-random 0–40/100 per track+chain, purely cosmetic "this looks live"
+texture. Replaced with a flat `PRE_MINTED_EDITIONS = 10` (10/100 = 10%,
+same on every chain) per Dylan: "update the stats... 10% of items minted
+because editions 1-10 will be auto minted and auto listed for sale... it
+will start at 10% on every chain" — matches the "Deployment minting
+strategy" section above (editions #1–10 auto-minted + auto-listed at
+launch, public mints start at #11). `Track.baselineMintedSeed` is kept
+(no longer used for mint-count seeding) since `lib/streams.ts` still uses
+it to seed its own unrelated fake play-count number.
+
+### Global chat dock (`components/GlobalChatWidget.tsx`) — every page, collapsible
+
+Dylan: "what if the chat is always in the bottom right - but its collapsed
+into just a line unless you click it to pop it open on any screen... when
+miniplayer is active, put the chat above the miniplayer." Mounted once in
+the ROOT layout (`app/layout.tsx`, alongside `DesktopBackground`) so it
+persists across every route, not just the `(app)` shell — hides itself on
+`/chat` specifically so the full chat page and the dock never show the same
+thing twice. Reuses the exact same `/api/chat` store as the full page
+(same messages, same `ownsAnyEdition` gate to post) — a quick-access dock
+on the same data, not a second inbox. Since it renders outside the
+`(app)` layout, it can't use `useAppShellContext()` (home-page-safe only
+inside that route group) — wallet identity comes straight from wagmi's
+`useAccount()` instead, checked against the `"robinhood"` chain's local
+holdings. Collapsed state is a thin `.gcw-tab` pill bottom-right; expanded
+is a compact `.gcw-window` (270px tall, Win95-bevel chrome matching
+everything else on the site). Lift-above-MiniPlayer is a fixed
+`bottom: 328px` swap via a `.gcw-lifted` class toggled on
+`player.playingTrack` truthiness (from the root-level `PlayerContext`) —
+an approximation of MiniPlayer's real height, not a measured one, and only
+tracks MiniPlayer's *default* docked position (MiniPlayer is itself
+draggable now — see below — so this doesn't follow it once dragged
+elsewhere).
+
+### MiniPlayer is now a real Win95 window — draggable, square chrome
+
+Dylan: "let the miniplayer be dragged around so it really feels like an
+OS... make it look like a windows 95 window." Added a `.mini-player-titlebar`
+drag handle (pointerdown/move/up, same technique `DesktopFiles.tsx`
+already used for the desktop icons — capture on down, `setPos` on move,
+clamped to the viewport) that repositions the whole player via `left`/`top`
+inline styles once dragged (defaults to its original `bottom`/`right` CSS
+position until then). Toggle/skip buttons and the outer frame all lost
+their `border-radius:999px`/`50%` in favor of the same square 2px-bevel
+raised-button look used everywhere else on the site now (see below) — the
+close "×" became a small `.win95-close`-style square button in the new
+titlebar instead of a bare glyph in the top row.
+
+### Square Windows-95 buttons, site-wide
+
+Dylan: "make all buttons square and windows 95 vibe instead of the rounded
+button pills." Every pill-shaped interactive element (`border-radius:
+999px`) — chain switcher, wallet pill, swap CTA/token pills, taskbar tabs,
+token-picker pills, burn-page buttons, etc. — was restyled with the same
+2px raised-bevel border technique the taskbar/windows already used (light
+top-left, dark bottom-right; inputs get the inverse "inset" bevel).
+Decorative round elements (status dots, avatar circles, token icons) were
+deliberately left alone — the ask was about buttons/pills reading as
+Windows-95, not every circular thing on the page. Window frames
+(`.win95-window`, `.aim-window`, `.start-menu`, `.aim-mini-window`) also
+got a heavier bottom/right border (2px→3–4px, darker) per a follow-up:
+"the windows need more of a bottom border... to feel more like a windows
+95 window."
+
+### Desktop-icon click regression (real bug, found and fixed this session)
+
+The draggable "desktop icon" tracks scattered behind every page
+(`components/DesktopFiles.tsx`, rendered once via `DesktopBackground` in
+the root layout) had silently become unclickable — confirmed live via
+`document.elementFromPoint()` at each icon's real screen position: an
+unstyled wrapper `<div>` that `RainbowKitProvider` renders around page
+content (no class to target directly), plus `.landing`/`.landing-page`'s
+own full-viewport "empty" margins, were winning every hit-test over the
+icons behind them even though nothing was visibly painted there —
+`pointer-events:none` on an ancestor doesn't remove the ancestor ITSELF
+from hit-testing, only that element and its non-opted-back-in descendants.
+Fixed with a `pointer-events: none` / `auto` cascade (none on the
+RainbowKit wrapper + `.landing-page` + `.landing`, explicit auto back on
+every real interactive container: `.landing-inner`, `.landing-wallet-corner`,
+`.bio-section`, `.site-taskbar`, `.start-backdrop`/`.start-menu`,
+`.mini-player`) — scoped via a `body > div:has(> .landing-page)` selector
+so only the homepage's specific wrapper shape is touched, not other
+routes. **This surfaced a second, real regression along the way**:
+promoting `.desktop-bg` off `z-index:-1` (needed so hit-testing could
+actually reach it once the blockers above were skipped) made it paint
+*above* any plain non-positioned page content, since non-positioned
+in-flow boxes sit in a lower CSS stacking layer than positioned
+`z-index:auto/0` ones regardless of DOM order — `.win95-window` (used by
+`/board`, `/burn`, `/dashboard`, `/beats`, `/admin`, `/chat`'s
+`.aim-window`) went invisible, the desktop starfield showing straight
+through it. Fixed by giving those same window-frame containers
+(`.win95-window`, `.aim-window`, `.admin-wrap`, `.start-menu`,
+`.aim-mini-window`) their own `position: relative; z-index: 1` so they
+reliably paint back on top — caught via a live screenshot comparison
+before shipping, not assumed fixed from the pointer-events change alone.
+
+### `/board` — Windows-95 bulletin board (`components/BulletinBoard.tsx`, `lib/boardStore.ts`)
+
+Dylan: "make a page called Board... windows 95 themed bulliten board where
+community members can post a short message and it stays there pinned up...
+just get the rough idea up." Same Redis/Upstash pattern as
+`lib/chatStore.ts` (`app/api/board/route.ts`, `dylmusic:board:notes` list
+key, `MAX_NOTES=300`) — posts are pinned (read back newest-first, nothing
+auto-scrolls away) rather than a chat transcript. Requires a connected
+wallet to post, no edition-gate (open to any community member, unlike
+`/chat`). **Rendered as an actual corkboard**: `.corkboard` is a 5-column
+CSS grid (Dylan: "smaller messages... more like post it notes that go 5
+across," collapsing to 3/2 columns on narrower viewports), each
+`.board-note` a small tilted sticky note (fixed per-note angle from a
+`TILTS` array, not re-randomized per poll). **Color, poster-chosen**:
+first shipped as one random color per note from a fixed palette
+(`lib/boardColors.ts`, `NOTE_COLORS` — yellow/pink/green/blue/orange/
+purple), then changed to a swatch picker in the composer per Dylan ("let
+the poster set the notes color actually") — the chosen color is now part
+of the stored `BoardNote` (`color: NoteColor`), validated server-side via
+`isNoteColor()` against the same whitelist rather than trusting arbitrary
+CSS from the client into an inline style. `lib/boardColors.ts` is
+deliberately split out from `lib/boardStore.ts` so the client-side
+composer doesn't have to pull in `boardStore.ts`'s `@upstash/redis` import
+just for the color constants. Sorting by token/edition holdings is the
+explicitly-deferred next step, not built yet — this is "the rough idea,"
+per Dylan's own framing.
+
 ---
 
 ## Current state: everything is a local simulated ledger

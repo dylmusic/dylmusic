@@ -3,6 +3,7 @@ import "./globals.css";
 import Providers from "@/components/Providers";
 import { PlayerProvider } from "@/components/PlayerContext";
 import DesktopBackground from "@/components/DesktopBackground";
+import GlobalChatWidget from "@/components/GlobalChatWidget";
 
 export const metadata: Metadata = {
   title: "Dyl - Music NFTs by the OG Crypto Rapper",
@@ -22,6 +23,7 @@ export default function RootLayout({
           <PlayerProvider>
             <DesktopBackground />
             {children}
+            <GlobalChatWidget />
           </PlayerProvider>
         </Providers>
       </body>

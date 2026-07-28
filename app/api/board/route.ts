@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { postNote, readNotes, deleteNote, boardConfigured } from "@/lib/boardStore";
+import { postNote, readNotes, deleteNote, boardConfigured, isNoteColor, DEFAULT_NOTE_COLOR } from "@/lib/boardStore";
 import { isAdminWallet } from "@/lib/admin";
 
 export async function GET() {
@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
   const wallet = typeof body?.wallet === "string" ? body.wallet.trim() : "";
   const chain = typeof body?.chain === "string" ? body.chain.trim() : "";
   const text = typeof body?.text === "string" ? body.text.trim() : "";
+  const color = isNoteColor(body?.color) ? body.color : DEFAULT_NOTE_COLOR;
 
   if (!wallet || !chain) {
     return NextResponse.json({ error: "Connect a wallet first." }, { status: 400 });
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Message must be 1-200 characters." }, { status: 400 });
   }
 
-  const note = await postNote({ wallet, chain, text });
+  const note = await postNote({ wallet, chain, text, color });
   return NextResponse.json({ note });
 }
 

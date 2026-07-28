@@ -25,8 +25,9 @@ export interface Track {
   priceUsd: number;
   editionCap: number;
   audioSrc: string;
-  // Deterministic baseline so the demo doesn't look dead on first load —
-  // real minted counts will come from indexing each chain once contracts exist.
+  // No longer used for minted-count seeding (see baselineMinted below) —
+  // still used as the seed for the unrelated fake stream-count in
+  // lib/streams.ts, so kept rather than removed.
   baselineMintedSeed: number;
 }
 
@@ -104,11 +105,15 @@ export const LOST_ANGELES_FILES: Album = {
 
 export const ALBUMS: Album[] = [CRYPTO_RICH_DELUXE, INTERNET_LEGEND, LOST_ANGELES_FILES];
 
-// Simple seeded pseudo-random baseline mint count per chain+track, stable
-// across reloads without needing a backend. Purely cosmetic "this is live"
-// texture for the prototype — replace with a real on-chain read later.
-export function baselineMinted(track: Track, chainKey: ChainKey): number {
-  const chainSalt = chainKey === "base" ? 11 : chainKey === "robinhood" ? 23 : 7;
-  const n = (track.baselineMintedSeed * 37 + chainSalt * 13) % 41;
-  return Math.min(track.editionCap - 1, n);
+// Deployment plan (CLAUDE.md "Deployment minting strategy"): editions #1-10
+// of every song are auto-minted (and auto-listed for resale) at launch time
+// on every chain, priced by rarity ($10 down to $100) — public mints start
+// at #11. So the real starting state, before a single public sale, is a
+// flat 10 minted out of each track's 100-edition cap, everywhere — not a
+// random "looks alive" number. Same value on every chain since the mint
+// plan itself doesn't vary by chain; `chainKey` is unused but kept so
+// call sites don't need to change if that ever stops being true.
+export function baselineMinted(track: Track, _chainKey: ChainKey): number {
+  const PRE_MINTED_EDITIONS = 10;
+  return Math.min(track.editionCap, PRE_MINTED_EDITIONS);
 }

@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { getNickname } from "@/lib/nicknames";
 import { isAdminWallet } from "@/lib/admin";
 import { useAppShell } from "@/components/AppShellContext";
+import { NOTE_COLORS, DEFAULT_NOTE_COLOR, NoteColor } from "@/lib/boardColors";
 
 interface BoardNote {
   id: string;
   wallet: string;
   chain: string;
   text: string;
+  color: NoteColor;
   ts: number;
 }
 
@@ -37,6 +39,7 @@ export default function BulletinBoard() {
   const [notes, setNotes] = useState<BoardNote[]>([]);
   const [configured, setConfigured] = useState(true);
   const [draft, setDraft] = useState("");
+  const [color, setColor] = useState<NoteColor>(DEFAULT_NOTE_COLOR);
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,7 +72,7 @@ export default function BulletinBoard() {
       const res = await fetch("/api/board", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wallet: walletAddress, chain, text }),
+        body: JSON.stringify({ wallet: walletAddress, chain, text, color }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -122,6 +125,21 @@ export default function BulletinBoard() {
             if (!walletAddress) requestConnect();
           }}
         />
+        <div className="board-color-row">
+          <span className="board-color-label">Note color</span>
+          <div className="board-color-swatches">
+            {NOTE_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className={`board-color-swatch${color === c ? " active" : ""}`}
+                style={{ background: c }}
+                onClick={() => setColor(c)}
+                aria-label={`Pick color ${c}`}
+              />
+            ))}
+          </div>
+        </div>
         <div className="board-composer-row">
           <span className="board-composer-count">{draft.length}/200</span>
           <button onClick={pin} disabled={!canPost || posting || !draft.trim()}>
@@ -145,7 +163,7 @@ export default function BulletinBoard() {
             <div
               key={n.id}
               className="board-note"
-              style={{ "--tilt": `${tilt}deg` } as React.CSSProperties}
+              style={{ "--tilt": `${tilt}deg`, "--note-bg": n.color } as React.CSSProperties}
             >
               <span className="board-note-pin" />
               <div className="board-note-text">{n.text}</div>

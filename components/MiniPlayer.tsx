@@ -1,11 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ChainKey, Track } from "@/lib/albums";
 import { useTrackCommerce } from "@/lib/useTrackCommerce";
 import ListingsModal from "./ListingsModal";
 import OrderBookModal from "./OrderBookModal";
 import BuyConfirmModal from "./BuyConfirmModal";
+
+interface Pos {
+  left: number;
+  top: number;
+}
 
 function formatTime(s: number): string {
   if (!isFinite(s) || s < 0) return "0:00";
@@ -45,6 +50,52 @@ export default function MiniPlayer({
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [bookOpen, setBookOpen] = useState(false);
+  const [pos, setPos] = useState<Pos | null>(null);
+  const dragRef = useRef<{ startClientX: number; startClientY: number; startPos: Pos; moved: boolean } | null>(
+    null
+  );
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  function handleDragStart(e: React.PointerEvent) {
+    const el = rootRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    dragRef.current = {
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startPos: { left: rect.left, top: rect.top },
+      moved: false,
+    };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+  }
+
+  function handleDragMove(e: React.PointerEvent) {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const dx = e.clientX - drag.startClientX;
+    const dy = e.clientY - drag.startClientY;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) drag.moved = true;
+    const el = rootRef.current;
+    const maxLeft = window.innerWidth - (el?.offsetWidth ?? 0) - 4;
+    const maxTop = window.innerHeight - (el?.offsetHeight ?? 0) - 4;
+    setPos({
+      left: Math.min(Math.max(4, drag.startPos.left + dx), Math.max(4, maxLeft)),
+      top: Math.min(Math.max(4, drag.startPos.top + dy), Math.max(4, maxTop)),
+    });
+  }
+
+  function handleDragEnd(e: React.PointerEvent) {
+    dragRef.current = null;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+  }
 
   const commerce = useTrackCommerce([track], chain, walletAddress);
   const { minted, ownedEditions, listings, books } = commerce;
@@ -59,7 +110,25 @@ export default function MiniPlayer({
   const busy = commerce.busyKey?.startsWith(`${track.id}:`) ?? false;
 
   return (
-    <div className="mini-player">
+    <div
+      className="mini-player"
+      ref={rootRef}
+      style={pos ? { left: pos.left, top: pos.top, right: "auto", bottom: "auto" } : undefined}
+    >
+      <div
+        className="mini-player-titlebar"
+        onPointerDown={handleDragStart}
+        onPointerMove={handleDragMove}
+        onPointerUp={handleDragEnd}
+      >
+        <span className="mini-player-titlebar-label">Now Playing</span>
+        <button className="mini-player-close" onClick={onClose} aria-label="Close player">
+          <svg width="7" height="7" viewBox="0 0 8 8">
+            <path d="M1 1l6 6M7 1l-6 6" stroke="#04140a" strokeWidth="1.4" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+
       <div className="mini-player-top">
         <button
           className="mini-player-skip"
@@ -111,10 +180,6 @@ export default function MiniPlayer({
             </span>
           </div>
         </div>
-
-        <button className="mini-player-close" onClick={onClose} aria-label="Close player">
-          ×
-        </button>
       </div>
 
       <div

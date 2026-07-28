@@ -1,4 +1,8 @@
 import { Redis } from "@upstash/redis";
+import { NoteColor, DEFAULT_NOTE_COLOR, isNoteColor } from "./boardColors";
+
+export { NOTE_COLORS, DEFAULT_NOTE_COLOR, isNoteColor } from "./boardColors";
+export type { NoteColor } from "./boardColors";
 
 // Same Upstash pattern as lib/chatStore.ts — a public bulletin board instead
 // of a scrolling log, so posts are read back newest-first and stay "pinned"
@@ -20,6 +24,7 @@ export interface BoardNote {
   wallet: string;
   chain: string;
   text: string;
+  color: NoteColor;
   ts: number;
 }
 
@@ -43,7 +48,9 @@ export async function readNotes(limit = 300): Promise<BoardNote[]> {
   return raw
     .map((r) => {
       try {
-        return typeof r === "string" ? (JSON.parse(r) as BoardNote) : (r as unknown as BoardNote);
+        const parsed = typeof r === "string" ? (JSON.parse(r) as BoardNote) : (r as unknown as BoardNote);
+        if (!isNoteColor(parsed.color)) parsed.color = DEFAULT_NOTE_COLOR;
+        return parsed;
       } catch {
         return null;
       }
