@@ -131,7 +131,7 @@ export default function ChatPageClient() {
                   [{timeAgo(m.ts)}]
                 </span>{" "}
                 {isDyl && (
-                  <Image src="/brand/dyl-pfp.png" alt="Dyl" width={18} height={18} className="aim-line-avatar" />
+                  <Image src="/brand/dyl-pfp-avatar.png" alt="Dyl" width={18} height={18} className="aim-line-avatar" />
                 )}
                 <span className="aim-line-who">{name}:</span>{" "}
                 <span className="aim-line-text">{m.text}</span>

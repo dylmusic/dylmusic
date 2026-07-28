@@ -182,7 +182,7 @@ export default function BulletinBoard() {
               <div className="board-note-text">{n.text}</div>
               <div className="board-note-foot">
                 {isDyl && (
-                  <Image src="/brand/dyl-pfp.png" alt="Dyl" width={14} height={14} className="board-note-avatar" />
+                  <Image src="/brand/dyl-pfp-avatar.png" alt="Dyl" width={14} height={14} className="board-note-avatar" />
                 )}
                 <span className="board-note-who">{name}</span>
                 <span className="board-note-chain">{CHAIN_LABEL[n.chain] ?? n.chain}</span>

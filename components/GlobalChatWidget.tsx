@@ -156,7 +156,7 @@ export default function GlobalChatWidget() {
                 [{timeAgo(m.ts)}]
               </span>{" "}
               {isDyl && (
-                <Image src="/brand/dyl-pfp.png" alt="Dyl" width={16} height={16} className="gcw-line-avatar" />
+                <Image src="/brand/dyl-pfp-avatar.png" alt="Dyl" width={16} height={16} className="gcw-line-avatar" />
               )}
               <span className="gcw-line-who">{name}:</span> <span className="gcw-line-text">{m.text}</span>
               {isAdmin && (
