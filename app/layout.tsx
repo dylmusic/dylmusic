@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import { PlayerProvider } from "@/components/PlayerContext";
@@ -13,6 +14,16 @@ const SITE_URL = "https://nft.dylmusic.com";
 const TITLE = "Dyl - Music NFTs. Onchain Music. Crypto Rich. Mint & Burn. $Dyl.";
 const DESCRIPTION =
   "Only 100 NFTs per song, on each chain. Every mint starts at $0.99 — buy with any coin from any chain. Dyl's Crypto Rich (Deluxe), owned by the fans.";
+
+// Same pattern as HOODPrinter's site.config.ts — a real GA4 property made
+// specifically for this site (analytics.google.com → Admin → Create
+// property → nft.dylmusic.com), never a shared/reused Measurement ID.
+// Empty = nothing rendered below.
+const GA_MEASUREMENT_ID = "G-650PVPMDGC";
+
+// Google Search Console "HTML tag" verification token (the content= value).
+// Empty = meta tag not rendered — not set up yet, next step after GA.
+const GOOGLE_SITE_VERIFICATION = "";
 
 // Every word here is deliberate — Dylan: "prioritize the words in our main
 // site title - thats why i made it that title... perfectly SEO optimized."
@@ -47,6 +58,9 @@ export const metadata: Metadata = {
   authors: [{ name: "Dyl" }],
   creator: "Dyl",
   alternates: { canonical: SITE_URL },
+  ...(GOOGLE_SITE_VERIFICATION
+    ? { verification: { google: GOOGLE_SITE_VERIFICATION } }
+    : {}),
   openGraph: {
     title: TITLE,
     description: DESCRIPTION,
@@ -104,6 +118,20 @@ export default function RootLayout({
             <GlobalChatWidget />
           </PlayerProvider>
         </Providers>
+        {GA_MEASUREMENT_ID && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga4" strategy="afterInteractive">
+              {`window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', '${GA_MEASUREMENT_ID}');`}
+            </Script>
+          </>
+        )}
       </body>
     </html>
   );
