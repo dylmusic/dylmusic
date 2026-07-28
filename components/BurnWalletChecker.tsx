@@ -242,6 +242,12 @@ export default function BurnWalletChecker() {
               </span>
               <span className="burn-checker-total-label">$DYL coin found</span>
             </div>
+            <div className="burn-checker-total-part burn-checker-total-equals">
+              <span className="burn-checker-total-num">
+                = {spendable.toLocaleString()}
+              </span>
+              <span className="burn-checker-total-label">free mint{spendable === 1 ? "" : "s"}</span>
+            </div>
           </div>
 
           <div className="burn-checker-breakdown">

@@ -858,3 +858,62 @@ server can silently keep serving old code on the same port while a restart
 attempt fails with `EADDRINUSE` in the background. Confirm the listener PID
 via `lsof -iTCP:<port> -sTCP:LISTEN` after every restart before trusting a
 screenshot.
+
+## Mobile optimization pass (2026-07-27)
+
+Dylan: "MOBILE OPTIMIZATION... it works great for browser, but we need to
+mobile optimize... we want it to have that windows 95 feel, but still be
+navigable on mobile... check each page with real phone dimensions." Before
+this, mobile coverage was almost nonexistent (4 `@media` blocks total,
+mostly for the board's corkboard grid). Verified with real iPhone-dimension
+CDP emulation (393×852, `mobile:true`, real touch + Safari UA — not
+headless `--screenshot`'s misleading ~800px default) across every page.
+
+**The one real structural bug, found on the homepage**: `.desktop-bg` (the
+scattered clickable track icons behind every page) is `position:fixed` —
+pinned to exactly one viewport. On desktop the hero content roughly fits
+one viewport so a static avoid-rect mostly works; on mobile the same
+content stacks into a column several viewports tall that scrolls
+underneath the fixed icon layer, so icons collide with whatever text
+happens to scroll into that same fixed screen position — no static or
+even per-page-dynamic avoid-rect can fix this, since the icon layer can't
+know what's currently scrolled beneath a fixed position. Fixed by simply
+not rendering `<DesktopFiles>` below 640px width (`DesktopBackground.tsx`,
+a `matchMedia` check) — the `Visualizer` particle background still
+renders, and the Windows-95 feel still comes through fully via the
+taskbar/window chrome/Start menu, which don't have this problem.
+
+**The other real bug**: `.app-header` (logo + chain switcher + wallet
+pill, present on every `(app)`-shell page) had a mobile rule setting
+`.chain-switch { width:100%; order:3 }` to push it to its own row, but the
+parent never got `flex-wrap: wrap` — so the 100%-wide child couldn't
+actually wrap, and the chain pills just overflowed/got clipped off-screen
+instead. One missing property was breaking chain switching on every
+single app page on mobile. Fixed by adding `flex-wrap: wrap` +
+shrinking pill/wallet-pill padding/font in the same media query.
+
+**Everything else was mostly already in good shape** once those two were
+fixed — `/dashboard`, `/chat`, `/board`, `/about`, `/burn`, `/swap` (this
+one especially — the whole custom swap card + token picker modal was
+already cleanly responsive with no changes needed), `/beats`, `/admin`,
+and the Start menu's own track list all rendered correctly on first check.
+Specific additional fixes made:
+- `/music`'s discography grid rendered each album cover nearly full-
+  viewport-width (single `auto-fill minmax(180px,1fr)` column) — capped
+  to a 2-column grid under 640px.
+- `MiniPlayer` (the desktop-style seek-bar + buy/sell card) was too tall
+  on a phone and covered a large chunk of whatever page was behind it —
+  collapsed to a slim single-row bar on mobile (`.mini-player-seek`,
+  `.mini-player-actions` hidden below 640px); Buy/Sell are still reachable
+  from the Start menu's own per-track buttons, which already exist.
+- `.btn-sweep` ("Buy Album") was still `border-radius:12px` — missed in
+  the earlier site-wide button-squaring pass; squared to match.
+- Dashboard led with the album's own title (`{album.title}` as the `h1`)
+  — Dylan: "remove Crypto Rich (Deluxe) from top of dashboard its
+  supposed to be overall stats first." Changed to a generic "Platform
+  Overview" heading with the album named only in a small subtitle, so the
+  quick-stats row is the first real content.
+- `BurnWalletChecker`'s hero stat line now shows all three numbers
+  together — "N eligible NFTs found · N $DYL coin found · = N free
+  mints" — instead of just the first two, per Dylan's exact requested
+  format.

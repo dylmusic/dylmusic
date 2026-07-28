@@ -31,7 +31,8 @@ export default function MultichainOverview({ album }: { album: Album }) {
     <div className="dash-wrap">
       <div className="dash-page-head">
         <div className="dash-eyebrow">Dashboard</div>
-        <h1>{album.title}</h1>
+        <h1>Platform Overview</h1>
+        <p className="swap-page-sub">Every chain, every track — starting with {album.title}.</p>
       </div>
 
       {/* ---------- Quick stats ---------- */}
