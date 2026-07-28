@@ -2751,6 +2751,9 @@ input {
 
   .bio-section {
     padding: 64px 20px 80px;
+    /* Same reasoning as .win95-window above — real room for one mobile
+       desktop icon in the tail gap before the fixed taskbar. */
+    margin-bottom: 96px;
   }
 
   .bio-stats {
@@ -3941,6 +3944,20 @@ input {
 
 .win95-body {
   padding: 8px;
+}
+
+/* A little extra room below the window before the fixed taskbar — gives the
+   mobile desktop-icon layer (MobileDesktopFiles) a real, consistent gap to
+   place one icon in on every single-window subpage. The old 24px was real
+   content-appropriate spacing but too thin for anything else to live in.
+   Placed AFTER the base .win95-window rule above on purpose — an
+   equal-specificity @media override earlier in the file loses to a later
+   plain rule regardless of the media query (recurring gotcha, see CLAUDE.md
+   "Mobile CSS gotcha"). */
+@media (max-width: 640px) {
+  .win95-window {
+    margin-bottom: 96px;
+  }
 }
 
 .win95-close {
