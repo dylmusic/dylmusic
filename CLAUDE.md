@@ -108,7 +108,38 @@ on-chain yet — verify each one for real (bytecode, `name()`/`symbol()`,
 actual holder data) before writing any burn-eligibility logic against them.
 
 **Old Dyl NFT collection (Ethereum mainnet)**
-- `0x253bfce1757bb2e5f9159738f8309c73dafe09ea`
+- `0x253bfce1757bb2e5f9159738f8309c73dafe09ea`. Verified live via RPC:
+  `name()`/`symbol()` = `"Dyl"`/`"Dyl"`, `totalSupply()` = 2227.
+  **This single contract mixes several distinct item types under one
+  `totalSupply` — NOT all 2227 tokens are trading cards.** Confirmed by
+  reading real `tokenURI`s + IPFS metadata across a spread of ~40 token
+  ids (0 through 2226): the on-chain `name`/`attributes` distinguish them
+  cleanly, no guessing needed.
+  - id `0`: `"Dyl"` PFP, `Edition: PFP`, `Rarity: 1/1` — a single 1-of-1,
+    not a card.
+  - ids ~`1`–`219`: `"Crypto Rich Deluxe"` album-cover VIP editions,
+    `Edition: Deluxe`, `Rarity: 1/200` — not cards.
+  - ids ~`220`–`239`: one-off song covers like `"Treat Myself"`
+    (`Edition: Single`, `Rarity: 1/1`) — not cards.
+  - ids ~`240`–`359`: **`"Crypto Rich Deluxe Trading Card (Gold)"`** —
+    `Edition: Gold`, `Rarity: 1/100`. This IS a trading card, Gold tier.
+  - ids ~`360`–`1349`: **`"Crypto Rich Deluxe Trading Card (Standard)"`**
+    — `Edition: Standard`, `Rarity: 1/1000`. Trading card, Standard tier.
+  - ids ~`1350`–`2149` (~800 tokens, a big chunk): **`"Mystery Trading
+    Card"`** — pre-reveal placeholder metadata only (`"Pre-Reveal. What
+    Will You Get?"`), no `attributes`/tier yet. These tokens' real tier
+    (Gold/Standard/other) is genuinely unknown until/unless the project
+    ever reveals them — can't be determined from current metadata.
+  - ids ~`2150`–`2226`: **`"Crypto Rich Trading Card (Standard)"`** (the
+    non-Deluxe album) — `Edition: Standard`, `Rarity: 1/1000`.
+  - **No "Platinum" tier was found anywhere** across this full sample —
+    only Gold and Standard appeared among revealed cards.
+  - **How to distinguish programmatically**: read `tokenURI(id)` →
+    fetch the JSON → check `name` for the substring `"Trading Card"` to
+    know if it's a card at all, then read `attributes[].trait_type ===
+    "Edition"` for the tier (`"Gold"` / `"Standard"`) — do NOT rely on
+    fixed id ranges as authoritative, the boundaries above are from
+    sampling, not an exhaustive per-token scan.
 
 **A second, separate Dyl-owned ERC-721 (Ethereum)** —
 `0x6764aE7179342134Dfe263C59A077E40d25f2B95`. Verified live via a public
@@ -256,6 +287,61 @@ controls it):
   pubkey against a live RPC call, so none is recorded here.** Don't use an
   unverified address; call the real `Burn`/`BurnChecked` instruction from
   `@solana/spl-token` instead when this gets built.
+
+### Full rarity/tier structure, per chain (Dylan-supplied 2026-07-27 — ground
+truth for reward design, only partially independently verified so far)
+
+Dylan supplied this breakdown directly as the real, intended rarity system
+across every chain. Where noted, pieces of it match what was independently
+verified via live `tokenURI` reads on `0x253bfce1757bb2e5f9159738f8309c73dafe09ea`
+above; the rest is recorded as-given, not yet re-derived from raw contract/API
+data — verify further before hardcoding any of it into eligibility logic.
+
+- **Ethereum — 2,442 NFTs total** ("Main Chain. Most History. VIPs."):
+  - **VIP NFTs — 221**: `1/200` Deluxe VIP, `1/10` Classic Rare VIP, `1/1`
+    Singles Very Rare VIP. (Matches what was independently found: the
+    `"Crypto Rich Deluxe"` album-cover batch at `Rarity: 1/200` and one-off
+    songs like `"Treat Myself"` at `Rarity: 1/1` — both verified live above.)
+  - **Deluxe Trading Cards — 1,111**: `1/1000` Standard/Common, `1/100`
+    Gold/Rare, `1/10` Platinum/Very Rare, `1/1` Diamond/Extremely Rare VIP.
+    Note 1000+100+10+1 = 1111 exactly — the tier counts ARE the total.
+    Standard and Gold were independently confirmed live in real metadata
+    (`Edition: "Standard"`/`"Gold"`); Platinum and Diamond exist per this
+    tier math but weren't hit by the (sparse, ~40-id) sample taken so far —
+    at only 10 and 1 tokens respectively out of 1,111, that's expected, not
+    a contradiction. A denser scan of the ~240–1349 id range would find
+    them before building real eligibility logic.
+  - **Classic Trading Cards — 1,111**: identical 4-tier structure
+    (Standard/Gold/Platinum/Diamond, same rarity denominators) for the
+    non-Deluxe "Crypto Rich" (Classic) album. The `"Crypto Rich Trading
+    Card (Standard)"` batch at ids ~2150–2226 verified live above is this
+    category's tail end.
+- **Solana — 1,111 NFTs total** ("First Music NFT on MagicEden Launchpad"):
+  **Deluxe Trading Cards only**, same 4-tier structure as Ethereum's Deluxe
+  cards (Standard 1/1000, Gold 1/100, Platinum 1/10, Diamond 1/1). This is
+  the "Crypto Rich Deluxe Trading Cards" collection already in
+  `lib/legacyCollections.ts` (Candy Machine ID
+  `7JvmupdkaFekk2bqqesk4Y22ejQhmpC8Gx5AkB3usgPw`).
+- **Tezos — 4,836 NFTs total** ("Top Music NFT Collection on Tezos by
+  Volume"), all under the objkt collection `KT1EcBQkN7vuVxg3gDZBbVb7qnBD6kDdS14K`:
+  Crypto Rich Deluxe (1,331 — 19 songs × 69 editions each), Crypto Rich
+  Classic (621 — 9 songs × 69 editions each), `gm` (420 — singles, 69
+  editions each). **No trading-card tier system on Tezos** — flat per-song
+  edition counts instead.
+- **Polygon — 475 NFTs total, current collection DEPRECATED**: minted via
+  MintSongs (`1/25 × 19 songs` = 475), a third-party platform that "went
+  out of business" in 2022 — explicitly not Dylan's fault, just a dead
+  platform. A brand-new Polygon collection is planned for existing Polygon
+  collectors; a second, distinct set — "Crypto Rich Deluxe Trading Cards"
+  on **ProtonMint** — was also mentioned as existing/planned but not yet
+  detailed (no contract address supplied yet for either).
+
+**Burn → free-mint reward ratio, Ethereum (Dylan-supplied 2026-07-27):**
+Standard card = 3 mints, Gold card = 5 mints, Platinum card = 7 mints.
+**Diamond's reward count wasn't given yet**, and no reward ratios have been
+supplied yet for Solana, Tezos, or Polygon, or for the non-trading-card VIP
+NFT tier (Deluxe/Classic/Singles) — don't assume parity with the trading-card
+numbers above until Dylan confirms those too.
 
 ---
 

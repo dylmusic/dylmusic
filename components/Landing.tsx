@@ -107,10 +107,14 @@ export default function Landing({
               </div>
             </div>
 
+            <button className="btn-burn-hero" onClick={() => router.push("/burn")}>
+              Burn Old NFTs &amp; $Dyl Coin
+            </button>
+
             <div className="aim-mini-window">
               <div className="aim-mini-titlebar">
                 <span className="aim-titlebar-dot" />
-                Dyl
+                Chat
               </div>
               <div className="aim-mini-body">
                 <button className="aim-msg" onClick={() => router.push("/chat")}>
@@ -149,11 +153,11 @@ export default function Landing({
                   </span>
                 </button>
               </div>
+              <button className="aim-mini-reply" onClick={() => router.push("/chat")}>
+                <span className="aim-mini-reply-input">Message Dyl…</span>
+                <span className="aim-mini-reply-send">Send</span>
+              </button>
             </div>
-
-            <button className="btn-burn" onClick={() => router.push("/burn")}>
-              Burn Old NFTs &amp; $Dyl Coin
-            </button>
 
             <button className="btn-connect" onClick={onConnect}>
               Enter App
