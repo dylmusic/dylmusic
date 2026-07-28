@@ -114,10 +114,12 @@ export default function BurnPage() {
         className="burn-chain-btn"
         disabled
         title="Coming soon — minting is not live yet"
-        style={{ marginBottom: 28 }}
       >
         Mint
       </button>
+      <div className="burn-step-note" style={{ marginBottom: 28 }}>
+        Mint is completely random — you may or may not get the full album.
+      </div>
 
       <button
         className="burn-contracts-toggle"

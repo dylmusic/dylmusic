@@ -48,15 +48,18 @@ export default function GlobalTaskbar({
     return () => clearInterval(id);
   }, []);
 
-  // Clicking the clock reveals today's date + live ETH/SOL price — a real
-  // CoinGecko fetch (same free, keyless /simple/price endpoint, no server
-  // proxy needed, CORS is wide open on it), not a fake number. Only
-  // fetched on demand when opened, not polled in the background.
+  // Clicking the clock reveals today's date + live ETH/SOL price (and 24h
+  // change) — a real CoinGecko fetch (same free, keyless /simple/price
+  // endpoint, no server proxy needed, CORS is wide open on it), not a fake
+  // number. Only fetched on demand when opened, not polled in the
+  // background.
   const [pricesOpen, setPricesOpen] = useState(false);
-  const [prices, setPrices] = useState<{ eth: number | null; sol: number | null }>({
-    eth: null,
-    sol: null,
-  });
+  const [prices, setPrices] = useState<{
+    eth: number | null;
+    ethChange: number | null;
+    sol: number | null;
+    solChange: number | null;
+  }>({ eth: null, ethChange: null, sol: null, solChange: null });
   const [pricesState, setPricesState] = useState<"idle" | "loading" | "error">("idle");
 
   function toggleClockPopup() {
@@ -71,10 +74,15 @@ export default function GlobalTaskbar({
     setPricesState("loading");
     try {
       const res = await fetch(
-        "https://api.coingecko.com/api/v3/simple/price?ids=ethereum,solana&vs_currencies=usd"
+        "https://api.coingecko.com/api/v3/simple/price?ids=ethereum,solana&vs_currencies=usd&include_24hr_change=true"
       );
       const data = await res.json();
-      setPrices({ eth: data?.ethereum?.usd ?? null, sol: data?.solana?.usd ?? null });
+      setPrices({
+        eth: data?.ethereum?.usd ?? null,
+        ethChange: data?.ethereum?.usd_24h_change ?? null,
+        sol: data?.solana?.usd ?? null,
+        solChange: data?.solana?.usd_24h_change ?? null,
+      });
       setPricesState("idle");
     } catch {
       setPricesState("error");
@@ -213,6 +221,7 @@ export default function GlobalTaskbar({
                         ? "—"
                         : `$${prices.eth.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
                   </span>
+                  <PriceChange value={prices.ethChange} state={pricesState} />
                 </div>
                 <div className="taskbar-clock-popup-row">
                   <span>
@@ -226,6 +235,7 @@ export default function GlobalTaskbar({
                         ? "—"
                         : `$${prices.sol.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
                   </span>
+                  <PriceChange value={prices.solChange} state={pricesState} />
                 </div>
               </div>
               {pricesState === "error" && (
@@ -239,5 +249,22 @@ export default function GlobalTaskbar({
         </button>
       </div>
     </div>
+  );
+}
+
+function PriceChange({
+  value,
+  state,
+}: {
+  value: number | null;
+  state: "idle" | "loading" | "error";
+}) {
+  if (state === "loading") return <span className="taskbar-clock-popup-change">…</span>;
+  if (state === "error" || value === null) return <span className="taskbar-clock-popup-change">—</span>;
+  const up = value >= 0;
+  return (
+    <span className={`taskbar-clock-popup-change ${up ? "up" : "down"}`}>
+      {up ? "▲" : "▼"} {Math.abs(value).toFixed(2)}%
+    </span>
   );
 }
