@@ -2958,6 +2958,17 @@ input {
 
 .aim-line-time {
   color: #4a5850;
+  cursor: default;
+}
+
+.aim-line-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid var(--accent);
+  vertical-align: middle;
+  margin-right: 3px;
 }
 
 .aim-line-who {
@@ -4851,6 +4862,7 @@ body > div:has(> .landing-page) {
 .board-note-foot {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 3px 6px;
   margin-top: 8px;
   padding-top: 6px;
@@ -4865,6 +4877,18 @@ body > div:has(> .landing-page) {
 .board-note-who {
   font-weight: 700;
   color: #04140a;
+}
+
+.board-note-avatar {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid #04140a;
+}
+
+.board-note-date {
+  cursor: default;
 }
 
 .board-note-unpin {
@@ -5077,6 +5101,17 @@ body > div:has(> .landing-page) {
   color: #566159;
   font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
   font-size: 10px;
+  cursor: default;
+}
+
+.gcw-line-avatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid var(--accent);
+  vertical-align: middle;
+  margin-right: 2px;
 }
 
 .gcw-line-who {

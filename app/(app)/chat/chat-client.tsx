@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { ALBUMS } from "@/lib/albums";
 import { ownsAnyEdition } from "@/lib/holdings";
 import { getNickname } from "@/lib/nicknames";
 import { isAdminWallet } from "@/lib/admin";
+import { useResolvedNames, truncateAddress } from "@/lib/useResolvedNames";
+import { timeAgo, fullDateTime } from "@/lib/timeFormat";
 import { useAppShell } from "@/components/AppShellContext";
 
 interface ChatMessage {
@@ -18,14 +21,6 @@ interface ChatMessage {
 
 const ALL_TRACK_IDS = ALBUMS.flatMap((a) => a.tracks.map((t) => t.id));
 
-function truncate(addr: string) {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
-
-function timeShort(ts: number) {
-  return new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-}
-
 export default function ChatPageClient() {
   const { chain, walletAddress, requestConnect } = useAppShell();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -36,6 +31,7 @@ export default function ChatPageClient() {
 
   const isAdmin = isAdminWallet(walletAddress);
   const canPost = !!walletAddress && (isAdmin || ownsAnyEdition(chain, walletAddress, ALL_TRACK_IDS));
+  const names = useResolvedNames(messages.map((m) => m.wallet));
 
   async function load() {
     try {
@@ -126,11 +122,17 @@ export default function ChatPageClient() {
             <div className="aim-empty">No messages yet — be the first to post.</div>
           )}
           {messages.map((m) => {
-            const name = getNickname(m.wallet) ?? truncate(m.wallet);
+            const isDyl = isAdminWallet(m.wallet);
+            const name = names[m.wallet] ?? getNickname(m.wallet) ?? truncateAddress(m.wallet);
             return (
               <div key={m.id} className={`aim-line${m.pinned ? " pinned" : ""}`}>
                 {m.pinned && <span className="aim-line-pin-flag">PINNED</span>}
-                <span className="aim-line-time">[{timeShort(m.ts)}]</span>{" "}
+                <span className="aim-line-time" title={fullDateTime(m.ts)}>
+                  [{timeAgo(m.ts)}]
+                </span>{" "}
+                {isDyl && (
+                  <Image src="/brand/dyl-pfp.png" alt="Dyl" width={18} height={18} className="aim-line-avatar" />
+                )}
                 <span className="aim-line-who">{name}:</span>{" "}
                 <span className="aim-line-text">{m.text}</span>
                 {isAdmin && (

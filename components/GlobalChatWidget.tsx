@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
@@ -8,6 +9,8 @@ import { ALBUMS } from "@/lib/albums";
 import { ownsAnyEdition } from "@/lib/holdings";
 import { getNickname } from "@/lib/nicknames";
 import { isAdminWallet } from "@/lib/admin";
+import { useResolvedNames, truncateAddress } from "@/lib/useResolvedNames";
+import { timeAgo, fullDateTime } from "@/lib/timeFormat";
 import { usePlayer } from "./PlayerContext";
 
 interface ChatMessage {
@@ -20,14 +23,6 @@ interface ChatMessage {
 }
 
 const ALL_TRACK_IDS = ALBUMS.flatMap((a) => a.tracks.map((t) => t.id));
-
-function truncate(addr: string) {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
-
-function timeShort(ts: number) {
-  return new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-}
 
 // A persistent, dockable chat — collapsed to a thin tab bottom-right on
 // every page (Dylan: "the chat is always in the bottom right... collapsed
@@ -49,6 +44,7 @@ export default function GlobalChatWidget() {
 
   const isAdmin = isAdminWallet(address);
   const canPost = !!address && (isAdmin || ownsAnyEdition("robinhood", address, ALL_TRACK_IDS));
+  const names = useResolvedNames(messages.map((m) => m.wallet));
 
   async function load() {
     try {
@@ -151,11 +147,17 @@ export default function GlobalChatWidget() {
       <div className="gcw-log" ref={logRef}>
         {messages.length === 0 && <div className="gcw-empty">No messages yet — be the first to post.</div>}
         {messages.map((m) => {
-          const name = getNickname(m.wallet) ?? truncate(m.wallet);
+          const isDyl = isAdminWallet(m.wallet);
+          const name = names[m.wallet] ?? getNickname(m.wallet) ?? truncateAddress(m.wallet);
           return (
             <div key={m.id} className={`gcw-line${m.pinned ? " pinned" : ""}`}>
               {m.pinned && <span className="aim-line-pin-flag">PINNED</span>}
-              <span className="gcw-line-time">[{timeShort(m.ts)}]</span>{" "}
+              <span className="gcw-line-time" title={fullDateTime(m.ts)}>
+                [{timeAgo(m.ts)}]
+              </span>{" "}
+              {isDyl && (
+                <Image src="/brand/dyl-pfp.png" alt="Dyl" width={16} height={16} className="gcw-line-avatar" />
+              )}
               <span className="gcw-line-who">{name}:</span> <span className="gcw-line-text">{m.text}</span>
               {isAdmin && (
                 <span className="aim-line-admin">

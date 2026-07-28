@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { getNickname } from "@/lib/nicknames";
 import { isAdminWallet } from "@/lib/admin";
 import { useAppShell } from "@/components/AppShellContext";
 import { NOTE_COLORS, DEFAULT_NOTE_COLOR, NoteColor } from "@/lib/boardColors";
+import { useResolvedNames, truncateAddress } from "@/lib/useResolvedNames";
+import { timeAgo, fullDateTime } from "@/lib/timeFormat";
 
 interface BoardNote {
   id: string;
@@ -27,14 +30,6 @@ const CHAIN_LABEL: Record<string, string> = {
 // note jittering to a new angle each poll.
 const TILTS = [-3, 2, -1.5, 3, -2.5, 1, -1, 2.5];
 
-function truncate(addr: string) {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
-
-function timeShort(ts: number) {
-  return new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" });
-}
-
 export default function BulletinBoard() {
   const { chain, walletAddress, requestConnect } = useAppShell();
   const [notes, setNotes] = useState<BoardNote[]>([]);
@@ -45,6 +40,7 @@ export default function BulletinBoard() {
   const [error, setError] = useState<string | null>(null);
 
   const canPost = !!walletAddress;
+  const names = useResolvedNames(notes.map((n) => n.wallet));
 
   async function load() {
     try {
@@ -172,7 +168,8 @@ export default function BulletinBoard() {
           <div className="board-empty">Nothing pinned yet — be the first.</div>
         )}
         {notes.map((n, i) => {
-          const name = getNickname(n.wallet) ?? truncate(n.wallet);
+          const isDyl = isAdminWallet(n.wallet);
+          const name = names[n.wallet] ?? getNickname(n.wallet) ?? truncateAddress(n.wallet);
           const tilt = TILTS[i % TILTS.length];
           return (
             <div
@@ -184,9 +181,14 @@ export default function BulletinBoard() {
               {n.pinned && <span className="board-note-featured-flag">★ FEATURED</span>}
               <div className="board-note-text">{n.text}</div>
               <div className="board-note-foot">
+                {isDyl && (
+                  <Image src="/brand/dyl-pfp.png" alt="Dyl" width={14} height={14} className="board-note-avatar" />
+                )}
                 <span className="board-note-who">{name}</span>
                 <span className="board-note-chain">{CHAIN_LABEL[n.chain] ?? n.chain}</span>
-                <span className="board-note-date">{timeShort(n.ts)}</span>
+                <span className="board-note-date" title={fullDateTime(n.ts)}>
+                  {timeAgo(n.ts)}
+                </span>
               </div>
               {walletAddress && isAdminWallet(walletAddress) && (
                 <div className="board-note-admin">
