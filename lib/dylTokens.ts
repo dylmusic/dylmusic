@@ -12,15 +12,20 @@ export const SOLANA_CHAIN_ID = 792703809; // Relay's own id for Solana, not a re
 
 export interface SwapChain {
   id: number;
-  key: "robinhood" | "base" | "solana";
+  key: "robinhood" | "base" | "solana" | "ethereum";
   name: string;
   enabled: boolean;
 }
 
+// Ethereum mainnet added as a 4th swap chain (parity with HOODPrinter's own
+// /swap) — the wagmi/RainbowKit plumbing already existed (lib/web3.ts added
+// mainnet to wagmiConfig.chains for the admin panel), this just makes it
+// pickable in the token picker too.
 export const SWAP_CHAINS: SwapChain[] = [
   { id: robinhoodChain.id, key: "robinhood", name: "Robinhood", enabled: true },
   { id: base.id, key: "base", name: "Base", enabled: true },
   { id: SOLANA_CHAIN_ID, key: "solana", name: "Solana", enabled: true },
+  { id: mainnet.id, key: "ethereum", name: "Ethereum", enabled: true },
 ];
 
 // Relay's own sentinel address for native SOL (Solana's System Program id —
@@ -135,11 +140,128 @@ const USDG_SOLANA: DylToken = {
   logo: "https://coin-images.coingecko.com/coins/images/51281/large/GDN_USDG_Token_200x200.png",
 };
 
+// More common tokens beyond the pinned row, per chain — parity with
+// HOODPrinter's own MORE_BASE_TOKENS/MORE_SOLANA_TOKENS/MORE_MAINNET_TOKENS,
+// same real addresses (Relay's /currencies/v2 `defaultList: true` response,
+// `verified: true` only), not re-derived.
+const USDT_BASE: DylToken = {
+  chainId: base.id,
+  address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+  symbol: "USDT",
+  name: "Tether USD",
+  decimals: 6,
+  logo: "https://coin-images.coingecko.com/coins/images/39963/large/usdt.png",
+};
+const CBBTC_BASE: DylToken = {
+  chainId: base.id,
+  address: "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf",
+  symbol: "cbBTC",
+  name: "Coinbase Wrapped BTC",
+  decimals: 8,
+  logo: "https://coin-images.coingecko.com/coins/images/40143/large/cbbtc.webp",
+};
+const CBETH_BASE: DylToken = {
+  chainId: base.id,
+  address: "0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22",
+  symbol: "cbETH",
+  name: "Coinbase Wrapped Staked ETH",
+  decimals: 18,
+  logo: "https://coin-images.coingecko.com/coins/images/27008/large/cbeth.png",
+};
+const AERO_BASE: DylToken = {
+  chainId: base.id,
+  address: "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
+  symbol: "AERO",
+  name: "Aerodrome",
+  decimals: 18,
+  logo: "https://coin-images.coingecko.com/coins/images/31745/large/token.png",
+};
+const VIRTUAL_BASE: DylToken = {
+  chainId: base.id,
+  address: "0x0b3e328455c4059EEb9e3f84b5543F74E24e7E1b",
+  symbol: "VIRTUAL",
+  name: "Virtual Protocol",
+  decimals: 18,
+  logo: "https://coin-images.coingecko.com/coins/images/34057/large/LOGOMARK.png",
+};
+const MORE_BASE_TOKENS: DylToken[] = [USDT_BASE, CBBTC_BASE, CBETH_BASE, AERO_BASE, VIRTUAL_BASE];
+
+// Canonical WETH verified via Relay's own /currencies/v2 (term="WETH",
+// chainId=1) — matches the well-known contract, not typed from memory.
+const WETH_ETHEREUM: DylToken = {
+  chainId: mainnet.id,
+  address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+  symbol: "WETH",
+  name: "Wrapped Ether",
+  decimals: 18,
+  logo: "https://coin-images.coingecko.com/coins/images/39810/large/weth.png",
+};
+const USDC_ETHEREUM: DylToken = {
+  chainId: mainnet.id,
+  address: "0xA0b86991c6218b36c1D19D4a2e9Eb0cE3606eB48",
+  symbol: "USDC",
+  name: "USD Coin",
+  decimals: 6,
+  logo: "https://coin-images.coingecko.com/coins/images/6319/large/usdc.png",
+};
+const USDT_ETHEREUM: DylToken = {
+  chainId: mainnet.id,
+  address: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+  symbol: "USDT",
+  name: "Tether USD",
+  decimals: 6,
+  logo: "https://coin-images.coingecko.com/coins/images/39963/large/usdt.png",
+};
+const DAI_ETHEREUM: DylToken = {
+  chainId: mainnet.id,
+  address: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+  symbol: "DAI",
+  name: "Dai Stablecoin",
+  decimals: 18,
+  logo: "https://coin-images.coingecko.com/coins/images/9956/large/Badge_Dai.png",
+};
+const WBTC_ETHEREUM: DylToken = {
+  chainId: mainnet.id,
+  address: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+  symbol: "WBTC",
+  name: "Wrapped BTC",
+  decimals: 8,
+  logo: "https://coin-images.coingecko.com/coins/images/7598/large/wrapped_bitcoin_wbtc.png",
+};
+const MORE_ETHEREUM_TOKENS: DylToken[] = [WETH_ETHEREUM, USDC_ETHEREUM, USDT_ETHEREUM, DAI_ETHEREUM, WBTC_ETHEREUM];
+
+const USDT_SOLANA: DylToken = {
+  chainId: SOLANA_CHAIN_ID,
+  address: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+  symbol: "USDT",
+  name: "USDT",
+  decimals: 6,
+  logo: "https://coin-images.coingecko.com/coins/images/325/large/Tether.png",
+};
+const PYUSD_SOLANA: DylToken = {
+  chainId: SOLANA_CHAIN_ID,
+  address: "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo",
+  symbol: "PYUSD",
+  name: "PayPal USD",
+  decimals: 6,
+  logo: "https://coin-images.coingecko.com/coins/images/31212/large/PYUSD_Logo_%282%29.png",
+};
+const CBBTC_SOLANA: DylToken = {
+  chainId: SOLANA_CHAIN_ID,
+  address: "cbbtcf3aa214zXHbiAZQwf4122FBYbraNdFqgw4iMij",
+  symbol: "cbBTC",
+  name: "Coinbase Wrapped BTC",
+  decimals: 8,
+  logo: "https://coin-images.coingecko.com/coins/images/40143/large/cbbtc.webp",
+};
+const MORE_SOLANA_TOKENS: DylToken[] = [USDT_SOLANA, PYUSD_SOLANA, CBBTC_SOLANA];
+
 export const PINNED_TOKENS: Record<"robinhood" | "base" | "solana" | "ethereum", DylToken[]> = {
   robinhood: [ETH_ROBINHOOD, WETH_ROBINHOOD, USDG_ROBINHOOD],
   base: [ETH_BASE, WETH_BASE, USDC_BASE],
   solana: [SOL_NATIVE, USDC_SOLANA, USDG_SOLANA],
-  ethereum: [ETH_ETHEREUM],
+  // WETH added alongside ETH — it had nothing else pinned before this.
+  ethereum: [ETH_ETHEREUM, WETH_ETHEREUM],
 };
 
 export const CURATED_TOKENS: DylToken[] = [
@@ -149,9 +271,13 @@ export const CURATED_TOKENS: DylToken[] = [
   ETH_BASE,
   WETH_BASE,
   USDC_BASE,
+  ...MORE_BASE_TOKENS,
   SOL_NATIVE,
   USDC_SOLANA,
   USDG_SOLANA,
+  ...MORE_SOLANA_TOKENS,
+  ETH_ETHEREUM,
+  ...MORE_ETHEREUM_TOKENS,
 ];
 
 export function isSolanaChain(chainId: number): boolean {
@@ -192,21 +318,66 @@ async function fetchRelayTokenLogo(chainId: number, address: string): Promise<st
   }
 }
 
-// Resolves a pasted contract address not in the curated list, reading
-// symbol/name/decimals on-chain directly (same "add by CA" pattern as
-// HOODPrinter's PrintBot/robinhoodTokens.ts), plus a live logo lookup.
+// Custom-paste detection: EVM chains look for a "0x..." address; Solana
+// mint addresses are base58 (no 0/O/I/l), typically 32-44 chars, with no
+// distinguishing prefix — length+charset is the best available heuristic
+// short of attempting a resolve on every keystroke. Parity with
+// HOODPrinter's own looksLikeAddress (was inlined in TokenPickerModal.tsx
+// there; exported from here so both /swap's picker and the NFT buy-confirm
+// picker can share one implementation).
+export function looksLikeAddress(chainId: number, q: string): boolean {
+  if (isSolanaChain(chainId)) return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(q);
+  return q.length >= 8 && /^0x/i.test(q);
+}
+
+// Public read RPCs per EVM chain — read-only calls (symbol/name/decimals)
+// only, never used for signing/sending. A pasted MAINNET address used to
+// silently resolve against BASE's RPC (this file's old `chainId ===
+// robinhoodChain.id ? robinhoodChain : base` fallback) — a real bug, found
+// while porting HOODPrinter's own per-chain resolveCustomToken over.
+const EVM_RPC_URLS: Record<number, string> = {
+  [robinhoodChain.id]: "https://rpc.mainnet.chain.robinhood.com",
+  [base.id]: "https://mainnet.base.org",
+  [mainnet.id]: "https://eth.llamarpc.com",
+};
+const EVM_CHAINS = { [robinhoodChain.id]: robinhoodChain, [base.id]: base, [mainnet.id]: mainnet } as const;
+
+// Resolves a pasted address not in the curated list, for the given chain.
+// EVM chains read symbol/name/decimals directly on-chain, same "add by CA"
+// pattern as HOODPrinter's PrintBot/robinhoodTokens.ts, plus a live logo
+// lookup. Solana has no on-chain SPL name/symbol standard to read the same
+// way (that's Metaplex metadata, a separate program) — trusts Relay's own
+// /currencies/v2 address lookup alone, returns null (curated-list-only) if
+// Relay doesn't recognize the mint, rather than guessing.
 export async function resolveCustomToken(chainId: number, address: string): Promise<DylToken | null> {
-  if (chainId === SOLANA_CHAIN_ID) return null; // SPL mint metadata isn't resolved yet — curated list only
-  if (!isAddress(address)) return null;
-  const checksummed = getAddress(address);
   const known = CURATED_TOKENS.find(
-    (t) => t.chainId === chainId && t.address.toLowerCase() === checksummed.toLowerCase()
+    (t) => t.chainId === chainId && t.address.toLowerCase() === address.toLowerCase()
   );
   if (known) return known;
 
-  const chain = chainId === robinhoodChain.id ? robinhoodChain : base;
+  if (isSolanaChain(chainId)) {
+    try {
+      const res = await fetch("https://api.relay.link/currencies/v2", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chainIds: [chainId], address }),
+      });
+      const results = await res.json();
+      const r = results?.[0];
+      if (!r?.symbol || !r?.decimals) return null;
+      return { chainId, address, symbol: r.symbol, name: r.name || r.symbol, decimals: Number(r.decimals), logo: r.metadata?.logoURI };
+    } catch {
+      return null;
+    }
+  }
+
+  if (!isAddress(address)) return null;
+  const checksummed = getAddress(address);
+  const chain = EVM_CHAINS[chainId as keyof typeof EVM_CHAINS];
+  const rpcUrl = EVM_RPC_URLS[chainId];
+  if (!chain || !rpcUrl) return null;
   try {
-    const client = createPublicClient({ chain, transport: http() });
+    const client = createPublicClient({ chain, transport: http(rpcUrl) });
     const [symbol, name, decimals, logo] = await Promise.all([
       client.readContract({ address: checksummed, abi: erc20MetaAbi, functionName: "symbol" }),
       client.readContract({ address: checksummed, abi: erc20MetaAbi, functionName: "name" }),

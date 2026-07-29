@@ -3619,6 +3619,41 @@ input {
   background: var(--accent);
 }
 
+/* Connecting line between step dots — only meaningful once a flow can have
+   more than 2 steps (the any-token-to-NFT flow, and now /swap's own
+   multi-step Relay quotes), so it didn't exist before this. */
+.buy-confirm-step-line {
+  width: 20px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.14);
+  transition: background 0.2s ease;
+}
+
+.buy-confirm-step-line.active {
+  background: var(--accent);
+}
+
+/* /swap's own step-progress overlay — same visual language as
+   .buy-confirm-waiting (full takeover of the card while a step is in
+   flight), but /swap's card isn't a modal, so it needs its own absolutely
+   positioned, blurred backdrop to grey out the panels/button underneath
+   instead of relying on a modal's own backdrop. */
+.swap-waiting {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 24px;
+  text-align: center;
+  background: rgba(10, 14, 12, 0.88);
+  backdrop-filter: blur(3px);
+  border-radius: 16px;
+}
+
 /* ---------- Admin ---------- */
 
 .admin-wrap {

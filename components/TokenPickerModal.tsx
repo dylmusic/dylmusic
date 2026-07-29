@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { SWAP_CHAINS, resolveCustomToken, type DylToken, type SwapChain } from "@/lib/dylTokens";
+import { SWAP_CHAINS, resolveCustomToken, looksLikeAddress, type DylToken, type SwapChain } from "@/lib/dylTokens";
 
 // Styled after HOODPrinter's own "Select Token" modal — same UX (chain
 // pills up top, search + pinned row + results list) rebranded onto
@@ -82,7 +82,7 @@ export default function TokenPickerModal({
   useEffect(() => {
     const q = query.trim();
     setCustomToken(null);
-    if (!allowCustomAddress || q.length < 8 || !/^0x/i.test(q)) return;
+    if (!allowCustomAddress || !looksLikeAddress(browseChainId, q)) return;
     setCustomLoading(true);
     const timer = setTimeout(() => {
       resolveCustomToken(browseChainId, q)

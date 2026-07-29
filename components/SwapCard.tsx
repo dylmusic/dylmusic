@@ -1,13 +1,38 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useAccount, useBalance, useSwitchChain, useWalletClient } from "wagmi";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { useAccount, useBalance, useSwitchChain, useWalletClient, ConnectorChainMismatchError } from "wagmi";
+import { getWalletClient } from "wagmi/actions";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import type { Execute } from "@reservoir0x/relay-sdk";
 import { CURATED_TOKENS, PINNED_TOKENS, NATIVE_ETH, isSolanaChain, type DylToken } from "@/lib/dylTokens";
-import { getSwapQuote, executeSwap, quoteOutputAmount, adaptDylEvmWallet, adaptDylSolanaWallet } from "@/lib/dylSwap";
-import { useSolanaWallet } from "@/lib/solana";
+import {
+  getSwapQuote,
+  executeSwap,
+  quoteOutputAmount,
+  quoteStepCount,
+  quoteLastTxHash,
+  relayTransactionUrl,
+  adaptDylEvmWallet,
+  adaptDylSolanaWallet,
+  type SwapLegProgress,
+} from "@/lib/dylSwap";
+import { useSolanaWallet, getSolanaBalance } from "@/lib/solana";
+import { wagmiConfig } from "@/lib/web3";
 import TokenPickerModal, { TokenIcon } from "./TokenPickerModal";
+
+// Brought up to parity with HOODPrinter's own /swap upgrade (2026-07-28):
+// real 0.85% fee, a step-progress overlay for quotes Relay silently splits
+// into more than one wallet prompt (an ERC20 origin needing an approve
+// step before its swap step), and robust EVM chain-switching. dylmusic was
+// the original reference implementation for HOODPrinter's Solana wallet
+// integration — this brings the later robustness fixes back the other way.
+// Unlike HOODPrinter's /swap, this page has no second "our own pool" leg of
+// its own (every swap here is a single Relay-routed leg, even cross-chain —
+// Relay's own execute() already waits out the full bridge internally), so
+// there's no analog to HOODPrinter's waitForBalanceIncrease/Resume-swap
+// machinery to port here; that mechanism belongs to the NFT buy flow
+// instead (lib/useTrackCommerce.ts), which genuinely has two real legs.
 
 const DEFAULT_FROM: DylToken = PINNED_TOKENS.robinhood[0]; // ETH on Robinhood
 const DEFAULT_TO: DylToken = PINNED_TOKENS.robinhood[2]; // USDG on Robinhood
@@ -42,21 +67,18 @@ export default function SwapCard() {
   const [quoteError, setQuoteError] = useState<string | null>(null);
 
   const [executing, setExecuting] = useState(false);
-  const [progressLabel, setProgressLabel] = useState<string | null>(null);
+  const [legProgress, setLegProgress] = useState<SwapLegProgress | null>(null);
   const [txError, setTxError] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [relayUrl, setRelayUrl] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [solBalance, setSolBalance] = useState<number | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fromIsSolana = isSolanaChain(fromToken.chainId);
   const toIsSolana = isSolanaChain(toToken.chainId);
 
-  // The "from" side's wallet is always the one that signs (it's the side
-  // spending); the "to" side's wallet is just where funds land — for a pure
-  // EVM<->EVM swap that's the same address either way, but a Solana leg on
-  // either side needs Phantom's own address specifically, distinct from an
-  // EVM address, since Relay needs the real recipient address for that
-  // chain's VM to route funds there.
   const userAddress = fromIsSolana ? sol.address : evmAddress ?? null;
   const recipientAddress = toIsSolana ? sol.address : evmAddress ?? null;
 
@@ -66,6 +88,25 @@ export default function SwapCard() {
     token: fromToken.address === NATIVE_ETH ? undefined : (fromToken.address as `0x${string}`),
     query: { enabled: !!evmAddress && !fromIsSolana },
   });
+
+  // Solana balance was missing from the "You pay" panel entirely — wagmi's
+  // useBalance can't query a non-EVM chain, and nothing replaced it before
+  // this. Refetches on token/address change and once more right after a
+  // Solana-involving swap confirms.
+  const [solBalanceNonce, setSolBalanceNonce] = useState(0);
+  useEffect(() => {
+    if (!fromIsSolana || !sol.address) {
+      setSolBalance(null);
+      return;
+    }
+    let cancelled = false;
+    getSolanaBalance(sol.address, fromToken.address, fromToken.decimals).then((b) => {
+      if (!cancelled) setSolBalance(b);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [fromIsSolana, sol.address, fromToken.address, fromToken.decimals, solBalanceNonce]);
 
   useEffect(() => {
     setQuote(null);
@@ -84,6 +125,8 @@ export default function SwapCard() {
           toCurrency: toToken.address,
           amountWei,
           userAddress,
+          recipientAddress,
+          chargeFee: true,
         });
         setQuote(q);
       } catch (e) {
@@ -124,6 +167,28 @@ export default function SwapCard() {
     else openConnectModal?.();
   }
 
+  // Switches the EVM wallet to `chainId` and returns a FRESH wallet client
+  // scoped to it. Two real bugs found live while porting this from
+  // HOODPrinter's own swap made both steps necessary:
+  // 1) switchChainAsync's own promise can resolve before the injected
+  //    wallet's real eth_chainId has caught up — retrying getWalletClient
+  //    on ConnectorChainMismatchError absorbs that race.
+  // 2) the walletClient object from useWalletClient() is a plain snapshot
+  //    captured once per render — it does NOT reflect a switch made earlier
+  //    in the SAME function call, so every send after a switch must use a
+  //    freshly-fetched client, never the outer hook value.
+  async function ensureEvmChain(chainId: number) {
+    await switchChainAsync({ chainId });
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await getWalletClient(wagmiConfig, { chainId });
+      } catch (e) {
+        if (attempt >= 5 || !(e instanceof ConnectorChainMismatchError)) throw e;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
+  }
+
   async function doSwap() {
     if (!userAddress) {
       connectFromWallet();
@@ -135,39 +200,43 @@ export default function SwapCard() {
     }
     if (!quote) return;
     setTxError(null);
+    setTxHash(null);
+    setRelayUrl(null);
     setExecuting(true);
-    setProgressLabel("Confirm in wallet…");
+    const relaySteps = quoteStepCount(quote);
+    if (relaySteps > 1) setLegProgress({ part: 1, total: relaySteps, label: "Confirm in wallet…" });
     try {
       let wallet;
       if (fromIsSolana) {
         const provider = sol.getProvider();
         if (!provider) throw new Error("Phantom wallet not found.");
-        wallet = adaptDylSolanaWallet(sol.address!, (tx, opts, ix) =>
-          provider.signAndSendTransaction(tx, opts)
-        );
+        wallet = adaptDylSolanaWallet(sol.address!, (tx, opts) => provider.signAndSendTransaction(tx, opts));
       } else {
-        if (!walletClient) throw new Error("Wallet not connected.");
-        if (walletChainId !== fromToken.chainId) {
-          await switchChainAsync({ chainId: fromToken.chainId });
-        }
-        wallet = adaptDylEvmWallet(walletClient);
+        const client = await ensureEvmChain(fromToken.chainId);
+        wallet = adaptDylEvmWallet(client);
       }
-      await executeSwap(quote, wallet, (label) => setProgressLabel(label));
+      const { data: result } = await executeSwap(quote, wallet, (p) =>
+        relaySteps > 1 ? setLegProgress({ part: p.part, total: p.total, label: p.label }) : undefined
+      );
+      const hash = quoteLastTxHash(result, fromToken.chainId);
+      setTxHash(hash);
+      setRelayUrl(relayTransactionUrl(result));
       setDone(true);
       setAmount("");
       setQuote(null);
       fromBalance.refetch();
+      if (fromIsSolana || toIsSolana) setSolBalanceNonce((n) => n + 1);
     } catch (e) {
       setTxError(describeError(e));
     } finally {
       setExecuting(false);
-      setProgressLabel(null);
+      setLegProgress(null);
     }
   }
 
   const outAmount = quote ? quoteOutputAmount(quote) : null;
   const outDisplay = outAmount ? fmt(Number(outAmount) / 10 ** toToken.decimals) : "";
-  const maxAmount = fromBalance.data ? Number(fromBalance.data.formatted) : 0;
+  const maxAmount = fromIsSolana ? solBalance ?? 0 : fromBalance.data ? Number(fromBalance.data.formatted) : 0;
 
   const ctaLabel = !userAddress
     ? fromIsSolana
@@ -176,7 +245,9 @@ export default function SwapCard() {
     : !recipientAddress
     ? "Connect Phantom to Receive"
     : executing
-    ? progressLabel || "Swapping…"
+    ? legProgress
+      ? "Confirm in wallet…"
+      : "Swapping…"
     : quoteLoading
     ? "Fetching rate…"
     : "Swap";
@@ -186,7 +257,7 @@ export default function SwapCard() {
       <div className="swap-panel">
         <div className="swap-panel-head">
           <span>You Pay</span>
-          {evmAddress && !fromIsSolana && (
+          {userAddress && (fromIsSolana ? solBalance !== null : !fromIsSolana && evmAddress) && (
             <button className="swap-balance" onClick={() => setAmount(String(Math.max(0, maxAmount)))}>
               Balance: {fmt(maxAmount, 4)}
             </button>
@@ -249,19 +320,58 @@ export default function SwapCard() {
       {txError && <div className="swap-route-note swap-route-error">{txError}</div>}
       {done && <div className="swap-route-note swap-route-success">Swap complete.</div>}
 
-      <button
-        className="swap-cta"
-        disabled={executing || (!!userAddress && !!recipientAddress && (!quote || quoteLoading))}
-        onClick={doSwap}
-      >
-        {ctaLabel}
-      </button>
+      {!userAddress ? (
+        <button type="button" className="swap-cta" onClick={connectFromWallet}>
+          {fromIsSolana ? "Connect Phantom" : "Connect Wallet"}
+        </button>
+      ) : !recipientAddress ? (
+        <button type="button" className="swap-cta" onClick={() => sol.connect()}>
+          Connect Phantom to Receive
+        </button>
+      ) : (
+        <>
+          {executing && legProgress && (
+            <div className="swap-waiting">
+              <span className="buy-confirm-ring" />
+              <p className="buy-confirm-waiting-title">
+                Waiting for Confirmation {legProgress.part}/{legProgress.total}
+              </p>
+              <p className="buy-confirm-waiting-sub">{legProgress.label}</p>
+              <div className="buy-confirm-dots">
+                {Array.from({ length: legProgress.total }, (_, i) => i + 1).map((n) => (
+                  <Fragment key={n}>
+                    {n > 1 && <span className={`buy-confirm-step-line${legProgress!.part >= n ? " active" : ""}`} />}
+                    <span className={`buy-confirm-dot${legProgress!.part >= n ? " done" : ""}`} />
+                  </Fragment>
+                ))}
+              </div>
+            </div>
+          )}
+          <button className="swap-cta" disabled={executing || (!!userAddress && !!recipientAddress && (!quote || quoteLoading))} onClick={doSwap}>
+            {ctaLabel}
+          </button>
+        </>
+      )}
+
+      {txHash && (
+        <div className="swap-route-note swap-route-success">
+          ✅ Swap sent
+          {relayUrl && (
+            <>
+              {" — "}
+              <a href={relayUrl} target="_blank" rel="noopener noreferrer">
+                view on Relay ↗
+              </a>
+            </>
+          )}
+        </div>
+      )}
 
       <TokenPickerModal
         open={pickerOpen !== null}
         chainId={pickerOpen === "to" ? toToken.chainId : fromToken.chainId}
         tokens={CURATED_TOKENS}
-        pinnedTokens={PINNED_TOKENS.robinhood.concat(PINNED_TOKENS.base, PINNED_TOKENS.solana)}
+        pinnedTokens={PINNED_TOKENS.robinhood.concat(PINNED_TOKENS.base, PINNED_TOKENS.solana, PINNED_TOKENS.ethereum)}
         onClose={() => setPickerOpen(null)}
         onSelect={(t) => selectToken(pickerOpen, t)}
       />

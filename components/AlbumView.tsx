@@ -8,6 +8,7 @@ import { recordActivity } from "@/lib/activity";
 import { useStreamCountsLoaded } from "@/lib/streams";
 import { useTrackCommerce } from "@/lib/useTrackCommerce";
 import type { DylToken } from "@/lib/dylTokens";
+import type { PayStep } from "@/lib/payWithAnyToken";
 import TrackRow from "./TrackRow";
 import ListingsModal from "./ListingsModal";
 import OrderBookModal from "./OrderBookModal";
@@ -38,7 +39,7 @@ export default function AlbumView({
   const [modalTrackId, setModalTrackId] = useState<string | null>(null);
   const [bookTrackId, setBookTrackId] = useState<string | null>(null);
   const [albumBuyOpen, setAlbumBuyOpen] = useState(false);
-  const [albumBuyStep, setAlbumBuyStep] = useState<1 | 2 | null>(null);
+  const [albumBuyStep, setAlbumBuyStep] = useState<PayStep>(null);
 
   useStreamCountsLoaded();
   const commerce = useTrackCommerce(album.tracks, chain, walletAddress);
@@ -83,9 +84,9 @@ export default function AlbumView({
       payToken.chainId === commerce.defaultPayToken.chainId &&
       payToken.address === commerce.defaultPayToken.address;
     if (!isNative) {
-      setAlbumBuyStep(1);
+      setAlbumBuyStep({ part: 1, total: 2, label: `Swapping ${payToken.symbol} to ${commerce.defaultPayToken.symbol}` });
       await delay(900);
-      setAlbumBuyStep(2);
+      setAlbumBuyStep({ part: 2, total: 2, label: "Confirm purchase" });
       await delay(900);
     } else {
       await delay(450);

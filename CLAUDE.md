@@ -1211,10 +1211,110 @@ local ledger (self-reported, not on-chain verified, consistent with
 everything else being pre-contract).
 
 The **Swap page (`/swap`, "Dyl Swap")** is real and live — real Relay SDK
-quotes/execution across Robinhood Chain, Base, and Solana (verified live,
-including real cross-chain Base→Solana quotes). This is a genuine, working
-utility independent of NFT buying — swapping your own tokens is not "buying
-a Dyl NFT," so it was fine to make real from the start.
+quotes/execution across Robinhood Chain, Base, Solana, and (as of the
+upgrade below) Ethereum mainnet. This is a genuine, working utility
+independent of NFT buying — swapping your own tokens is not "buying a Dyl
+NFT," so it was fine to make real from the start.
+
+---
+
+## Swap upgrade + the "pay for NFT with any token" engine (2026-07-28)
+
+dylmusic's `/swap` was the *original* reference implementation HOODPrinter's
+own cross-chain swap was built from — but HOODPrinter's later upgrade
+(0.85% fee, robust chain-switching, step-progress overlay, live bridge-wait
+counter) never made it back here until now. Dylan asked for two things:
+bring `/swap` up to parity, then design the same "1/3 → 2/3 → 3/3" guided
+flow for paying an NFT edition with any token on any chain — confirmed
+directly with Dylan as the exact same shape as HOODPrinter's
+`relay-to-print` plan (any token → native ETH/SOL on the target chain via
+Relay → our own final leg), just with an NFT purchase instead of a
+`$PRINT`-pool buy on that final leg.
+
+**`/swap` parity, shipped and real:**
+- **0.85% fee** on every swap (`lib/dylSwap.ts` `getSwapQuote`, Relay's own
+  `appFees` mechanism — same as HOODPrinter). Sent to `DYL_FEE_RECIPIENT`,
+  which is just `ADMIN_WALLET` (`lib/admin.ts`) — the same address as
+  HOODPrinter's own `RELAY_FEE_RECIPIENT`, confirmed to literally be
+  Dylan's real wallet, not a new one.
+- **Ethereum mainnet as a 4th swap chain** (`SWAP_CHAINS` in
+  `lib/dylTokens.ts`) — the wagmi/RainbowKit plumbing already existed
+  (`lib/web3.ts` already had mainnet in `wagmiConfig.chains` for the admin
+  panel's contract deploys), this just makes it pickable in the token
+  picker too. Expanded token lists per chain (`MORE_BASE_TOKENS`/
+  `MORE_SOLANA_TOKENS`/`MORE_ETHEREUM_TOKENS`) — same real addresses
+  HOODPrinter already verified via Relay's `/currencies/v2`, not
+  re-derived.
+- **A real bug found and fixed**: `resolveCustomToken` used to hardcode
+  `chainId === robinhoodChain.id ? robinhoodChain : base` — pasting a
+  MAINNET contract address silently resolved it against BASE's RPC. Fixed
+  with a real per-chain RPC map (Robinhood/Base/mainnet); Solana paste now
+  actually works too (trusts Relay's own `/currencies/v2` address lookup,
+  same as HOODPrinter — it was silently a no-op before, `resolveCustomToken`
+  returned `null` unconditionally for any Solana chainId, and
+  `TokenPickerModal`'s paste-detection was EVM-only regex so a Solana
+  address never even reached that check).
+- **Robust EVM chain-switching** (`ensureEvmChain` in `SwapCard.tsx`) —
+  same two-part fix HOODPrinter needed after real live chain-mismatch bugs:
+  retry `getWalletClient` on `ConnectorChainMismatchError` (a real wagmi/
+  wallet-extension timing race — `switchChainAsync`'s promise can resolve
+  before the extension's own `eth_chainId` catches up), and always use the
+  FRESH client `ensureEvmChain` returns for the actual send, never the
+  outer `useWalletClient()` hook value (that's a plain snapshot that
+  doesn't reflect a switch made earlier in the same function call).
+- **Step-progress overlay** for quotes Relay silently splits into more than
+  one wallet prompt (an ERC20 origin needing an approve step before its
+  swap step) — reuses `BuyConfirmModal.tsx`'s existing `.buy-confirm-ring`/
+  `.buy-confirm-dots` markup instead of introducing a parallel CSS set,
+  plus a new `.buy-confirm-step-line` connector (dots-with-lines, only
+  meaningful once a flow can have more than 2 steps).
+- **Solana balance now shows** in the "You Pay" panel (`getSolanaBalance` in
+  `lib/solana.ts`, ported from HOODPrinter — wagmi's `useBalance` can't
+  query a non-EVM chain, nothing replaced it before this) and Phantom's
+  eager-reconnect fix (`connect({onlyIfTrusted:true})` on mount) so
+  switching to a Solana token doesn't show "Connect Phantom" when it's
+  already connected.
+- **NOT ported**: HOODPrinter's Resume-swap/pending-resume persistence and
+  the balance-poll "waiting for bridge" counter. `/swap` has no second
+  "our own pool" leg the way HOODPrinter's `$PRINT` swap does — every
+  swap here is a single Relay-routed leg even cross-chain, and Relay's own
+  `execute()` already waits out the full bridge internally before
+  resolving. There's no "leg 2 didn't fire because the tab closed" failure
+  mode to resume from, so building that machinery for `/swap` itself would
+  be dead code. It DOES exist for the NFT flow below, which genuinely has
+  two real legs.
+
+**The any-token-to-NFT engine — built, deliberately NOT wired to the live
+button yet.** `lib/payWithAnyToken.ts`'s `runPayWithAnyToken()` is the real
+implementation: prices the edition's USD total into exact `payToken` units
+(`lib/tokenUsdPrice.ts`, new — DexScreener per-token pricing, ported from
+HOODPrinter, since dylmusic had no live USD pricing anywhere before this),
+swaps/bridges to the target chain's native ETH or SOL via `lib/dylSwap.ts`
+(fee charged once, here — never on a second leg, same "don't double-charge
+one swap 1.7% total" rule HOODPrinter follows), waits for the bridge with a
+live "(Ns)" counter when the swap is cross-chain
+(`waitForBalanceIncrease`), then hands off to the caller's own final
+purchase step. Step count is dynamic — 1 step if already paying in native
+currency (no swap needed at all), 2 for a same-chain swap, 3 for a
+cross-chain one (the flagship "1/3 → 2/3 → 3/3" case Dylan asked for).
+`buyStep`/`albumBuyStep` (`lib/useTrackCommerce.ts`, `AlbumView.tsx`)
+widened from a hardcoded `1 | 2` union to the same `{part, total, label}`
+shape this engine produces, so the step UI already renders any N correctly.
+
+**Why it's not called anywhere yet**: real contracts still are not
+deployed (see "Current state" above — Dylan's own standing rule: "dont
+actually swap anything til we drop the real contracts"). Confirmed
+directly this session: running the real swap/bridge steps for real, THEN
+hitting "Not live yet" at the final purchase step would mean charging a
+real 0.85% fee and real gas for a purchase that can't complete — the buyer
+ends up with native ETH/SOL sitting in their wallet instead of the NFT they
+came for. Dylan's call: keep the gate exactly where it already is —
+`BuyConfirmModal.tsx`'s "Confirm Buy" still calls `setNotLive(true)`
+immediately, before `runPayWithAnyToken` is ever invoked. Wiring it up
+later, once contracts are deployed, is a one-line change (swap
+`setNotLive(true)` for a call into `runPayWithAnyToken` followed by the
+real mint) — see the comment on that button in `BuyConfirmModal.tsx` for
+the exact spot.
 
 ---
 

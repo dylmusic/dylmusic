@@ -14,6 +14,7 @@ import { buildOrderBook, OrderBookEntry } from "./orderbook";
 import { recordActivity } from "./activity";
 import { getNativeTokenForChain } from "./dylTokens";
 import type { DylToken } from "./dylTokens";
+import type { PayStep } from "./payWithAnyToken";
 
 function isNativePayToken(payToken: DylToken, nativeToken: DylToken): boolean {
   return payToken.chainId === nativeToken.chainId && payToken.address === nativeToken.address;
@@ -35,16 +36,20 @@ export interface PendingBuy {
 // picks) without re-deriving the same mint-vs-resale-floor math three times.
 //
 // Clicking Buy no longer purchases instantly — it opens a "Pay With"
-// confirmation (pendingBuy) defaulting to the chain's native currency.
-// Nothing here is wired to a real payment yet (no NFTs are actually for
-// sale), so a non-native currency choice just plays a cosmetic 1/2 -> 2/2
-// "swap then buy" animation (buyStep) before the same simulated purchase
-// that a native-currency buy already does — no real signing either way.
+// confirmation (pendingBuy) defaulting to the chain's native currency, then
+// the "🚧 Not live yet" gate in BuyConfirmModal.tsx fires before anything
+// below here is ever reached (real contracts aren't deployed yet). This
+// cosmetic 1/2 -> 2/2 delay is what WOULD run if that gate weren't there —
+// kept simple/unreachable on purpose rather than wired to the real
+// lib/payWithAnyToken.ts engine, since nothing here can currently complete
+// with a real NFT anyway. `buyStep`'s shape already matches the real
+// engine's PayStep ({part,total,label}) so swapping this out later is just
+// replacing the body of confirmPendingBuy, not the type it exposes.
 export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress: string | null) {
   const [tick, setTick] = useState(0);
   const [busyKey, setBusyKey] = useState<string | null>(null); // `${trackId}:${entryKey}`
   const [pendingBuy, setPendingBuy] = useState<PendingBuy | null>(null);
-  const [buyStep, setBuyStep] = useState<1 | 2 | null>(null);
+  const [buyStep, setBuyStep] = useState<PayStep>(null);
 
   const minted = useMemo(() => {
     const m: Record<string, number> = {};
@@ -154,9 +159,9 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     const entryKey = entry.type === "mint" ? "mint" : `${entry.editionNumber}`;
     setBusyKey(`${t.id}:${entryKey}`);
     if (!isNativePayToken(payToken, getNativeTokenForChain(chain))) {
-      setBuyStep(1);
+      setBuyStep({ part: 1, total: 2, label: `Swapping ${payToken.symbol} to ${getNativeTokenForChain(chain).symbol}` });
       await delay(900);
-      setBuyStep(2);
+      setBuyStep({ part: 2, total: 2, label: "Confirm purchase" });
       await delay(900);
     } else {
       await delay(450);
