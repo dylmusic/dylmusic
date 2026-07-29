@@ -13,6 +13,15 @@ export default function MultichainOverview({ album }: { album: Album }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [volumeView, setVolumeView] = useState<"total" | "v2">("total");
   const [burnedView, setBurnedView] = useState<"nfts" | "coin">("nfts");
+  // Tooltip visibility is click-driven (not just CSS :hover/:focus) because
+  // the info label sits inside the same tile that toggles Total/V2 on
+  // click — mobile has no hover at all, so tapping "Total Volume ⓘ" to
+  // read the tooltip was landing on the tile's own onClick instead and
+  // just flipping straight to V2 Volume before the tip ever showed
+  // (confirmed live). stopPropagation on the label's own click (below)
+  // is what actually stops that; this state is what makes tapping it
+  // show the tip instead of doing nothing.
+  const [showVolTip, setShowVolTip] = useState(false);
 
   useEffect(() => {
     setRefreshKey((k) => k + 1);
@@ -51,9 +60,21 @@ export default function MultichainOverview({ album }: { album: Album }) {
           </span>
           <span className="dash-quick-usd">${volumeUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
           {volumeView === "total" ? (
-            <span className="dash-quick-label dash-vol-info" tabIndex={0}>
+            <span
+              className="dash-quick-label dash-vol-info"
+              tabIndex={0}
+              role="button"
+              aria-label="Total Volume info"
+              onClick={(e) => {
+                // Without this, the click bubbles to the parent tile's
+                // onClick and toggles to V2 Volume instead of showing the
+                // tip — see the showVolTip comment above.
+                e.stopPropagation();
+                setShowVolTip((v) => !v);
+              }}
+            >
               Total Volume<span className="dash-vol-info-icon">ⓘ</span>
-              <span className="dash-vol-tip" role="tooltip">
+              <span className={`dash-vol-tip${showVolTip ? " show" : ""}`} role="tooltip">
                 Includes historical NFT trading volume across collections and $Dyl coin
               </span>
             </span>

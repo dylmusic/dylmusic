@@ -44,23 +44,25 @@ function randomPositions(
   // Jitter can move a cell up to ~20% of a cell's size off its grid center.
   const jitterPadX = cellW * 0.2;
   const jitterPadY = cellH * 0.2;
-  // `x`/`y` (and the CSS `left`/`top` they become) are the icon's TOP-LEFT
-  // corner, not its center — a real 84x76px box, not a point. Padding the
-  // avoid rect by jitter alone tested only the corner's position, letting
-  // the box's own width/height extend right past it into real content
-  // (confirmed live: icons landed with their CORNER just outside the
-  // measured content box, but their visible body still overlapping it).
-  // Padding the left/top edges by the icon's full size accounts for the
-  // box extending rightward/downward from that corner; right/bottom only
-  // need the jitter pad since a box anchored past the right/bottom edge
-  // only extends further away, never back in.
+  // `x`/`y` (and the CSS `left`/`top` they become) are the icon's CENTER —
+  // `.desktop-file` renders with `transform: translate(-50%, -50%)` — so a
+  // real 84x76px box extends symmetrically half its width/height in every
+  // direction from the point being tested here. An earlier version treated
+  // (x,y) as the box's top-left corner and padded the avoid rect by the
+  // icon's FULL size on only the left/top side (since the box could only
+  // extend right/down from a corner) — mathematically fine for preventing
+  // overlap, but it made the safe margin on the left of any centered
+  // content box strictly smaller than the safe margin on the right.
+  // Confirmed live: at common desktop widths every surviving grid column
+  // ended up on the right, none on the left — not random, just biased.
+  // Symmetric half-size padding on all four sides fixes that.
   const iconWPct = containerWidthPx > 0 ? (ICON_WIDTH_PX / containerWidthPx) * 100 : 0;
   const iconHPct = containerHeightPx > 0 ? (ICON_HEIGHT_PX / containerHeightPx) * 100 : 0;
-  const paddedAvoid = avoidRects.map((r) => ({
-    left: r.left - jitterPadX - iconWPct,
-    right: r.right + jitterPadX,
-    top: r.top - jitterPadY - iconHPct,
-    bottom: r.bottom + jitterPadY,
+  const padded = avoidRects.map((r) => ({
+    left: r.left - jitterPadX - iconWPct / 2,
+    right: r.right + jitterPadX + iconWPct / 2,
+    top: r.top - jitterPadY - iconHPct / 2,
+    bottom: r.bottom + jitterPadY + iconHPct / 2,
   }));
 
   const cells: { x: number; y: number }[] = [];
@@ -68,7 +70,7 @@ function randomPositions(
     for (let col = 0; col < GRID_COLS; col++) {
       const x = ((col + 0.5) / GRID_COLS) * 100;
       const y = ((row + 0.5) / GRID_ROWS) * 100;
-      if (paddedAvoid.some((r) => rectsOverlap(x, y, r))) continue;
+      if (padded.some((r) => rectsOverlap(x, y, r))) continue;
       cells.push({ x, y });
     }
   }
@@ -90,14 +92,21 @@ function randomPositions(
   // than safe cells, later tracks just don't get an icon this load rather
   // than guaranteeing an overlap — the render side skips anything with no
   // assigned position.
+  // With a center anchor, the box extends half its size in every
+  // direction, so the center itself needs to stay at least half a
+  // width/height away from each edge to avoid clipping off-screen.
+  const xMin = Math.max(1, iconWPct / 2);
+  const xMax = Math.min(99, 100 - iconWPct / 2);
+  const yMin = Math.max(2, iconHPct / 2);
+  const yMax = Math.min(98, 100 - iconHPct / 2);
   const count = Math.min(tracks.length, cells.length);
   for (let i = 0; i < count; i++) {
     const cell = cells[i];
     const jitterX = (Math.random() - 0.5) * cellW * 0.4;
     const jitterY = (Math.random() - 0.5) * cellH * 0.4;
     positions[tracks[i].id] = {
-      x: Math.min(97, Math.max(1, cell.x + jitterX)),
-      y: Math.min(97, Math.max(2, cell.y + jitterY)),
+      x: Math.min(xMax, Math.max(xMin, cell.x + jitterX)),
+      y: Math.min(yMax, Math.max(yMin, cell.y + jitterY)),
     };
   }
 
@@ -222,8 +231,13 @@ export default function DesktopFiles({
     const dxPct = ((e.clientX - drag.startClientX) / rect.width) * 100;
     const dyPct = ((e.clientY - drag.startClientY) / rect.height) * 100;
     if (Math.abs(dxPct) > 0.3 || Math.abs(dyPct) > 0.3) drag.moved = true;
-    const x = Math.min(96, Math.max(0, drag.startPos.x + dxPct));
-    const y = Math.min(96, Math.max(0, drag.startPos.y + dyPct));
+    // Same center-anchor half-size margin as the initial random placement
+    // (see randomPositions) — keeps a dragged icon from being pulled so far
+    // it clips off-screen, now that (x,y) is the icon's center, not corner.
+    const iconWPct = rect.width > 0 ? (ICON_WIDTH_PX / rect.width) * 100 : 0;
+    const iconHPct = rect.height > 0 ? (ICON_HEIGHT_PX / rect.height) * 100 : 0;
+    const x = Math.min(100 - iconWPct / 2, Math.max(iconWPct / 2, drag.startPos.x + dxPct));
+    const y = Math.min(100 - iconHPct / 2, Math.max(iconHPct / 2, drag.startPos.y + dyPct));
     setPositions((p) => ({ ...p, [drag.id]: { x, y } }));
   }
 
@@ -318,7 +332,11 @@ function computeMobileSlots(maxSlots: number): MobileSlot[] {
   const docBottom = document.documentElement.scrollHeight - MOBILE_TASKBAR_BUFFER;
   const vw = window.innerWidth;
   const iconW = 84;
-  const leftMin = 8;
+  // `left`/`top` are now the icon's CENTER (`.desktop-file` renders with
+  // `transform: translate(-50%, -50%)`, matching the desktop placement
+  // convention below) — leftMin has to clear half the icon's width or it
+  // clips off the left edge of the screen.
+  const leftMin = iconW / 2 + 4;
   // Floating chrome (the chat tab, the mini player when a track is
   // playing) lives fixed to the bottom-right corner, independent of
   // document scroll — bias icons toward the left ~60% of the screen so a
@@ -400,7 +418,7 @@ export function MobileDesktopFiles({
         return (
           <div
             key={t.id}
-            className={`desktop-file${active ? " active" : ""}`}
+            className={`desktop-file desktop-file-tap${active ? " active" : ""}`}
             style={{ top: `${slot.top}px`, left: `${slot.left}px` }}
             onClick={() => onTrackClick(t)}
           >

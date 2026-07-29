@@ -500,7 +500,14 @@ input {
   width: 100%;
   height: 100%;
   display: block;
-  touch-action: none;
+  /* Purely decorative (a mouse-parallax particle field, no touch/gesture
+     handling of its own) — but it sits fixed full-viewport behind every
+     page, so a real touch-action:none here silently ate every scroll
+     gesture that started over empty "background" space (which is most of
+     the screen on a mobile page with generous margins), not just ones
+     that landed on an actual icon. Confirmed live: touching anywhere the
+     canvas was the direct hit target blocked native scroll outright. */
+  touch-action: auto;
 }
 
 /* ---------- Desktop file icons ---------- */
@@ -513,6 +520,19 @@ input {
 
 .desktop-file {
   position: absolute;
+  /* `left`/`top` (from DesktopFiles.tsx) now mark the icon's CENTER, not
+     its top-left corner — the previous corner-anchored convention needed
+     the placement algorithm to reserve a full icon-width/height buffer on
+     only the left/top side of every candidate cell (since the box could
+     only ever extend right/down from its anchor), which made the safe
+     margin on the left genuinely smaller than the safe margin on the
+     right for any typical centered layout — confirmed live: at common
+     desktop widths (1366-1440px) every icon ended up clustered in the
+     single right-hand column that survived, none on the left, not
+     actually random. Center-anchoring makes the overlap math symmetric
+     (half the icon extends each direction), which is what the placement
+     code now assumes. */
+  transform: translate(-50%, -50%);
   width: 84px;
   display: flex;
   flex-direction: column;
@@ -526,6 +546,20 @@ input {
   user-select: none;
   color: #6b7a70;
   transition: color 0.15s ease;
+}
+
+/* MobileDesktopFiles' icons are plain tap targets (no pointer-based
+   dragging exists for them), so unlike the desktop drag-icons above they
+   have no reason to suppress the browser's native touch scrolling —
+   doing so anyway blocked scroll gestures that happened to start on one
+   of these icons, which sit directly in the middle of the scrollable
+   page (confirmed live: "click and drag on the background doesn't
+   scroll" traced to touch-action:none on elements sitting in that
+   scroll path, this being one of them alongside .visualizer-canvas
+   above). */
+.desktop-file-tap {
+  touch-action: auto;
+  cursor: pointer;
 }
 
 .desktop-file:active {
@@ -2111,7 +2145,8 @@ input {
 
 .dash-vol-info:hover .dash-vol-tip,
 .dash-vol-info:focus-visible .dash-vol-tip,
-.dash-vol-info:focus .dash-vol-tip {
+.dash-vol-info:focus .dash-vol-tip,
+.dash-vol-tip.show {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
@@ -5071,6 +5106,17 @@ body > div:has(> .landing-page) {
   flex-direction: column;
   width: min(300px, calc(100vw - 32px));
   height: 360px;
+  /* A flat 360px height overflowed off the top of the screen on any
+     viewport shorter than ~416px (360 + the 56px bottom offset) — most
+     commonly the visual viewport shrinking when the mobile on-screen
+     keyboard opens (confirmed live: top went to -16px at a 400px-tall
+     viewport, cutting off the titlebar's own close button). dvh tracks
+     that real shrunk viewport, unlike vh. `.gcw-log` below is already
+     `flex:1; min-height:0; overflow-y:auto`, so when max-height forces
+     the window shorter than 360px, the message log is what shrinks and
+     scrolls internally — the titlebar and composer (both flex-shrink:0)
+     stay fully on-screen either way. */
+  max-height: calc(100dvh - 76px);
   background: #0a0e0c;
   border-top: 2px solid rgba(255, 255, 255, 0.4);
   border-left: 2px solid rgba(255, 255, 255, 0.4);
@@ -5082,6 +5128,7 @@ body > div:has(> .landing-page) {
 
 .gcw-window.gcw-lifted {
   bottom: 270px;
+  max-height: calc(100dvh - 290px);
 }
 
 .gcw-titlebar {
@@ -5278,8 +5325,22 @@ body > div:has(> .landing-page) {
   background: rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(2px);
   display: flex;
-  align-items: center;
-  justify-content: center;
+  /* "safe center" (not plain "center") — the modal's real content height
+     (~530px) is taller than a lot of real mobile viewports once the
+     browser's own chrome (address bar, home-indicator bar) is counted,
+     not just the raw device height. Plain center-alignment on an
+     over-height flex child clips its START edge with no way to scroll up
+     to it, even with overflow-y:auto on the container (confirmed live at
+     a 500px-tall viewport — a real, common effective height once Safari's
+     chrome is factored in, not an extreme edge case). "safe" is the
+     standard CSS Box Alignment keyword for exactly this: it falls back to
+     start-alignment instead of clipping whenever the centered content
+     would overflow. (A `display:grid; place-items:center` version was
+     tried first and made things worse — it mispositioned the window
+     entirely off to the side, so this stays plain flex.) */
+  align-items: safe center;
+  justify-content: safe center;
+  overflow-y: auto;
   padding: 20px;
   /* Explicit, not inherited — GlobalTaskbar (and this modal) render inside
      .landing-page on the homepage, which is pointer-events:none by design
