@@ -76,6 +76,22 @@ export default function MultichainOverview({ album }: { album: Album }) {
               Total Volume<span className="dash-vol-info-icon">ⓘ</span>
               <span className={`dash-vol-tip${showVolTip ? " show" : ""}`} role="tooltip">
                 Includes historical NFT trading volume across collections and $Dyl coin
+                {/* A dedicated close button, not just tap-the-flag-to-close —
+                    mobile Safari's own hover-then-click quirk made the
+                    tap-anywhere approach unreliable (sometimes needed 2
+                    taps), so this is a plain, unambiguous single-tap close
+                    that never depends on hover state at all. */}
+                <button
+                  type="button"
+                  className="dash-vol-tip-close"
+                  aria-label="Close"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowVolTip(false);
+                  }}
+                >
+                  ✕
+                </button>
               </span>
             </span>
           ) : (

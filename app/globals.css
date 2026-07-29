@@ -652,7 +652,17 @@ input {
   display: flex;
   flex-direction: column;
   align-items: center;
-  pointer-events: auto;
+  /* none on the container itself, auto only on the real interactive pieces
+     below (chain pills, Enter App, chat window, burn button) — same
+     opt-in-per-control pattern as .landing/.landing-page/.landing-inner
+     above. Setting pointer-events:none on just the decorative text lines
+     (.landing-tagline/h1/.landing-price) wasn't enough on its own: this
+     container's own box still spans the full column (including the empty
+     margin gaps between/around those lines), so a click landing in one of
+     those gaps still hit .landing-content itself instead of falling
+     through to a music icon rendered behind it — confirmed live via a
+     real elementFromPoint sweep before this change. */
+  pointer-events: none;
 }
 
 .landing-logo {
@@ -663,6 +673,17 @@ input {
   opacity: 0.95;
 }
 
+/* This block (tagline + h1 + both price lines) sits directly on top of the
+   desktop music icons — Dylan: it "blocks most of the users clicks on
+   music icons, especially on mobile," since an icon rendering underneath
+   is visible through/around the text and looks clickable but isn't.
+   pointer-events:none here lets a tap pass straight through to whatever's
+   actually underneath (an icon, or nothing) instead of always landing on
+   this plain, non-interactive text — none of these four elements have
+   their own click handlers, so nothing here is actually lost. Scoped to
+   just these text lines, not their parent .landing-content, so the real
+   interactive elements below (Enter App, chain pills, chat mini-window,
+   burn button) are completely unaffected. */
 .landing-tagline {
   font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
   font-size: 12px;
@@ -670,6 +691,7 @@ input {
   text-transform: uppercase;
   color: var(--accent);
   margin-bottom: 11px;
+  pointer-events: none;
 }
 
 .landing-content h1 {
@@ -680,6 +702,7 @@ input {
   font-weight: 500;
   letter-spacing: 0.01em;
   color: #cfd9d2;
+  pointer-events: none;
 }
 
 .landing-price {
@@ -689,6 +712,7 @@ input {
   letter-spacing: 0.01em;
   color: #cfd9d2;
   margin-bottom: 3.36px;
+  pointer-events: none;
 }
 
 /* Note: :last-of-type only counts by tag name among ALL siblings, not
@@ -701,6 +725,7 @@ input {
 
 .landing-chain-select {
   margin-bottom: 18px;
+  pointer-events: auto;
 }
 
 /* Same window chrome as the /chat AIM window, sized to content instead of
@@ -710,6 +735,7 @@ input {
   width: 100%;
   max-width: 340px;
   margin: 0 0 18px;
+  pointer-events: auto;
   background: #0a0e0c;
   border-top: 2px solid rgba(255, 255, 255, 0.4);
   border-left: 2px solid rgba(255, 255, 255, 0.4);
@@ -889,6 +915,7 @@ input {
   box-shadow: 0 8px 30px color-mix(in srgb, var(--accent) 18%, transparent);
   transition: box-shadow 0.15s ease;
   margin-bottom: 18px;
+  pointer-events: auto;
 }
 
 .btn-connect:hover {
@@ -942,6 +969,7 @@ input {
   gap: 8px;
   width: 100%;
   max-width: 340px;
+  pointer-events: auto;
   background: var(--accent);
   color: #04140a;
   font-weight: 700;
@@ -2137,14 +2165,24 @@ input {
   z-index: 20;
   width: 220px;
   max-width: 60vw;
+  box-sizing: border-box;
   background: #12161a;
   color: #cfd9d2;
   text-transform: none;
   letter-spacing: normal;
+  /* .dash-vol-info (this element's own parent) sets white-space:nowrap on
+     itself to stop the "TOTAL VOLUME" label from wrapping — nowrap is
+     inherited, so without overriding it back to normal here, this tip's
+     whole sentence rendered as one unbreakable line, overflowed straight
+     past its own 220px box (overflow-x is visible below, not clipped),
+     and got cut off wherever the screen edge happened to land. The box
+     itself was always the right width; only the text inside it was
+     silently ignoring that width. */
+  white-space: normal;
   font-size: 12px;
   line-height: 1.5;
   font-weight: 400;
-  padding: 10px 12px;
+  padding: 10px 30px 10px 12px;
   border-top: 2px solid rgba(255, 255, 255, 0.3);
   border-left: 2px solid rgba(255, 255, 255, 0.3);
   border-right: 2px solid rgba(0, 0, 0, 0.5);
@@ -2155,6 +2193,28 @@ input {
   transform: translateY(-4px);
   transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
   pointer-events: none;
+}
+
+.dash-vol-tip-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #cfd9d2;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: none;
+}
+
+.dash-vol-tip.show .dash-vol-tip-close {
+  pointer-events: auto;
 }
 
 .dash-vol-info:hover .dash-vol-tip,
