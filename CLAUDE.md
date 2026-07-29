@@ -450,6 +450,27 @@ things get conflated here, worth being precise about before building:
   OpenSea's API) — not a default requirement. Solana's equivalent
   (Magic Eden etc.) is NOT yet verified the same way — check before
   assuming parity there.
+- **Decided 2026-07-28: resale (sell) orders MUST actually show up on
+  opensea.io** — Dylan: "make sure that our sell orders actually show on
+  Opensea. For buys it doesnt matter" (primary mints need nothing — a mint
+  is just a `Transfer` from the zero address, OpenSea indexes that as
+  ownership automatically regardless of what contract mediated it, no
+  order/listing involved at all). This is a real, non-trivial requirement
+  for whenever the resale/order-book feature gets built for real: creating
+  a Seaport order and just holding it ourselves is NOT enough — per
+  OpenSea's own docs, an order only appears on opensea.io if it's actually
+  submitted through **OpenSea's own Order Posting API**, which is also
+  where their 1% fee gets embedded (only actually charged if/when the sale
+  completes THROUGH them — listing itself is free beyond normal gas).
+  Confirmed live via docs.opensea.io + support.opensea.io before recording
+  this, not assumed. So: when a user lists an edition for resale on
+  dylmusic, the real implementation needs to POST that listing to OpenSea's
+  API (not just create/store a raw Seaport order locally) for it to be
+  visible there — a "resale that only lives on our own site" alternative
+  (skip OpenSea's API, no fee, but invisible on opensea.io) was explicitly
+  ruled out by this decision. Not built yet — recorded here so the
+  eventual real order-book implementation doesn't quietly ship the
+  our-site-only version by default.
 
 ---
 
