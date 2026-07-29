@@ -12,7 +12,12 @@ export function generateMetadata({ params }: { params: { slug: string } }): Meta
     title: album.title,
     description,
     openGraph: { title: `${album.title} | Dyl`, description, images: [{ url: album.coverImage }] },
-    twitter: { title: `${album.title} | Dyl`, description, images: [album.coverImage] },
+    twitter: {
+      card: "summary_large_image",
+      title: `${album.title} | Dyl`,
+      description,
+      images: [album.coverImage],
+    },
   };
 }
 

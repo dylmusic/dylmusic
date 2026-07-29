@@ -2,10 +2,15 @@ import type { Metadata } from "next";
 import { CRYPTO_RICH_DELUXE } from "@/lib/albums";
 import MultichainOverview from "@/components/MultichainOverview";
 
+const TITLE = "Dashboard";
+const DESCRIPTION =
+  "Live stats for Dyl's Music NFTs — mint volume, editions minted per chain, streaming numbers, and NFT sales, updated in real time.";
+
 export const metadata: Metadata = {
-  title: "Dashboard",
-  description:
-    "Live stats for Dyl's Music NFTs — mint volume, editions minted per chain, streaming numbers, and NFT sales, updated in real time.",
+  title: TITLE,
+  description: DESCRIPTION,
+  openGraph: { title: `${TITLE} | Dyl`, description: DESCRIPTION },
+  twitter: { card: "summary_large_image", title: `${TITLE} | Dyl`, description: DESCRIPTION },
 };
 
 export default function DashboardPage() {

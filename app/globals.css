@@ -131,7 +131,13 @@ input {
 
 .landing {
   position: relative;
-  min-height: 100vh;
+  /* dvh, not vh — real mobile browsers compute vh against the LARGEST the
+     viewport ever gets (address bar hidden), taller than what's actually
+     on screen most of the time. A min-height based on that inflated
+     number can force extra flex space below content that's already
+     shorter than the real visible screen, reading as scrollable dead
+     space past the real end of the page. */
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2152,6 +2158,18 @@ input {
   transform: translateY(0);
 }
 
+/* The base rule's pointer-events:none is what a hover-only tooltip needs
+   (so it never steals a click meant for something else while invisible) —
+   but once it's actually shown via a tap (no hover on mobile), that same
+   none stops a tap ON the tooltip from registering at all, so it passed
+   straight through instead of bubbling up to .dash-vol-info's own onClick
+   toggle, which is what should close it. Only re-enabled for the
+   click-driven .show state, not the hover/focus states, since a mouse
+   user moving off a hover tooltip to dismiss it is already fine as-is. */
+.dash-vol-tip.show {
+  pointer-events: auto;
+}
+
 .chart-card {
   padding: 18px 18px 12px;
   border-radius: 14px;
@@ -2736,13 +2754,12 @@ input {
 }
 
 @media (max-width: 640px) {
-  /* .app-header wraps to 2 rows on mobile (see the flex-wrap fix above) —
-     .chat-page-wrap's height calc still assumed the old 1-row header
-     height, leaving the AIM window taller than the actual remaining
-     viewport and forcing the whole page to scroll just to see the
-     composer at the bottom. */
+  /* Height itself is set in the un-scoped .chat-page-wrap rule further
+     down this file, not here — a same-specificity plain rule placed AFTER
+     an @media override always wins regardless of the media query
+     (confirmed live: this block's own height was being silently ignored
+     on every real mobile viewport). See that rule's own comment. */
   .chat-page-wrap {
-    height: calc(100vh - 172px);
     padding: 12px 16px;
   }
 
@@ -2889,11 +2906,33 @@ input {
 /* ---------- Chat ---------- */
 
 .chat-page-wrap {
-  height: calc(100vh - 128px);
+  /* dvh, not vh — vh on real mobile browsers is based on the viewport
+     WITHOUT the address bar (the largest it ever gets), taller than what
+     is actually visible whenever that bar is showing, which is most of
+     the time. That gap is exactly what let the AIM window's bottom
+     (composer included) render underneath the site's own fixed bottom
+     taskbar — the wrap thought it had more room than the screen actually
+     showed. */
+  height: calc(100dvh - 128px);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 16px 24px;
+}
+
+/* Placed AFTER the base rule above on purpose — a same-specificity
+   @media override earlier in the file loses to a later plain rule
+   regardless of the media query (recurring gotcha, see CLAUDE.md "Mobile
+   CSS gotcha"). 128px only ever accounted for a single-row desktop
+   header; on mobile .app-header wraps to 2 rows (~101px tall, see the
+   flex-wrap fix elsewhere in this file) and the site's own fixed bottom
+   taskbar (40px) also needs clearing, which nothing here was doing
+   before — confirmed live, the wrap's own box measured 13px past the
+   taskbar's top edge on a real mobile viewport size. */
+@media (max-width: 640px) {
+  .chat-page-wrap {
+    height: calc(100dvh - 145px);
+  }
 }
 
 /* AIM-room vibe: a real "window" — tall and narrow, not a wide feed. */

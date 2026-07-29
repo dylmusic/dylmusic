@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
 
+const TITLE = "Beats";
+const DESCRIPTION = "Buy and lease beats from producers — coming soon on Dyl's onchain music platform.";
+
 export const metadata: Metadata = {
-  title: "Beats",
-  description: "Buy and lease beats from producers — coming soon on Dyl's onchain music platform.",
+  title: TITLE,
+  description: DESCRIPTION,
+  openGraph: { title: `${TITLE} | Dyl`, description: DESCRIPTION },
+  twitter: { card: "summary_large_image", title: `${TITLE} | Dyl`, description: DESCRIPTION },
 };
 
 export default function BeatsPage() {

@@ -1,10 +1,15 @@
 import type { Metadata } from "next";
 import SwapCard from "@/components/SwapCard";
 
+const TITLE = "Swap";
+const DESCRIPTION =
+  "Swap any token cross-chain for $Dyl or any curated token on Robinhood Chain, Base, Ethereum, or Solana.";
+
 export const metadata: Metadata = {
-  title: "Swap",
-  description:
-    "Swap any token cross-chain for $Dyl or any curated token on Robinhood Chain, Base, Ethereum, or Solana.",
+  title: TITLE,
+  description: DESCRIPTION,
+  openGraph: { title: `${TITLE} | Dyl`, description: DESCRIPTION },
+  twitter: { card: "summary_large_image", title: `${TITLE} | Dyl`, description: DESCRIPTION },
 };
 
 export default function SwapPage() {
