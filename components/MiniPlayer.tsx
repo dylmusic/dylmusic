@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChainKey, Track } from "@/lib/albums";
 import { useTrackCommerce } from "@/lib/useTrackCommerce";
 import ListingsModal from "./ListingsModal";
@@ -55,6 +55,31 @@ export default function MiniPlayer({
     null
   );
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // The floating chat pill (GlobalChatWidget) needs to sit just above this
+  // bar without overlapping it. A hardcoded lift constant has already gone
+  // stale twice (desktop vs. the much shorter mobile-collapsed layout) —
+  // publish the REAL measured gap from the viewport bottom to this bar's
+  // own top edge as a CSS var instead, so the chat pill tracks whatever
+  // this component's actual on-screen size/position is, on any breakpoint,
+  // without needing a second matching constant maintained elsewhere.
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    function measure() {
+      const rect = el!.getBoundingClientRect();
+      document.documentElement.style.setProperty("--miniplayer-lift", `${window.innerHeight - rect.top}px`);
+    }
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+      document.documentElement.style.removeProperty("--miniplayer-lift");
+    };
+  }, [pos]);
 
   function handleDragStart(e: React.PointerEvent) {
     const el = rootRef.current;

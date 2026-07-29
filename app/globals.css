@@ -5220,14 +5220,15 @@ body > div:has(> .landing-page) {
 }
 
 .gcw-tab.gcw-lifted {
-  /* Was 328px, a rough guess that left ~65px of dead space above the real
-     MiniPlayer (measured live: default-docked height is 205px + its own
-     56px bottom offset = 261px from the viewport bottom to its top edge).
-     270px gives a small ~9px gap instead. Only matches the default docked
-     position — MiniPlayer is itself draggable, so this can't follow it
-     once dragged elsewhere (pre-existing, documented limitation, not
-     addressed here). */
-  bottom: 270px;
+  /* Was a hardcoded guess (328px, then 270px) — went stale the moment a
+     mobile-collapsed MiniPlayer layout (shorter, different bottom offset)
+     was introduced without updating this constant to match. MiniPlayer
+     now publishes its own real measured position as --miniplayer-lift
+     (see MiniPlayer.tsx), so this tracks the actual bar on any breakpoint
+     instead of a second number that has to be kept in sync by hand. The
+     270px fallback only matters for the brief moment before that
+     measurement effect runs. */
+  bottom: calc(var(--miniplayer-lift, 270px) + 9px);
 }
 
 .gcw-tab-dot {
@@ -5280,8 +5281,8 @@ body > div:has(> .landing-page) {
 }
 
 .gcw-window.gcw-lifted {
-  bottom: 270px;
-  max-height: calc(100dvh - 290px);
+  bottom: calc(var(--miniplayer-lift, 270px) + 9px);
+  max-height: calc(100dvh - (var(--miniplayer-lift, 270px) + 9px) - 20px);
 }
 
 .gcw-titlebar {
