@@ -79,3 +79,23 @@ export async function createSiteListings(
   const useCase = await seaport.createBulkOrders(inputs, offerer);
   return useCase.executeAllActions();
 }
+
+/**
+ * Invalidates EVERY previously-signed Seaport order from this wallet on
+ * whichever chain the signer is connected to, in one on-chain transaction
+ * (Seaport's own `incrementCounter` — any order signed under the old
+ * counter value stops verifying, permanently). This is the real mechanism
+ * behind "reprice & relist": our own site's listings are signed to never
+ * expire, so just signing new ones on top would leave the OLD (cheaper)
+ * orders still fulfillable by anyone holding a cached copy. Since the
+ * OpenSea-side listing for the same edition is also a Seaport order signed
+ * by this same wallet (see lib/openSeaListing.ts), this one call
+ * invalidates both halves of every past dual-listing at once — no separate
+ * OpenSea-side cancel call needed.
+ */
+export async function cancelAllListings(signer: JsonRpcSigner): Promise<void> {
+  const seaport = new Seaport(signer as unknown as ConstructorParameters<typeof Seaport>[0]);
+  const offerer = await signer.getAddress();
+  const tx = await seaport.bulkCancelOrders(offerer).transact();
+  await tx.wait();
+}

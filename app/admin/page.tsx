@@ -17,10 +17,11 @@ import { ALBUMS, type ChainKey } from "@/lib/albums";
 import { getNativeTokenForChain } from "@/lib/dylTokens";
 import { getTokenUsdPrice } from "@/lib/tokenUsdPrice";
 import { priceUsdForEdition } from "@/lib/editionPricing";
-import { encodeTokenId } from "@/lib/tokenIdScheme";
+import { encodeTokenId, decodeTokenId } from "@/lib/tokenIdScheme";
 import { viemWalletClientToEthersSigner } from "@/lib/ethersSigner";
-import { createSiteListings } from "@/lib/siteListing";
+import { createSiteListings, cancelAllListings } from "@/lib/siteListing";
 import { createOpenSeaListings, getOpenSeaSdk, isOpenSeaListable } from "@/lib/openSeaListing";
+import { DylCollectionAbi } from "@/lib/contractDeploy";
 import type { Address } from "viem";
 
 interface ChatMessage {
@@ -47,7 +48,16 @@ function truncate(addr: string) {
 
 type DeployPhase =
   | {
-      step: "implementation" | "proxy" | "albumBuyer" | "newImplementation" | "upgrade" | "mint" | "list-site" | "list-opensea";
+      step:
+        | "implementation"
+        | "proxy"
+        | "albumBuyer"
+        | "newImplementation"
+        | "upgrade"
+        | "mint"
+        | "cancel"
+        | "list-site"
+        | "list-opensea";
       label: string;
     }
   | { step: "done"; label: string }
@@ -301,6 +311,137 @@ export default function AdminPage() {
     }
   }
 
+  // "Reprice & Relist" — for adjusting already-minted editions #1-10 to a
+  // fresh USD peg (crypto moves, the original listing's native-currency
+  // price doesn't) without ever building a price oracle/keeper — this is a
+  // manual admin action Dylan triggers when he wants to, same "let me
+  // manually decide" call as the rest of this pricing scheme.
+  //
+  // The real risk this guards against: our own site's listings are signed
+  // to never expire, so just signing NEW orders at the new price would
+  // leave the OLD (now underpriced) orders still fulfillable by anyone
+  // holding a cached copy — cancelAllListings (Seaport's own
+  // incrementCounter, one on-chain tx) invalidates every previously-signed
+  // order from this wallet on this chain, both the site half AND the
+  // OpenSea half at once, before any new ones are signed. Re-listing
+  // through OpenSea's API also happens to reset their 6-month expiry clock
+  // for free, since it's a brand new listing submission either way.
+  //
+  // Only re-lists editions the admin wallet STILL owns (tokensOfOwner,
+  // read live on-chain) — anything already sold to a real buyer isn't
+  // admin's to relist, and simply won't come back from that call.
+  async function handleRepriceAndRelist(target: ContractTarget) {
+    if (!target.address || !address || !target.chainId) return;
+    const chainKey = target.key as ChainKey; // only called for the 3 EVM targets — see the `evm` check at the call site
+    try {
+      await ensureChain(target);
+
+      const owned = (await publicClient!.readContract({
+        address: target.address as Address,
+        abi: DylCollectionAbi,
+        functionName: "tokensOfOwner",
+        args: [address as Address],
+      })) as bigint[];
+
+      const editions = owned
+        .map((id) => ({ tokenId: Number(id), ...decodeTokenId(Number(id)) }))
+        .filter((e) => e.editionNumber >= 1 && e.editionNumber <= 10);
+
+      if (editions.length === 0) {
+        setPhase((p) => ({
+          ...p,
+          [target.key]: { step: "done", label: "Nothing to reprice — no admin-held #1-10 editions on this chain." },
+        }));
+        return;
+      }
+
+      const nativeToken = getNativeTokenForChain(chainKey);
+      const nativeUsd = await getTokenUsdPrice(nativeToken);
+      if (!nativeUsd) {
+        throw new Error(`Could not price ${nativeToken.symbol} right now — try again shortly.`);
+      }
+      const priced = editions.map((e) => ({
+        tokenId: e.tokenId,
+        priceWei: BigInt(Math.round((priceUsdForEdition(e.editionNumber) / nativeUsd) * 1e18)),
+      }));
+
+      const freshClient = await getWalletClient(wagmiConfig, { chainId: target.chainId });
+      const signer = await viemWalletClientToEthersSigner(freshClient);
+
+      setPhase((p) => ({
+        ...p,
+        [target.key]: { step: "cancel", label: `1/3 — Cancelling ${editions.length} old listing(s)…` },
+      }));
+      await cancelAllListings(signer);
+
+      setPhase((p) => ({
+        ...p,
+        [target.key]: { step: "list-site", label: `2/3 — Signing ${priced.length} fresh listings for our own site…` },
+      }));
+      const siteOrders = await createSiteListings(
+        signer,
+        priced.map((e) => ({
+          collectionAddress: target.address as string,
+          tokenId: e.tokenId,
+          priceWei: e.priceWei,
+          sellerAddress: address,
+        }))
+      );
+      await fetch("/api/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          wallet: address,
+          listings: siteOrders.map((o, idx) => ({
+            chainId: target.chainId,
+            collectionAddress: target.address,
+            tokenId: priced[idx].tokenId,
+            priceWei: priced[idx].priceWei.toString(),
+            sellerAddress: address,
+            parameters: o.parameters,
+            signature: o.signature,
+            createdAt: Date.now(),
+          })),
+        }),
+      });
+
+      let openSeaFailures = 0;
+      if (isOpenSeaListable(chainKey)) {
+        setPhase((p) => ({
+          ...p,
+          [target.key]: { step: "list-opensea", label: `3/3 — Posting ${priced.length} fresh listings to OpenSea (6-month expiry)…` },
+        }));
+        const sdk = getOpenSeaSdk(signer, chainKey);
+        const result = await createOpenSeaListings(
+          sdk,
+          priced.map((e) => ({
+            collectionAddress: target.address as string,
+            tokenId: e.tokenId,
+            priceWei: e.priceWei,
+            sellerAddress: address,
+          }))
+        );
+        openSeaFailures = result.failed.length;
+        if (openSeaFailures > 0) {
+          console.error(`OpenSea relisting failures for ${target.chainName}:`, result.failed);
+        }
+      }
+
+      setPhase((p) => ({
+        ...p,
+        [target.key]: {
+          step: "done",
+          label:
+            openSeaFailures > 0
+              ? `Repriced + relisted ${priced.length} editions. ${openSeaFailures} OpenSea listing(s) failed — see console.`
+              : `Repriced + relisted ${priced.length} editions at the current USD peg, on our site and OpenSea.`,
+        },
+      }));
+    } catch (err) {
+      setPhase((p) => ({ ...p, [target.key]: { step: "error", label: describeError(err) } }));
+    }
+  }
+
   function describeError(err: unknown): string {
     if (err instanceof Error) return err.message;
     return "Unknown error — see console.";
@@ -438,6 +579,14 @@ export default function AdminPage() {
                         >
                           Mint #1-10 &amp; List
                         </button>
+                        <button
+                          className="admin-contract-btn"
+                          disabled={busy(c.key) || !c.address}
+                          title="Re-prices every #1-10 edition the admin wallet still holds to the current USD peg (cancels all old listings on-chain first, so nothing stays fulfillable at the old price), and re-lists on our site and OpenSea — which also resets OpenSea's 6-month listing clock."
+                          onClick={() => handleRepriceAndRelist(c)}
+                        >
+                          Reprice &amp; Relist
+                        </button>
                       </div>
                     ) : (
                       <div className="admin-contract-actions">
@@ -448,9 +597,14 @@ export default function AdminPage() {
                           Upgrade
                         </button>
                         {c.key !== "marketplace" && (
-                          <button className="admin-contract-btn" disabled>
-                            Mint #1-10 &amp; List
-                          </button>
+                          <>
+                            <button className="admin-contract-btn" disabled>
+                              Mint #1-10 &amp; List
+                            </button>
+                            <button className="admin-contract-btn" disabled>
+                              Reprice &amp; Relist
+                            </button>
+                          </>
                         )}
                       </div>
                     )}
