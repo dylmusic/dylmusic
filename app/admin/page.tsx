@@ -22,6 +22,10 @@ import { viemWalletClientToEthersSigner } from "@/lib/ethersSigner";
 import { createSiteListings, cancelAllListings } from "@/lib/siteListing";
 import { createOpenSeaListings, getOpenSeaSdk, isOpenSeaListable } from "@/lib/openSeaListing";
 import { DylCollectionAbi } from "@/lib/contractDeploy";
+import { useSolanaWallet, getConnection } from "@/lib/solana";
+import { createSolanaAdminUmi, deploySolanaCollection, deployTrackAndMintAdmin, filterOwnedMints } from "@/lib/solanaAdmin";
+import { listEditionsOnMagicEden, repriceEditionsOnMagicEden } from "@/lib/magicEdenListing";
+import type { SolanaMintRecord } from "@/lib/solanaMintsStore";
 import type { Address } from "viem";
 
 interface ChatMessage {
@@ -57,7 +61,10 @@ type DeployPhase =
         | "mint"
         | "cancel"
         | "list-site"
-        | "list-opensea";
+        | "list-opensea"
+        | "deploy"
+        | "list"
+        | "reprice";
       label: string;
     }
   | { step: "done"; label: string }
@@ -70,6 +77,7 @@ export default function AdminPage() {
   const { switchChainAsync } = useSwitchChain();
   const publicClient = usePublicClient();
   const allowed = isAdminWallet(address);
+  const solWallet = useSolanaWallet();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatConfigured, setChatConfigured] = useState<boolean | null>(null);
@@ -442,6 +450,169 @@ export default function AdminPage() {
     }
   }
 
+  // ---- Solana: same three admin actions as the EVM chains, real per-chain
+  // shape differences (see the comments inside lib/solanaAdmin.ts and
+  // lib/magicEdenListing.ts) — one Candy Machine per track instead of one
+  // mint call into a shared contract, Magic Eden instead of OpenSea/Seaport,
+  // and no on-chain enumeration of admin holdings (tracked in Redis at mint
+  // time instead, see lib/solanaMintsStore.ts). Requires BOTH the connected
+  // EVM admin wallet (gates /admin itself) AND a connected Phantom wallet
+  // (signs every Solana instruction) — same dual-wallet requirement the
+  // real cross-chain swap flow already established.
+
+  async function handleDeploySolanaCollection() {
+    const provider = solWallet.getProvider();
+    if (!provider || !solWallet.address) return;
+    try {
+      setPhase((p) => ({ ...p, solana: { step: "deploy", label: "Deploying Collection NFT…" } }));
+      const umi = createSolanaAdminUmi(provider);
+      const { mint } = await deploySolanaCollection(umi);
+      setTargetField("solana", { address: mint });
+      setPhase((p) => ({
+        ...p,
+        solana: { step: "done", label: `Collection deployed: ${truncate(mint)} — commit this into lib/admin.ts CONTRACT_TARGETS.` },
+      }));
+    } catch (err) {
+      setPhase((p) => ({ ...p, solana: { step: "error", label: describeError(err) } }));
+    }
+  }
+
+  async function handleSolanaMintAndList(target: ContractTarget) {
+    const provider = solWallet.getProvider();
+    if (!provider || !solWallet.address || !target.address) return;
+    const tracks = ALBUMS.flatMap((a) => a.tracks);
+    try {
+      const umi = createSolanaAdminUmi(provider);
+      const minted: SolanaMintRecord[] = [];
+
+      for (let i = 0; i < tracks.length; i++) {
+        const track = tracks[i];
+        const result = await deployTrackAndMintAdmin(
+          umi,
+          { trackId: track.index, title: track.title, collectionMint: target.address as string, editions: 100, priceLamports: 300000 },
+          (label) => setPhase((p) => ({ ...p, solana: { step: "mint", label: `Track ${i + 1}/${tracks.length} — ${label}` } }))
+        );
+        for (const e of result.editions) {
+          minted.push({ trackId: track.index, editionNumber: e.editionNumber, tokenId: e.tokenId, mint: e.mint, candyMachine: result.candyMachine });
+        }
+      }
+
+      const nativeToken = getNativeTokenForChain("solana");
+      const solUsd = await getTokenUsdPrice(nativeToken);
+      if (!solUsd) throw new Error("Minted all editions, but could not price SOL right now — list again shortly.");
+
+      const priced: SolanaMintRecord[] = minted.map((m) => ({
+        ...m,
+        listedPriceSol: priceUsdForEdition(m.editionNumber) / solUsd,
+      }));
+
+      setPhase((p) => ({ ...p, solana: { step: "list", label: `Listing ${priced.length} editions on Magic Eden…` } }));
+      const connection = getConnection();
+      const listResult = await listEditionsOnMagicEden(
+        provider,
+        connection,
+        solWallet.address,
+        priced.map((m) => ({ mint: m.mint, priceSol: m.listedPriceSol! })),
+        (done, total) => setPhase((p) => ({ ...p, solana: { step: "list", label: `Listing on Magic Eden… ${done}/${total}` } }))
+      );
+
+      await fetch("/api/solana-mints", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet: address, mints: priced }),
+      });
+
+      if (listResult.failed.length > 0) console.error("Magic Eden listing failures:", listResult.failed);
+      setPhase((p) => ({
+        ...p,
+        solana: {
+          step: "done",
+          label:
+            listResult.failed.length > 0
+              ? `Minted ${priced.length} editions across ${tracks.length} tracks. ${listResult.failed.length} Magic Eden listing(s) failed — see console.`
+              : `Minted + listed ${priced.length} editions across ${tracks.length} tracks on Magic Eden.`,
+        },
+      }));
+    } catch (err) {
+      setPhase((p) => ({ ...p, solana: { step: "error", label: describeError(err) } }));
+    }
+  }
+
+  async function handleSolanaReprice() {
+    const provider = solWallet.getProvider();
+    if (!provider || !solWallet.address) return;
+    try {
+      setPhase((p) => ({ ...p, solana: { step: "reprice", label: "Checking current holdings…" } }));
+      const connection = getConnection();
+      const res = await fetch("/api/solana-mints");
+      const { mints } = (await res.json()) as { mints: SolanaMintRecord[] };
+      const eligible = mints.filter((m) => m.editionNumber >= 1 && m.editionNumber <= 10);
+      const owned = await filterOwnedMints(connection, eligible, solWallet.address);
+
+      if (owned.length === 0) {
+        setPhase((p) => ({ ...p, solana: { step: "done", label: "Nothing to reprice — no admin-held #1-10 editions on Solana." } }));
+        return;
+      }
+
+      const nativeToken = getNativeTokenForChain("solana");
+      const solUsd = await getTokenUsdPrice(nativeToken);
+      if (!solUsd) throw new Error("Could not price SOL right now — try again shortly.");
+
+      const alreadyListed = owned.filter((m) => m.listedPriceSol !== undefined);
+      const notYetListed = owned.filter((m) => m.listedPriceSol === undefined);
+
+      setPhase((p) => ({ ...p, solana: { step: "reprice", label: `Repricing ${alreadyListed.length} listing(s)…` } }));
+      const repriceResult = await repriceEditionsOnMagicEden(
+        provider,
+        connection,
+        solWallet.address,
+        alreadyListed.map((m) => ({
+          mint: m.mint,
+          currentPriceSol: m.listedPriceSol!,
+          newPriceSol: priceUsdForEdition(m.editionNumber) / solUsd,
+        })),
+        (done, total) => setPhase((p) => ({ ...p, solana: { step: "reprice", label: `Repricing… ${done}/${total}` } }))
+      );
+
+      let listFailures = 0;
+      if (notYetListed.length > 0) {
+        setPhase((p) => ({ ...p, solana: { step: "reprice", label: `Listing ${notYetListed.length} not-yet-listed edition(s)…` } }));
+        const listResult = await listEditionsOnMagicEden(
+          provider,
+          connection,
+          solWallet.address,
+          notYetListed.map((m) => ({ mint: m.mint, priceSol: priceUsdForEdition(m.editionNumber) / solUsd }))
+        );
+        listFailures = listResult.failed.length;
+      }
+
+      const updated: SolanaMintRecord[] = owned.map((m) => ({
+        ...m,
+        listedPriceSol: priceUsdForEdition(m.editionNumber) / solUsd,
+      }));
+      await fetch("/api/solana-mints", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet: address, mints: updated }),
+      });
+
+      const failures = repriceResult.failed.length + listFailures;
+      if (failures > 0) console.error("Magic Eden reprice failures:", repriceResult.failed);
+      setPhase((p) => ({
+        ...p,
+        solana: {
+          step: "done",
+          label:
+            failures > 0
+              ? `Repriced ${owned.length} edition(s) to the current USD peg. ${failures} Magic Eden call(s) failed — see console.`
+              : `Repriced ${owned.length} edition(s) to the current USD peg on Magic Eden.`,
+        },
+      }));
+    } catch (err) {
+      setPhase((p) => ({ ...p, solana: { step: "error", label: describeError(err) } }));
+    }
+  }
+
   function describeError(err: unknown): string {
     if (err instanceof Error) return err.message;
     return "Unknown error — see console.";
@@ -531,12 +702,25 @@ export default function AdminPage() {
               of these. Steps 1–4 are required; step 5 (marketplace) is optional — only do it if
               OpenSea&apos;s own listing flow (Seaport) turns out not to be enough. Deploy also
               deploys that chain&apos;s AlbumBuyer wrapper in the same 3-transaction flow. Solana
-              (step 4) is a separate scripted setup, not wired here — see onchain-solana/.
+              (step 4) needs a connected Phantom wallet in addition to the admin EVM wallet above —
+              one Candy Machine gets created per track (not one shared contract), so &quot;Mint #1-10
+              &amp; List&quot; means one Phantom prompt per instruction, per track. Lists through Magic
+              Eden, which needs its own API key (<code>NEXT_PUBLIC_MAGIC_EDEN_API_KEY</code>) before
+              the listing half will succeed.
             </div>
+            {!solWallet.address && (
+              <div className="admin-empty" style={{ marginBottom: 14 }}>
+                Phantom not connected — required for the Solana row below.{" "}
+                <button className="admin-refresh" onClick={solWallet.connect}>
+                  Connect Phantom
+                </button>
+              </div>
+            )}
             <div className="admin-contract-list">
               {targets.map((c) => {
                 const p = phase[c.key];
                 const evm = c.key === "robinhood" || c.key === "base" || c.key === "ethereum";
+                const isSolana = c.key === "solana";
                 return (
                   <div key={c.key} className={`admin-contract-row${c.optional ? " optional" : ""}`}>
                     <div className="admin-contract-step">{c.order}</div>
@@ -588,6 +772,32 @@ export default function AdminPage() {
                           Reprice &amp; Relist
                         </button>
                       </div>
+                    ) : isSolana ? (
+                      <div className="admin-contract-actions">
+                        <button
+                          className="admin-contract-btn"
+                          disabled={busy(c.key) || !!c.address || !solWallet.address}
+                          onClick={handleDeploySolanaCollection}
+                        >
+                          Deploy
+                        </button>
+                        <button
+                          className="admin-contract-btn"
+                          disabled={busy(c.key) || !c.address || !solWallet.address}
+                          title="Creates one Candy Machine per track, mints editions #1-10 straight to the admin wallet, then lists each one on Magic Eden. Price scale: edition #10 = $10 up to edition #1 = $100. One Phantom prompt per instruction, per track."
+                          onClick={() => handleSolanaMintAndList(c)}
+                        >
+                          Mint #1-10 &amp; List
+                        </button>
+                        <button
+                          className="admin-contract-btn"
+                          disabled={busy(c.key) || !c.address || !solWallet.address}
+                          title="Re-prices every #1-10 edition the admin wallet still holds to the current USD peg via Magic Eden's own change-price instruction (no cancel needed), and lists anything recorded but not yet listed."
+                          onClick={handleSolanaReprice}
+                        >
+                          Reprice &amp; Relist
+                        </button>
+                      </div>
                     ) : (
                       <div className="admin-contract-actions">
                         <button className="admin-contract-btn" disabled>
@@ -596,16 +806,6 @@ export default function AdminPage() {
                         <button className="admin-contract-btn" disabled>
                           Upgrade
                         </button>
-                        {c.key !== "marketplace" && (
-                          <>
-                            <button className="admin-contract-btn" disabled>
-                              Mint #1-10 &amp; List
-                            </button>
-                            <button className="admin-contract-btn" disabled>
-                              Reprice &amp; Relist
-                            </button>
-                          </>
-                        )}
                       </div>
                     )}
                   </div>

@@ -16,9 +16,9 @@ import { NATIVE_SOL } from "./dylTokens";
 
 // Same public RPC used for the swap wallet adapter (lib/dylSwap.ts) — see
 // the comment there for why Solana's own public endpoint isn't used.
-const SOLANA_RPC_URL = "https://solana-rpc.publicnode.com";
+export const SOLANA_RPC_URL = "https://solana-rpc.publicnode.com";
 let cachedConnection: Connection | null = null;
-function getConnection(): Connection {
+export function getConnection(): Connection {
   if (!cachedConnection) cachedConnection = new Connection(SOLANA_RPC_URL);
   return cachedConnection;
 }
@@ -53,7 +53,7 @@ export async function getSolanaBalance(ownerAddress: string, tokenAddress: strin
   }
 }
 
-interface PhantomProvider {
+export interface PhantomProvider {
   isPhantom?: boolean;
   publicKey?: { toString(): string } | null;
   connect: (opts?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey: { toString(): string } }>;
@@ -65,9 +65,17 @@ interface PhantomProvider {
     transaction: unknown,
     options?: unknown
   ) => Promise<{ signature: string }>;
+  // Phantom's other two documented standard-wallet methods — needed for
+  // lib/solanaAdminSigner.ts (wrapping Phantom as a Umi Signer for the
+  // admin panel's deploy/mint/list flows) and lib/magicEdenListing.ts
+  // (signing Magic Eden's own returned unsigned transactions). Not used by
+  // the swap flow above, which only ever needs signAndSendTransaction.
+  signTransaction: <T>(transaction: T) => Promise<T>;
+  signAllTransactions: <T>(transactions: T[]) => Promise<T[]>;
+  signMessage: (message: Uint8Array) => Promise<{ signature: Uint8Array }>;
 }
 
-function getPhantom(): PhantomProvider | undefined {
+export function getPhantom(): PhantomProvider | undefined {
   if (typeof window === "undefined") return undefined;
   const anyWindow = window as unknown as { solana?: PhantomProvider };
   return anyWindow.solana?.isPhantom ? anyWindow.solana : undefined;
