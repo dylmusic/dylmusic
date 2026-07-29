@@ -429,13 +429,27 @@ things get conflated here, worth being precise about before building:
   opensea.io themselves. "Our own market contract" and "listed for sale on
   OpenSea" are two different, both-buildable, NOT-automatically-linked
   things — don't assume building the first gets you the second for free.
-- **Unverified, worth confirming before relying on it**: does OpenSea even
-  index/support **Robinhood Chain**? Confirmed working for Ethereum and
-  Base; Robinhood Chain is small/new enough that this hasn't been checked.
-  If OpenSea doesn't support that chain at all, the entire "single
-  OpenSea collection" mandate above needs a fallback plan for Robinhood
-  Chain specifically (e.g. relying on Robinhood's own chain explorer/
-  marketplace instead, if one exists) — verify this before it matters.
+- **Resolved 2026-07-28 (was previously unverified): OpenSea DOES support
+  Robinhood Chain**, confirmed live — OpenSea's own announcement (July
+  2026, shortly after Robinhood Chain's public mainnet launch): "full
+  marketplace features, including offers, floor prices, and collection
+  analytics" for NFT collections launching on the chain, alongside token
+  swaps. This closes the "single OpenSea collection" mandate's last open
+  risk — no fallback plan needed for Robinhood Chain specifically. Direct
+  implication for the "do we need our own marketplace contract" question:
+  **no, not by default** — real mints/transfers through `DylCollection`
+  already show correct owners/history on OpenSea across all 3 EVM chains
+  with zero extra work, and OpenSea's own Seaport protocol (not something
+  we'd need to build) is the standard, already-audited way to get resale
+  listings showing as "Buy Now" in their UI. A custom marketplace contract
+  (`CONTRACT_TARGETS`'s optional 5th target in `lib/admin.ts`) stays
+  exactly what it already says: build it only if Seaport's flow turns out
+  insufficient for something the site's own order-book UI wants to do
+  (e.g. a resale fee % Seaport doesn't support the way we want, or keeping
+  trade execution fully on our own site instead of round-tripping through
+  OpenSea's API) — not a default requirement. Solana's equivalent
+  (Magic Eden etc.) is NOT yet verified the same way — check before
+  assuming parity there.
 
 ---
 
