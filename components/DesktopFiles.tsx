@@ -33,11 +33,26 @@ function rectsOverlap(cellX: number, cellY: number, r: Rect): boolean {
 // assign whatever's left to tracks — genuinely different on every load, but
 // never renders an icon on top of text that needs to stay readable, or a
 // fixed element (taskbar, header) that would win every click over it anyway.
-function randomPositions(
+//
+// STICKY, not a full reshuffle every call. This function re-runs on every
+// avoid-box recompute (mount, a couple of settle-timer retries, window
+// resize) — a real page's content box shifts by a few px multiple times
+// early on (web fonts swapping in, images finishing layout), each of which
+// changes the measured avoid rect slightly. An earlier version rebuilt
+// EVERY track's position from scratch on every one of those calls, so a
+// track that had a valid icon could lose it (and a different one gain one)
+// purely because the Fisher-Yates shuffle came out differently that time —
+// visually this read as icons randomly appearing and disappearing every
+// time one of those recomputes fired, sometimes within the same second.
+// Now: any track whose EXISTING position still clears the current avoid
+// rects keeps it, untouched — only tracks with no position yet, or whose
+// old position just became invalid, get (re)assigned from the free cells.
+function computePositions(
   tracks: Track[],
   avoidRects: Rect[],
   containerWidthPx: number,
-  containerHeightPx: number
+  containerHeightPx: number,
+  prevPositions: Record<string, Pos>
 ): Record<string, Pos> {
   const cellW = 100 / GRID_COLS;
   const cellH = 100 / GRID_ROWS;
@@ -64,24 +79,58 @@ function randomPositions(
     top: r.top - jitterPadY - iconHPct / 2,
     bottom: r.bottom + jitterPadY + iconHPct / 2,
   }));
+  const overlapsAvoid = (x: number, y: number) => padded.some((r) => rectsOverlap(x, y, r));
+
+  // With a center anchor, the box extends half its size in every
+  // direction, so the center itself needs to stay at least half a
+  // width/height away from each edge to avoid clipping off-screen.
+  const xMin = Math.max(1, iconWPct / 2);
+  const xMax = Math.min(99, 100 - iconWPct / 2);
+  const yMin = Math.max(2, iconHPct / 2);
+  const yMax = Math.min(98, 100 - iconHPct / 2);
+  const inBounds = (x: number, y: number) => x >= xMin && x <= xMax && y >= yMin && y <= yMax;
+
+  // Keep any track whose existing position still clears the current avoid
+  // rects and is still in-bounds — this is the whole fix for the
+  // flicker/disappear bug described above. Only tracks with no usable
+  // existing position fall through to a fresh cell assignment below.
+  const positions: Record<string, Pos> = {};
+  const needsAssignment: Track[] = [];
+  for (const t of tracks) {
+    const prev = prevPositions[t.id];
+    if (prev && !overlapsAvoid(prev.x, prev.y) && inBounds(prev.x, prev.y)) {
+      positions[t.id] = prev;
+    } else {
+      needsAssignment.push(t);
+    }
+  }
+  if (needsAssignment.length === 0) return positions;
+
+  const kept = Object.values(positions);
+  // Half a cell's size as the minimum spacing from an already-kept icon —
+  // same reasoning as the old "one cell per track, never reused" rule
+  // (two icons sharing a cell's worth of space made one unclickable), just
+  // measured directly instead of via the grid index.
+  const tooCloseToKept = (x: number, y: number) =>
+    kept.some((p) => Math.abs(p.x - x) < cellW * 0.5 && Math.abs(p.y - y) < cellH * 0.5);
 
   const cells: { x: number; y: number }[] = [];
   for (let row = 0; row < GRID_ROWS; row++) {
     for (let col = 0; col < GRID_COLS; col++) {
       const x = ((col + 0.5) / GRID_COLS) * 100;
       const y = ((row + 0.5) / GRID_ROWS) * 100;
-      if (padded.some((r) => rectsOverlap(x, y, r))) continue;
+      if (overlapsAvoid(x, y) || tooCloseToKept(x, y)) continue;
       cells.push({ x, y });
     }
   }
 
-  // Fisher-Yates shuffle for genuine randomness on each load.
+  // Fisher-Yates shuffle — genuinely random among the cells actually being
+  // filled in this pass, without disturbing anything already kept above.
   for (let i = cells.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [cells[i], cells[j]] = [cells[j], cells[i]];
   }
 
-  const positions: Record<string, Pos> = {};
   // One cell per track, never reused — `pool[i % pool.length]` used to wrap
   // back to an already-assigned cell whenever there were more tracks than
   // free cells (confirmed live: with 19 tracks and an avoid box that some
@@ -92,19 +141,12 @@ function randomPositions(
   // than safe cells, later tracks just don't get an icon this load rather
   // than guaranteeing an overlap — the render side skips anything with no
   // assigned position.
-  // With a center anchor, the box extends half its size in every
-  // direction, so the center itself needs to stay at least half a
-  // width/height away from each edge to avoid clipping off-screen.
-  const xMin = Math.max(1, iconWPct / 2);
-  const xMax = Math.min(99, 100 - iconWPct / 2);
-  const yMin = Math.max(2, iconHPct / 2);
-  const yMax = Math.min(98, 100 - iconHPct / 2);
-  const count = Math.min(tracks.length, cells.length);
+  const count = Math.min(needsAssignment.length, cells.length);
   for (let i = 0; i < count; i++) {
     const cell = cells[i];
     const jitterX = (Math.random() - 0.5) * cellW * 0.4;
     const jitterY = (Math.random() - 0.5) * cellH * 0.4;
-    positions[tracks[i].id] = {
+    positions[needsAssignment[i].id] = {
       x: Math.min(xMax, Math.max(xMin, cell.x + jitterX)),
       y: Math.min(yMax, Math.max(yMin, cell.y + jitterY)),
     };
@@ -199,8 +241,12 @@ export default function DesktopFiles({
     if (chromeBottomPct > 0) avoidRects.push({ left: 0, right: 100, top: 100 - chromeBottomPct, bottom: 100 });
     const cw = container?.getBoundingClientRect().width || window.innerWidth;
     const ch = container?.getBoundingClientRect().height || window.innerHeight;
-    setPositions(randomPositions(tracks, avoidRects, cw, ch));
-    // Re-shuffle when the avoid box's real numbers change (e.g. DesktopBackground
+    // Functional update, not a plain computed value — computePositions needs
+    // to see whatever's already placed (including anything the user just
+    // dragged) so it can keep it, rather than starting from a blank slate
+    // every time this effect re-fires. See computePositions' own comment.
+    setPositions((prev) => computePositions(tracks, avoidRects, cw, ch, prev));
+    // Re-run when the avoid box's real numbers change (e.g. DesktopBackground
     // correcting its first-paint guess to a real viewport-derived value shortly
     // after mount, or a window resize) — deliberately keyed on the plain numbers,
     // not the avoidRect object reference, since a new inline object literal every
@@ -317,7 +363,7 @@ interface MobileSlot {
   left: number;
 }
 
-function computeMobileSlots(maxSlots: number): MobileSlot[] {
+function computeMobileSlots(maxSlots: number, leftCache: Map<number, number>): MobileSlot[] {
   if (typeof document === "undefined") return [];
   const scrollY = window.scrollY;
   const els = Array.from(document.querySelectorAll<HTMLElement>(MOBILE_CONTENT_SELECTOR));
@@ -364,10 +410,21 @@ function computeMobileSlots(maxSlots: number): MobileSlot[] {
     gaps.push({ start: tailStart, size: Math.min(tailSize, MOBILE_ICON_MIN_GAP) });
   }
 
-  return gaps.slice(0, maxSlots).map((g) => ({
-    top: g.start + g.size / 2,
-    left: Math.min(leftMax, Math.max(leftMin, leftMin + Math.random() * (leftMax - leftMin))),
-  }));
+  return gaps.slice(0, maxSlots).map((g) => {
+    // `start` (rounded to the nearest 10px) keys a real content gap, which
+    // is stable across recomputes on the same page — reusing it instead of
+    // re-rolling Math.random() every time this runs (mount, settle-timer
+    // retries, every resize) stops the icon's horizontal position from
+    // visibly jumping around on each of those, on top of the recompute
+    // debounce below.
+    const key = Math.round(g.start / 10) * 10;
+    let left = leftCache.get(key);
+    if (left === undefined) {
+      left = Math.min(leftMax, Math.max(leftMin, leftMin + Math.random() * (leftMax - leftMin)));
+      leftCache.set(key, left);
+    }
+    return { top: g.start + g.size / 2, left };
+  });
 }
 
 export function MobileDesktopFiles({
@@ -386,11 +443,27 @@ export function MobileDesktopFiles({
   routeKey: string;
 }) {
   const [slots, setSlots] = useState<MobileSlot[]>([]);
+  const leftCacheRef = useRef<Map<number, number>>(new Map());
 
   useEffect(() => {
+    leftCacheRef.current = new Map();
     let cancelled = false;
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     function recompute() {
-      if (!cancelled) setSlots(computeMobileSlots(tracks.length));
+      if (!cancelled) setSlots(computeMobileSlots(tracks.length, leftCacheRef.current));
+    }
+    // Debounced, not immediate — mobile browsers fire "resize" repeatedly
+    // while the address bar collapses/expands during ordinary scrolling
+    // (not just on an actual viewport-size change), so an undebounced
+    // listener here was recomputing dozens of times during a single
+    // scroll gesture. Each recompute re-measures real DOM rects, and a
+    // gap sitting right at the MOBILE_ICON_MIN_GAP threshold could flicker
+    // in and out across those measurements — this is what made icons look
+    // like they were randomly disappearing while using the site, on top
+    // of the same issue the settle-timer retries below could also cause.
+    function debouncedRecompute() {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(recompute, 200);
     }
     // Real content (album art, fonts) can still be settling right after
     // navigation, so recompute isn't a single measurement — a few retries
@@ -398,12 +471,13 @@ export function MobileDesktopFiles({
     recompute();
     const t1 = setTimeout(recompute, 300);
     const t2 = setTimeout(recompute, 1000);
-    window.addEventListener("resize", recompute);
+    window.addEventListener("resize", debouncedRecompute);
     return () => {
       cancelled = true;
       clearTimeout(t1);
       clearTimeout(t2);
-      window.removeEventListener("resize", recompute);
+      if (resizeTimer) clearTimeout(resizeTimer);
+      window.removeEventListener("resize", debouncedRecompute);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeKey, tracks.length]);

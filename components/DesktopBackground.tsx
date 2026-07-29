@@ -112,11 +112,24 @@ export default function DesktopBackground() {
     // fonts) — a couple retries catch that without a full MutationObserver.
     const t1 = setTimeout(recompute, 300);
     const t2 = setTimeout(recompute, 1000);
-    window.addEventListener("resize", recompute);
+    // Debounced, not immediate — mobile browsers fire "resize" repeatedly
+    // while the address bar collapses/expands during ordinary scrolling,
+    // not just on a real viewport-size change (same fix applied to
+    // MobileDesktopFiles' own resize listener, see DesktopFiles.tsx).
+    // DesktopFiles' own position assignment is sticky now so this mattered
+    // less than that one, but there is no reason to re-measure this many
+    // times over during a single scroll either.
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    function debouncedRecompute() {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(recompute, 200);
+    }
+    window.addEventListener("resize", debouncedRecompute);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
-      window.removeEventListener("resize", recompute);
+      if (resizeTimer) clearTimeout(resizeTimer);
+      window.removeEventListener("resize", debouncedRecompute);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
