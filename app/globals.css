@@ -2113,6 +2113,14 @@ input {
   padding-bottom: 1px;
   width: fit-content;
   outline: none;
+  /* "TOTAL VOLUME" + the info icon was wrapping to 2 lines on narrower
+     tiles at .dash-quick-label's normal 12px — smaller + tighter
+     letter-spacing than the plain (shorter) labels next to it, plus
+     nowrap as a hard guarantee it never wraps again regardless of tile
+     width. */
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
 .dash-vol-info-icon {
