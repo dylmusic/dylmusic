@@ -354,9 +354,22 @@ export default function DesktopFiles({
 // in genuinely empty space, instead of hovering fixed over whatever
 // happens to be scrolled underneath. Naturally yields "fewer icons" too —
 // most pages only have one or two gaps big enough to hold one.
-const MOBILE_ICON_MIN_GAP = 90; // real icon footprint (~77px) + a little breathing room
+const MOBILE_ICON_MIN_GAP = 85; // real icon footprint (~77px) + a little breathing room
 const MOBILE_TASKBAR_BUFFER = 16; // just keeps the icon off the literal last pixel of the page
-const MOBILE_CONTENT_SELECTOR = ".landing-content > *, .landing-art, .bio-section, .win95-window";
+// .bio-section itself (not its children) was treated as ONE opaque block
+// end to end — real content across most pages left only a single usable
+// gap (the trailing space after all content, right before the taskbar),
+// which read as "icons basically don't exist on mobile." Drilling into
+// BioSection's own real children instead of its outer wrapper surfaces a
+// genuine (if narrow — ~89px, confirmed live) gap between the album art
+// and the bio section that was otherwise hidden inside that one big box.
+// MUST include the section's own <h2> here too, not just its eyebrow/copy/
+// stats — a first version of this selector omitted it, which made the gap
+// detector think the ~62px the heading actually occupies was empty space,
+// and a real icon landed directly on top of "Rapping about crypto..."
+// (caught live via a full-page screenshot, not assumed fixed).
+const MOBILE_CONTENT_SELECTOR =
+  ".landing-content > *, .landing-art, .bio-eyebrow, .bio-section h2, .bio-copy, .bio-stats, .win95-window";
 
 interface MobileSlot {
   top: number;
