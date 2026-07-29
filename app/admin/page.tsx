@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAccount, usePublicClient, useSendTransaction, useSwitchChain } from "wagmi";
+import { getWalletClient } from "wagmi/actions";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { ADMIN_WALLET, isAdminWallet, CONTRACT_TARGETS, type ContractTarget } from "@/lib/admin";
 import {
@@ -11,6 +12,15 @@ import {
   buildAdminMintTx,
   buildDeployAlbumBuyerTx,
 } from "@/lib/contractDeploy";
+import { wagmiConfig } from "@/lib/web3";
+import { ALBUMS, type ChainKey } from "@/lib/albums";
+import { getNativeTokenForChain } from "@/lib/dylTokens";
+import { getTokenUsdPrice } from "@/lib/tokenUsdPrice";
+import { priceUsdForEdition } from "@/lib/editionPricing";
+import { encodeTokenId } from "@/lib/tokenIdScheme";
+import { viemWalletClientToEthersSigner } from "@/lib/ethersSigner";
+import { createSiteListings } from "@/lib/siteListing";
+import { createOpenSeaListings, getOpenSeaSdk, isOpenSeaListable } from "@/lib/openSeaListing";
 import type { Address } from "viem";
 
 interface ChatMessage {
@@ -36,7 +46,10 @@ function truncate(addr: string) {
 }
 
 type DeployPhase =
-  | { step: "implementation" | "proxy" | "albumBuyer" | "newImplementation" | "upgrade" | "mint"; label: string }
+  | {
+      step: "implementation" | "proxy" | "albumBuyer" | "newImplementation" | "upgrade" | "mint" | "list-site" | "list-opensea";
+      label: string;
+    }
   | { step: "done"; label: string }
   | { step: "error"; label: string };
 
@@ -169,17 +182,119 @@ export default function AdminPage() {
     }
   }
 
-  async function handleMintFirstTen(target: ContractTarget) {
-    if (!target.address || !address) return;
+  // Mints editions #1-10 for EVERY real track (all 19 on Crypto Rich
+  // (Deluxe) today — 190 NFTs total on this chain), then lists every one of
+  // those 190 editions TWICE: once as a genuinely free, non-expiring
+  // Seaport order signed straight to our own site (lib/siteListing.ts), and
+  // once posted through OpenSea's own Order Posting API so it is actually
+  // visible on opensea.io (lib/openSeaListing.ts, their real 1% fee, capped
+  // at their own 6-month maximum listing duration — "never expire" is not
+  // possible on their side, confirmed against their own docs; renewing
+  // those before they lapse is a manual admin action, not automated).
+  // Pricing is the inverse-rarity scale from CLAUDE.md's "Deployment
+  // minting strategy": edition #10 lists at $10 up to edition #1 at $100,
+  // converted into the chain's native currency at the live rate.
+  async function handleMintAndListAlbum(target: ContractTarget) {
+    if (!target.address || !address || !target.chainId) return;
+    const chainKey = target.key as ChainKey; // only called for the 3 EVM targets (robinhood/base/ethereum) — see the `evm` check at the call site
+    const tracks = ALBUMS.flatMap((a) => a.tracks);
+    if (tracks.length === 0) return;
     try {
       await ensureChain(target);
-      setPhase((p) => ({ ...p, [target.key]: { step: "mint", label: "Minting editions #1-10…" } }));
-      // trackId 1 — lib/albums.ts's real tracks start at index 1. Repeat per
-      // track as new albums ship; this button covers one track at a time.
-      await sendAndWait(buildAdminMintTx(target.address as Address, BigInt(1), BigInt(10), address as Address));
+
+      for (let i = 0; i < tracks.length; i++) {
+        const track = tracks[i];
+        setPhase((p) => ({
+          ...p,
+          [target.key]: { step: "mint", label: `Minting "${track.title}" #1-10 (track ${i + 1}/${tracks.length})…` },
+        }));
+        await sendAndWait(buildAdminMintTx(target.address as Address, BigInt(track.index), BigInt(10), address as Address));
+      }
+
+      const nativeToken = getNativeTokenForChain(chainKey);
+      const nativeUsd = await getTokenUsdPrice(nativeToken);
+      if (!nativeUsd) {
+        throw new Error(`Minted all editions, but could not price ${nativeToken.symbol} right now — try listing again shortly.`);
+      }
+
+      const editions = tracks.flatMap((track) =>
+        Array.from({ length: 10 }, (_, e) => {
+          const editionNumber = e + 1;
+          const priceUsd = priceUsdForEdition(editionNumber);
+          const priceWei = BigInt(Math.round((priceUsd / nativeUsd) * 1e18));
+          return { tokenId: encodeTokenId(track.index, editionNumber), priceWei };
+        })
+      );
+
+      // A fresh viem client for THIS chain, not the reactive useWalletClient()
+      // hook value — that snapshot can still reflect the chain the wallet
+      // was on before ensureChain's own switch above (same staleness bug
+      // already fixed for /swap's ensureEvmChain, same fix here).
+      const freshClient = await getWalletClient(wagmiConfig, { chainId: target.chainId });
+      const signer = await viemWalletClientToEthersSigner(freshClient);
+
       setPhase((p) => ({
         ...p,
-        [target.key]: { step: "done", label: "Editions #1-10 minted to admin wallet. Auto-listing is a separate, not-yet-built step (see CLAUDE.md)." },
+        [target.key]: { step: "list-site", label: `Signing ${editions.length} listings for our own site (0% fee, never expires)…` },
+      }));
+      const siteOrders = await createSiteListings(
+        signer,
+        editions.map((e) => ({
+          collectionAddress: target.address as string,
+          tokenId: e.tokenId,
+          priceWei: e.priceWei,
+          sellerAddress: address,
+        }))
+      );
+      await fetch("/api/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          wallet: address,
+          listings: siteOrders.map((o, idx) => ({
+            chainId: target.chainId,
+            collectionAddress: target.address,
+            tokenId: editions[idx].tokenId,
+            priceWei: editions[idx].priceWei.toString(),
+            sellerAddress: address,
+            parameters: o.parameters,
+            signature: o.signature,
+            createdAt: Date.now(),
+          })),
+        }),
+      });
+
+      let openSeaFailures = 0;
+      if (isOpenSeaListable(chainKey)) {
+        setPhase((p) => ({
+          ...p,
+          [target.key]: { step: "list-opensea", label: `Posting ${editions.length} listings to OpenSea (1% fee, 6-month expiry)…` },
+        }));
+        const sdk = getOpenSeaSdk(signer, chainKey);
+        const result = await createOpenSeaListings(
+          sdk,
+          editions.map((e) => ({
+            collectionAddress: target.address as string,
+            tokenId: e.tokenId,
+            priceWei: e.priceWei,
+            sellerAddress: address,
+          }))
+        );
+        openSeaFailures = result.failed.length;
+        if (openSeaFailures > 0) {
+          console.error(`OpenSea listing failures for ${target.chainName}:`, result.failed);
+        }
+      }
+
+      setPhase((p) => ({
+        ...p,
+        [target.key]: {
+          step: "done",
+          label:
+            openSeaFailures > 0
+              ? `Minted + listed ${editions.length} editions across ${tracks.length} tracks. ${openSeaFailures} OpenSea listing(s) failed — see console.`
+              : `Minted + listed ${editions.length} editions across ${tracks.length} tracks, on our site and OpenSea.`,
+        },
       }));
     } catch (err) {
       setPhase((p) => ({ ...p, [target.key]: { step: "error", label: describeError(err) } }));
@@ -318,8 +433,8 @@ export default function AdminPage() {
                         <button
                           className="admin-contract-btn"
                           disabled={busy(c.key) || !c.address}
-                          title="Mints editions #1-10 (trackId 1) to the admin wallet. Auto-listing at $10-$100 per CLAUDE.md's Deployment minting strategy is a separate, not-yet-built step."
-                          onClick={() => handleMintFirstTen(c)}
+                          title="Mints editions #1-10 for every real track to the admin wallet, then lists each one on our own site (0% fee, never expires) and on OpenSea (their 1% fee, 6-month expiry — renew manually before it lapses). Price scale: edition #10 = $10 up to edition #1 = $100."
+                          onClick={() => handleMintAndListAlbum(c)}
                         >
                           Mint #1-10 &amp; List
                         </button>

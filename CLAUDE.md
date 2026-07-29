@@ -1416,10 +1416,13 @@ royalty logic into any contract — don't default to assuming ERC-2981 alone
 
 ## Deployment minting strategy — editions #1–10 pre-minted, priced by rarity
 
-Dylan's plan, to be part of the deploy flow for every track (not built
-yet): **auto-mint editions #1 through #10 to Dylan's own wallet at deploy
-time**, then **auto-list them on secondary at an inverse price scale** —
-the lower the edition number, the higher the price:
+**Built 2026-07-29** (was previously just a plan — see git history for the
+original scope note). "Mint #1-10 & List" in `/admin` now does the real
+thing: mints editions #1-10 for **every real track** (all 19 on Crypto Rich
+(Deluxe) today — **190 NFTs on that chain**, one signed `adminMint` tx per
+track, not one per edition), then creates **two** real signed listings per
+edition (380 total) at an inverse price scale — the lower the edition
+number, the higher the price:
 
 | Edition # | List price |
 |-----------|-----------|
@@ -1434,27 +1437,89 @@ the lower the edition number, the higher the price:
 | 2         | $90       |
 | 1         | $100      |
 
-(pattern: price = `(11 − editionNumber) × $10`)
+(`lib/editionPricing.ts`: `priceUsdForEdition(n) = (11 − n) × $10`, converted
+to the chain's native currency at the live rate via `lib/tokenUsdPrice.ts`)
 
 **Public/site minting for that track then starts at edition #11**, at the
 normal flat mint price ($0.99). Editions 1–10 are never available at the
 base mint price to the public — they're pre-claimed by Dylan and only
 reachable via secondary purchase at the scaled price above.
 
-Open items for whoever builds this:
+**"Two listings per edition" is the real dual-listing design** locked in
+with Dylan ("If someone buys a sell order on our site, 0% fees / If someone
+buys a sell order on Opensea, 1% fees / All of our sell orders should be on
+both"), built exactly per the mechanism recorded above in "our own
+marketplace contract": one raw Seaport order signed straight to our own
+site (`lib/siteListing.ts`, `@opensea/seaport-js` directly, no fee, no
+OpenSea API involved — Seaport's own documented default for an omitted
+`endTime` is its own `MAX_INT`, confirmed by reading the installed SDK
+source, genuinely never expires), and one submitted through OpenSea's own
+official SDK (`lib/openSeaListing.ts`, `@opensea/sdk` — NOT a hand-rolled
+REST call, same "use the vendor's own SDK" principle already applied
+elsewhere in this codebase) so it actually shows on opensea.io. Both are
+built off the exact same `tokenId`/price — two valid signed offers for the
+same token, per the real mechanism (a Seaport order's payout split is fixed
+at signing time, so one order can't be "0% here, 1% there").
+
+**Real constraint discovered while building this: OpenSea listings cannot
+be set to never expire.** Confirmed against their own docs — 6 months is
+their platform maximum, and their own SDK's default (if you don't pass an
+explicit `expirationTime`) is actually just 1 month. Every OpenSea-side
+listing here is set to their true maximum (6 months) and will need
+re-listing after that — a manual admin action later, not an automated
+renewal job (Dylan's explicit call, to avoid building a cron job before it's
+needed). Our own site's listings have no such limit — those genuinely never
+expire.
+
+**Real technical gotchas hit and fixed while building this** (recorded so
+they don't get rediscovered):
+- `@opensea/sdk` imports Node's built-in `EventEmitter` via the `node:events`
+  specifier, which webpack's browser build treats as an unhandled URI scheme
+  — a plain `resolve.alias` entry doesn't intercept it (confirmed: aliasing
+  `"node:events": "events"` directly still failed with the same error).
+  Fixed with `webpack.NormalModuleReplacementPlugin(/^node:/, ...)` in
+  `next.config.mjs`, which strips the `node:` prefix so it resolves as a
+  normal `events` specifier instead (the already-installed transitive-dep
+  browser shim for it).
+- A real ethers v6 "dual package hazard": `@opensea/sdk`/`@opensea/seaport-js`
+  ship `.d.ts` files that reference ethers' CJS build, while this project's
+  `"moduleResolution": "bundler"` resolves this app's own `ethers` import
+  through its ESM build — TypeScript treats these as structurally distinct
+  types (a private class field brand mismatch) even though it's the exact
+  same physical `ethers` install (verified: no duplicated nested copy in
+  `node_modules`) and the exact same object at runtime. Fixed with a
+  narrow, explicitly-commented `as unknown as ConstructorParameters<...>[0]`
+  cast at the two points a signer crosses into either SDK's constructor —
+  not a design flaw, a known ethers-v6 ecosystem pain point.
+- `@opensea/sdk`'s price `amount` field is a DECIMAL string (e.g. `"0.05"`
+  for 0.05 ETH) — internally runs `parseUnits(amount, 18)` — NOT wei.
+  Passing wei directly would overprice by 10^18. `lib/openSeaListing.ts`
+  converts via `ethers.formatEther(priceWei)` before calling in.
+- Confirmed the real OpenSea chain slug by reading their own installed
+  package's `Chain` enum rather than trusting a web-search summary (which
+  suggested `"hood"`) — it's actually `Chain.Robinhood = "robinhood"`.
+
+**Requires a real OpenSea API key** (`NEXT_PUBLIC_OPENSEA_API_KEY`, not set
+yet — request one at docs.opensea.io) before the OpenSea-side half can run
+for real; the site-side half needs nothing extra. Same category of external
+credential as `WALLETCONNECT_PROJECT_ID`. Neither half has been exercised
+end-to-end with a real signed transaction — no funded wallet available in
+this environment, and no contracts are deployed yet anyway (see "Current
+state" above) — verified instead via reading the actual installed SDK
+source for every non-obvious behavior (Seaport's real `MAX_INT` default,
+OpenSea's real 6-month cap and 1-month default, the real price-unit
+convention, the real chain slug) rather than assuming, plus a full
+`npm run build` and a live console-error check on `/admin`.
+
+Still open:
 - Confirm this applies to **every track** (assumed default — Dylan didn't
-  carve out exceptions) or only specific ones.
-- "Auto-list on secondary" needs a real target: dylmusic's own order book
-  (already built, trivial to seed) is the easy part; if the intent is
-  also listing on **OpenSea** itself (the actual target marketplace per
-  the single-collection mandate above), that needs either manual listing
-  through OpenSea's own UI (10 clicks × however many tracks, no code
-  required) or real Seaport protocol integration to automate it — decide
-  which before assuming "auto-list" means both.
-- This needs to be a scripted step in the deploy/init flow (mint N editions
-  to a specific address, then create N listings at specific prices) — not
-  something done by hand per track after the fact, given the catalog will
-  keep growing per the upgradability requirement above.
+  carve out exceptions) or only specific ones — the built version already
+  applies it to every track with real editions (`ALBUMS.flatMap(a =>
+  a.tracks)`), so a new album's tracks get the same treatment automatically
+  the moment they're added to `lib/albums.ts`, no code change needed per
+  album.
+- Re-listing the OpenSea half once its 6-month window approaches — a manual
+  admin action, not built yet (deliberately deferred, see above).
 
 **"Buy Album" is a real, separate batch-mint shape — not the same as
 ERC721A's own `mint(quantity)`.** Shipped 2026-07-28 in the simulated
