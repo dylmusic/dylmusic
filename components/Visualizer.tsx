@@ -11,6 +11,14 @@ interface Particle {
 }
 
 const PARTICLE_COUNT = 110;
+// A full 110-particle plexus reads as visually crowded on a phone-width
+// screen (Dylan: mobile needs "less stars" to account for the smaller
+// canvas) even though it's the right density for desktop's much larger
+// area. Picked once at init based on the canvas's own measured width, not
+// a resize-reactive value — mirrors DesktopFiles.tsx's "computed once,
+// no recompute" choice for the same reason (avoids mid-session flicker).
+const MOBILE_PARTICLE_COUNT = 42;
+const MOBILE_BREAKPOINT = 640;
 const LINK_DIST = 130;
 const MOUSE_RADIUS = 160;
 
@@ -56,7 +64,8 @@ export default function Visualizer({
     }
 
     function initParticles() {
-      particlesRef.current = Array.from({ length: PARTICLE_COUNT }, () => ({
+      const count = width < MOBILE_BREAKPOINT ? MOBILE_PARTICLE_COUNT : PARTICLE_COUNT;
+      particlesRef.current = Array.from({ length: count }, () => ({
         x: Math.random() * width,
         y: Math.random() * height,
         vx: (Math.random() - 0.5) * 0.25,

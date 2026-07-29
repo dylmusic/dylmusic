@@ -27,6 +27,20 @@ interface Pos {
 const GRID_COLS = 6;
 const GRID_ROWS = 5;
 
+// All 19 tracks rendered at once reads as crowded on a phone-width screen
+// (Dylan: mobile is "too crowded," wanted fewer icons to account for the
+// smaller screen) even though it's fine on desktop's much larger canvas.
+// Picked once per mount, same "different every load" spirit as the position
+// scatter below — a random subset, not just the first N tracks.
+const MOBILE_BREAKPOINT = 640;
+const MOBILE_MAX_ICONS = 9;
+
+function pickVisibleTracks(tracks: Track[]): Track[] {
+  if (typeof window === "undefined" || window.innerWidth >= MOBILE_BREAKPOINT) return tracks;
+  const shuffled = [...tracks].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, MOBILE_MAX_ICONS);
+}
+
 function randomPositions(tracks: Track[]): Record<string, Pos> {
   const cells: { x: number; y: number }[] = [];
   for (let row = 0; row < GRID_ROWS; row++) {
@@ -102,6 +116,7 @@ export default function DesktopFiles({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [positions, setPositions] = useState<Record<string, Pos>>({});
+  const [visibleTracks, setVisibleTracks] = useState<Track[]>([]);
   const dragRef = useRef<{
     id: string;
     startClientX: number;
@@ -116,7 +131,9 @@ export default function DesktopFiles({
   // recompute on resize/settle timers, which is what caused the
   // appear-then-disappear flicker in the previous "content-aware" version.
   useEffect(() => {
-    setPositions(randomPositions(tracks));
+    const visible = pickVisibleTracks(tracks);
+    setVisibleTracks(visible);
+    setPositions(randomPositions(visible));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -165,7 +182,7 @@ export default function DesktopFiles({
 
   return (
     <div className="desktop-files" ref={containerRef}>
-      {tracks.map((t) => {
+      {visibleTracks.map((t) => {
         const pos = positions[t.id];
         if (!pos) return null;
         const active = playingTrackId === t.id;

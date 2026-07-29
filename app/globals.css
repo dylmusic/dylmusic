@@ -2157,7 +2157,22 @@ input {
   pointer-events: none;
 }
 
-.dash-vol-info:hover .dash-vol-tip,
+/* :hover is scoped to real pointer devices only. iOS Safari treats any
+   element that has a matching :hover rule as needing a first tap to
+   "enter" hover before a second tap can fire its click handler — since
+   showing/hiding this tip is already fully click-driven (see
+   MultichainOverview.tsx), the unconditional :hover rule was silently
+   costing touch users an extra tap just to open it, then another to
+   close it. Touch devices never match this media query, so they go
+   straight to the click-driven .show class below with no double-tap. */
+@media (hover: hover) and (pointer: fine) {
+  .dash-vol-info:hover .dash-vol-tip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+}
+
 .dash-vol-info:focus-visible .dash-vol-tip,
 .dash-vol-info:focus .dash-vol-tip,
 .dash-vol-tip.show {

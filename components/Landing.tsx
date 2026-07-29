@@ -44,6 +44,19 @@ export default function Landing({
 
   const [startOpen, setStartOpen] = useState(false);
 
+  // Start is fixed-position so the menu itself is always visible regardless
+  // of scroll, but a user who scrolled deep into the bio section before
+  // opening it had no way back up short of scrolling manually past
+  // everything again — scrolling to top on open (not on close) removes
+  // that dead end entirely.
+  function handleStartClick() {
+    setStartOpen((open) => {
+      const next = !open;
+      if (next) window.scrollTo({ top: 0, behavior: "smooth" });
+      return next;
+    });
+  }
+
   // Buy/sell actions still need a REAL wallet-connect prompt — distinct
   // from the hero button, which just takes you into the app with no
   // wallet required at all.
@@ -177,7 +190,7 @@ export default function Landing({
 
       <BioSection />
 
-      <GlobalTaskbar onStartClick={() => setStartOpen((v) => !v)} />
+      <GlobalTaskbar onStartClick={handleStartClick} />
 
       {startOpen && (
         <StartMenu
