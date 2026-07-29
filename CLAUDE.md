@@ -1550,6 +1550,82 @@ of the single-track batch-mint work for free.
 
 ---
 
+## Reprice & Relist (EVM) + Solana wired into `/admin` — built 2026-07-29
+
+**Reprice & Relist**, next to "Mint #1-10 & List" on each EVM chain row —
+Dylan wanted a manual way to reset already-listed editions to the current
+USD peg as crypto prices move ("let me manually decide when to adjust
+prices"), which also happens to reset OpenSea's 6-month listing clock for
+free since it's a fresh listing submission either way. The real risk this
+had to guard against: our own site's Seaport listings are signed to never
+expire, so just signing NEW orders on top of old ones would leave the OLD
+(now underpriced) orders still fulfillable by anyone holding a cached copy.
+Fix: `lib/siteListing.ts` `cancelAllListings()` calls Seaport's own
+`bulkCancelOrders` (`incrementCounter`, one on-chain tx) — since both the
+site-side and OpenSea-side listings for every edition are Seaport orders
+signed by the same admin wallet, one cancel invalidates both halves of
+every past dual-listing at once, no separate OpenSea-side cancel needed.
+Then re-prices/re-lists only the editions the admin wallet **still owns**
+(`tokensOfOwner`, read live via `ERC721AQueryableUpgradeable`) — anything
+already sold can't be relisted by admin since admin no longer owns it.
+
+**Solana deploy/mint/list, real for the first time** — previously
+`onchain-solana/`'s scripts were dry-run-proven (real cloned mainnet
+programs, local validator) but signed by a local keypair file, not wired
+into `/admin` at all. Dylan's call, after being told this: "obviously we
+need every feature cross-built for Solana and included on the dashboard
+too." Built:
+- `lib/solanaAdminSigner.ts` wraps Phantom's raw injected provider
+  (`window.solana`, same lightweight approach `lib/solana.ts` already
+  uses — no `@solana/wallet-adapter-react`) as a real Umi `Signer`, via
+  `@metaplex-foundation/umi-web3js-adapters`' `toWeb3JsTransaction`/
+  `fromWeb3JsTransaction` (these actually convert to/from `VersionedTransaction`
+  despite the generic name — there's a separate `...Legacy...` pair for
+  plain `Transaction`, confirmed by reading the installed package's own
+  `.d.ts`, not guessed).
+- `lib/solanaAdmin.ts` — `deploySolanaCollection`/`deployTrackAndMintAdmin`
+  port `create-collection.ts`/`create-track-candy-machine.ts` line-for-line
+  (same instruction sequence, same "premint 1-10 before wrapping the Candy
+  Guard so no payment guard exists yet" ordering), just signed browser-side.
+  **Real UX cost, not hidden**: Solana needs **one Candy Machine per
+  track** (not one shared contract the way the EVM side works), so
+  "Mint #1-10 & List" means one Phantom prompt per instruction, per
+  track — flagged directly in the `/admin` copy itself, not just here.
+- `lib/solanaMintsStore.ts` (Redis, mirrors `lib/siteListingsStore.ts`) —
+  Solana has no `tokensOfOwner`-equivalent enumeration, so what got minted
+  is recorded at mint time instead of re-derived on demand.
+  `filterOwnedMints()` (`lib/solanaAdmin.ts`) does the Reprice-time
+  "still owned?" check via a batched `getMultipleParsedAccounts` against
+  each recorded mint's Associated Token Account.
+- `lib/magicEdenListing.ts` — real, documented Magic Eden instruction
+  endpoints (confirmed against docs.magiceden.io before writing anything,
+  same discipline as `lib/openSeaListing.ts`): `GET /instructions/sell`,
+  `/instructions/sell_change_price`, `/instructions/sell_cancel` — each
+  returns an unsigned transaction, signed via Phantom, sent + confirmed
+  directly (`@solana/web3.js`, not Umi — a different signing path from the
+  deploy/mint side above). **`sell_change_price` is a genuine native
+  reprice instruction** — unlike Seaport, Magic Eden's own Auction House
+  supports changing an existing listing's price in place, no cancel
+  needed first. Requires `NEXT_PUBLIC_MAGIC_EDEN_API_KEY` (Bearer auth on
+  every instruction call) — **not obtained yet**, same category of
+  external credential as `NEXT_PUBLIC_OPENSEA_API_KEY`/
+  `WALLETCONNECT_PROJECT_ID`: a free tier exists but signup is a
+  form-gated request at docs.magiceden.io, not instant self-serve. The
+  listing/reprice code is real and ready, but will throw until that key
+  exists and is set in Vercel.
+
+**Never exercised end-to-end** — no funded wallet available in this
+environment for either half (EVM cancel+relist or Solana deploy/mint/
+list). Every endpoint, param name, and SDK function signature above was
+read directly from the installed package source or the vendor's own docs,
+not guessed — same verification discipline as everywhere else in this
+file. Dry-run the Solana half on devnet before ever pointing it at
+mainnet-beta; the EVM half's only real remaining risk is the same
+partial-failure-mid-loop gap the original mint flow already has (see
+"Deployment minting strategy" above).
+
+---
+
 ## Admin — `/admin`
 
 Wallet-gated (client-side check, not a signature). Admin wallet:
