@@ -65,6 +65,13 @@ export default function Landing({
     else onConnectEvm?.();
   }
 
+  function handleShufflePlay() {
+    const pool = ALBUMS.flatMap((a) => a.tracks).filter((t) => t.id !== player.playingTrack?.id);
+    if (pool.length === 0) return;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    player.toggleTrack(pick);
+  }
+
   return (
     <div className="landing-page" style={{ "--accent": activeChain.color } as React.CSSProperties}>
       <div className="landing-wallet-corner">
@@ -120,9 +127,17 @@ export default function Landing({
               </div>
             </div>
 
-            <button className="btn-connect" onClick={onConnect}>
-              Enter App
-            </button>
+            <div className="landing-cta-row">
+              <button className="btn-connect" onClick={onConnect}>
+                Enter App
+              </button>
+              <button className="btn-play-shuffle" onClick={handleShufflePlay}>
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                  <path d="M4 1.5v9l7-4.5-7-4.5Z" fill="currentColor" />
+                </svg>
+                Play Music
+              </button>
+            </div>
 
             <div className="aim-mini-window">
               <div className="aim-mini-titlebar">

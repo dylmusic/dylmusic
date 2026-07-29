@@ -9,3 +9,4 @@ onchain/typechain-types
 onchain/.env
 onchain-solana/.env
 tsconfig.tsbuildinfo
+.env*

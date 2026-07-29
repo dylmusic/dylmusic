@@ -51,15 +51,18 @@ export default function TrackRow({
       aria-label={`Play ${track.title}`}
     >
       <div className="track-num">
-        {isActive ? (
-          <span className={`track-eq${isPlaying ? " playing" : ""}`}>
-            <span />
-            <span />
-            <span />
-          </span>
-        ) : (
-          String(track.index).padStart(2, "0")
-        )}
+        <span className={`track-play-btn${isActive ? " active" : ""}`}>
+          {isActive && isPlaying ? (
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <rect x="2" y="1.5" width="3" height="9" rx="1" fill="currentColor" />
+              <rect x="7" y="1.5" width="3" height="9" rx="1" fill="currentColor" />
+            </svg>
+          ) : (
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <path d="M4 1.5v9l7-4.5-7-4.5Z" fill="currentColor" />
+            </svg>
+          )}
+        </span>
       </div>
 
       <div className="track-info">
