@@ -59,7 +59,7 @@ export default function TrackRow({
             </svg>
           ) : (
             <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-              <path d="M4 1.5v9l7-4.5-7-4.5Z" fill="currentColor" />
+              <path d="M2.5 1.5v9l7-4.5-7-4.5Z" fill="currentColor" />
             </svg>
           )}
         </span>
