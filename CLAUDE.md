@@ -471,6 +471,25 @@ things get conflated here, worth being precise about before building:
   ruled out by this decision. Not built yet — recorded here so the
   eventual real order-book implementation doesn't quietly ship the
   our-site-only version by default.
+- **The real mechanism for "on both, 0% on our site / 1% on OpenSea"
+  (Dylan's follow-up call)**: TWO separate Seaport orders per resale
+  listing, not one shared order with a conditional fee — a Seaport order's
+  payout split is fixed at signing time, and OpenSea's own API hard-rejects
+  any order missing their fee (confirmed live: a real, documented error,
+  `"API Error 400: OpenSea fees are required to post this order."`, from
+  their own `opensea-js`/`seaport-js` issue tracker). So: Order A (0% fee)
+  signed for fulfillment on dylmusic's own site, Order B (their 1% baked
+  in) submitted through OpenSea's Order Posting API so it shows on
+  opensea.io — same edition/price/seller, two valid signed offers instead
+  of one. **Real but safe consequence**: since both are live at once,
+  whichever gets fulfilled first wins (the NFT can only transfer once) —
+  Seaport/on-chain ownership checks prevent an actual double-sale, so no
+  funds are ever at risk, but the LOSING side's fulfillment attempt would
+  simply revert (wasted gas, a failed tx) unless the sibling order gets
+  cancelled the instant one side fills. A real implementation should watch
+  both order states and cancel the other on a fill (Seaport supports
+  on-chain order cancellation) to make that a clean "sold out" instead of
+  a failed transaction — not a blocker, just real scope to account for.
 
 ---
 
