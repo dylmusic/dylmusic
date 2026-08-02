@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAccount, usePublicClient, useSendTransaction, useSwitchChain } from "wagmi";
-import { getWalletClient } from "wagmi/actions";
+import { useAccount, useSendTransaction, useSwitchChain } from "wagmi";
+import { getWalletClient, getPublicClient } from "wagmi/actions";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { ADMIN_WALLET, isAdminWallet, CONTRACT_TARGETS, type ContractTarget } from "@/lib/admin";
 import {
@@ -86,7 +86,6 @@ export default function AdminPage() {
   const { openConnectModal } = useConnectModal();
   const { sendTransactionAsync } = useSendTransaction();
   const { switchChainAsync } = useSwitchChain();
-  const publicClient = usePublicClient();
   const allowed = isAdminWallet(address);
   const solWallet = useSolanaWallet();
 
@@ -137,9 +136,21 @@ export default function AdminPage() {
     }
   }
 
-  async function sendAndWait(tx: { to?: Address; data: `0x${string}`; value: bigint }) {
+  // `chainId` is required and always used to fetch a FRESH public client via
+  // getPublicClient (an imperative wagmi/actions call, not the reactive
+  // usePublicClient() hook value at the top of this component) — the hook
+  // value is a snapshot from whichever render was active before this
+  // handler started, and does NOT reflect a switchChainAsync() call made
+  // earlier in the SAME handler invocation (ensureChain runs before every
+  // caller of this function). Using the stale hook value here would wait
+  // for the transaction receipt on the WRONG chain's RPC whenever the admin
+  // moves from one chain's row to another's without a full page reload —
+  // the exact same class of staleness bug already fixed for the wallet
+  // client elsewhere in this codebase (ensureEvmChain/freshClient patterns).
+  async function sendAndWait(tx: { to?: Address; data: `0x${string}`; value: bigint }, chainId: number) {
     const hash = await sendTransactionAsync(tx);
-    const receipt = await publicClient!.waitForTransactionReceipt({ hash });
+    const freshPublicClient = getPublicClient(wagmiConfig, { chainId });
+    const receipt = await freshPublicClient!.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") throw new Error(`Transaction reverted: ${hash}`);
     return receipt;
   }
@@ -150,7 +161,7 @@ export default function AdminPage() {
       await ensureChain(target);
 
       setPhase((p) => ({ ...p, [target.key]: { step: "implementation", label: "1/3 — Deploying implementation…" } }));
-      const implReceipt = await sendAndWait(buildDeployImplementationTx());
+      const implReceipt = await sendAndWait(buildDeployImplementationTx(), target.chainId!);
       const implementationAddress = implReceipt.contractAddress as Address;
       if (!implementationAddress) throw new Error("No contractAddress in implementation deploy receipt");
 
@@ -163,13 +174,14 @@ export default function AdminPage() {
           admin: address as Address,
           initialMintPriceWei: DEFAULT_MINT_PRICE_WEI,
           initialMetadataBaseURI: metadataBaseURI(target.key),
-        })
+        }),
+        target.chainId!
       );
       const proxyAddress = proxyReceipt.contractAddress as Address;
       if (!proxyAddress) throw new Error("No contractAddress in proxy deploy receipt");
 
       setPhase((p) => ({ ...p, [target.key]: { step: "albumBuyer", label: "3/3 — Deploying AlbumBuyer…" } }));
-      const albumBuyerReceipt = await sendAndWait(buildDeployAlbumBuyerTx());
+      const albumBuyerReceipt = await sendAndWait(buildDeployAlbumBuyerTx(), target.chainId!);
       const albumBuyerAddress = albumBuyerReceipt.contractAddress as Address;
 
       setTargetField(target.key, {
@@ -194,12 +206,12 @@ export default function AdminPage() {
     try {
       await ensureChain(target);
       setPhase((p) => ({ ...p, [target.key]: { step: "newImplementation", label: "1/2 — Deploying new implementation…" } }));
-      const implReceipt = await sendAndWait(buildDeployImplementationTx());
+      const implReceipt = await sendAndWait(buildDeployImplementationTx(), target.chainId!);
       const newImplementationAddress = implReceipt.contractAddress as Address;
       if (!newImplementationAddress) throw new Error("No contractAddress in implementation deploy receipt");
 
       setPhase((p) => ({ ...p, [target.key]: { step: "upgrade", label: "2/2 — Calling upgradeToAndCall…" } }));
-      await sendAndWait(buildUpgradeTx(target.address as Address, newImplementationAddress));
+      await sendAndWait(buildUpgradeTx(target.address as Address, newImplementationAddress), target.chainId!);
 
       setTargetField(target.key, { implementationAddress: newImplementationAddress });
       setPhase((p) => ({
@@ -237,6 +249,13 @@ export default function AdminPage() {
     try {
       await ensureChain(target);
 
+      // Fresh, chain-scoped public client for the resumability reads below —
+      // NOT the reactive usePublicClient() hook value from the top of this
+      // component, which is a snapshot from before ensureChain's switch
+      // above and would silently read the WRONG chain otherwise (same
+      // staleness class as sendAndWait's own fix, see its comment).
+      const freshReadClient = getPublicClient(wagmiConfig, { chainId: target.chainId! });
+
       for (let i = 0; i < tracks.length; i++) {
         const track = tracks[i];
         // Resumable: adminMint's on-chain nextEditionIndex counter is
@@ -245,7 +264,7 @@ export default function AdminPage() {
         // a partial failure can be recovered by just re-clicking this
         // button, instead of hard-reverting with AdminAllocationExceeded
         // on the very first already-done track.
-        const alreadyMinted = (await publicClient!.readContract({
+        const alreadyMinted = (await freshReadClient!.readContract({
           address: target.address as Address,
           abi: DylCollectionAbi,
           functionName: "nextEditionIndex",
@@ -262,7 +281,10 @@ export default function AdminPage() {
           ...p,
           [target.key]: { step: "mint", label: `Minting "${track.title}" #1-10 (track ${i + 1}/${tracks.length})…` },
         }));
-        await sendAndWait(buildAdminMintTx(target.address as Address, BigInt(track.index), BigInt(10), address as Address));
+        await sendAndWait(
+          buildAdminMintTx(target.address as Address, BigInt(track.index), BigInt(10), address as Address),
+          target.chainId!
+        );
       }
 
       const nativeToken = getNativeTokenForChain(chainKey);
@@ -271,14 +293,39 @@ export default function AdminPage() {
         throw new Error(`Minted all editions, but could not price ${nativeToken.symbol} right now — try listing again shortly.`);
       }
 
-      const editions = tracks.flatMap((track) =>
-        Array.from({ length: 10 }, (_, e) => {
-          const editionNumber = e + 1;
-          const priceUsd = priceUsdForEdition(editionNumber);
-          const priceWei = BigInt(Math.round((priceUsd / nativeUsd) * 1e18));
-          return { tokenId: encodeTokenId(track.index, editionNumber), priceWei };
-        })
+      // Skip editions that already have a stored site listing — without
+      // this, safely re-running this button after a resumed partial mint
+      // (or just clicking it twice by mistake) would re-sign and
+      // re-submit fresh orders for all 190 editions every time, including
+      // ones already correctly listed from a prior run. Not fund-loss
+      // (Seaport allows multiple valid orders for the same token; whichever
+      // fills first wins), but wasteful and unnecessary — "Reprice &
+      // Relist" is the existing, correct tool for intentionally replacing
+      // an already-active listing.
+      const existingListingsRes = await fetch(`/api/listings?chainId=${target.chainId}`);
+      const existingListingsData = await existingListingsRes.json().catch(() => ({ listings: [] }));
+      const alreadyListedTokenIds = new Set<number>(
+        (existingListingsData?.listings ?? []).map((l: { tokenId: number }) => l.tokenId)
       );
+
+      const editions = tracks
+        .flatMap((track) =>
+          Array.from({ length: 10 }, (_, e) => {
+            const editionNumber = e + 1;
+            const priceUsd = priceUsdForEdition(editionNumber);
+            const priceWei = BigInt(Math.round((priceUsd / nativeUsd) * 1e18));
+            return { tokenId: encodeTokenId(track.index, editionNumber), priceWei };
+          })
+        )
+        .filter((e) => !alreadyListedTokenIds.has(e.tokenId));
+
+      if (editions.length === 0) {
+        setPhase((p) => ({
+          ...p,
+          [target.key]: { step: "done", label: `Minted all editions. Every edition was already listed — nothing new to list.` },
+        }));
+        return;
+      }
 
       // A fresh viem client for THIS chain, not the reactive useWalletClient()
       // hook value — that snapshot can still reflect the chain the wallet
@@ -396,7 +443,13 @@ export default function AdminPage() {
     try {
       await ensureChain(target);
 
-      const owned = (await publicClient!.readContract({
+      // Fresh, chain-scoped client — same staleness reasoning as
+      // sendAndWait/handleMintAndListAlbum's freshReadClient above; this
+      // read happens right after ensureChain's own chain switch, so the
+      // reactive usePublicClient() hook value from render time can't be
+      // trusted here either.
+      const freshReadClient = getPublicClient(wagmiConfig, { chainId: target.chainId! });
+      const owned = (await freshReadClient!.readContract({
         address: target.address as Address,
         abi: DylCollectionAbi,
         functionName: "tokensOfOwner",
@@ -531,7 +584,7 @@ export default function AdminPage() {
         ...p,
         [target.key]: { step: "reprice-mint-price", label: `Setting mint price to $${PUBLIC_MINT_USD} (${newPriceWei} wei)…` },
       }));
-      await sendAndWait(buildSetMintPriceTx(target.address as Address, newPriceWei));
+      await sendAndWait(buildSetMintPriceTx(target.address as Address, newPriceWei), target.chainId!);
 
       setPhase((p) => ({
         ...p,
