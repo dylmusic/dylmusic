@@ -87,6 +87,24 @@ export function buildUpgradeTx(proxyAddress: Address, newImplementationAddress: 
   return { to: proxyAddress, data, value: ZERO };
 }
 
+/**
+ * The real public, payable mint — anyone can call this, `msg.value` must
+ * equal `mintPriceWei * quantity` exactly (the contract reverts otherwise,
+ * see onchain/contracts/DylCollection.sol `IncorrectPayment`). `valueWei`
+ * is the caller's responsibility to compute correctly from a live read of
+ * the deployed contract's own `mintPriceWei` — this function does not
+ * fetch or validate it, same "pure tx builder, no chain reads" shape as
+ * every other function in this file.
+ */
+export function buildMintTx(proxyAddress: Address, trackId: bigint, quantity: bigint, to: Address, valueWei: bigint): RawTx {
+  const data = encodeFunctionData({
+    abi: DylCollectionAbi,
+    functionName: "mint",
+    args: [trackId, quantity, to],
+  });
+  return { to: proxyAddress, data, value: valueWei };
+}
+
 /** Editions #1-10, admin wallet only, hard-capped on-chain at 10 regardless of quantity requested. */
 export function buildAdminMintTx(
   proxyAddress: Address,

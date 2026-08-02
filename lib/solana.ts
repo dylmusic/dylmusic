@@ -16,7 +16,11 @@ import { NATIVE_SOL } from "./dylTokens";
 
 // Same public RPC used for the swap wallet adapter (lib/dylSwap.ts) — see
 // the comment there for why Solana's own public endpoint isn't used.
-export const SOLANA_RPC_URL = "https://solana-rpc.publicnode.com";
+// Overridable via NEXT_PUBLIC_SOLANA_RPC_URL so swapping in a real dedicated
+// provider (Helius/QuickNode/Triton — recommended before ever running the
+// real admin mint ceremony against mainnet-beta, see lib/solanaAdmin.ts) is
+// a one-line env var change, not a code change.
+export const SOLANA_RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://solana-rpc.publicnode.com";
 let cachedConnection: Connection | null = null;
 export function getConnection(): Connection {
   if (!cachedConnection) cachedConnection = new Connection(SOLANA_RPC_URL);

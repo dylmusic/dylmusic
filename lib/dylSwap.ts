@@ -15,7 +15,7 @@ import { robinhoodChain } from "./web3";
 import { base, mainnet } from "wagmi/chains";
 import { SOLANA_CHAIN_ID, NATIVE_SOL } from "./dylTokens";
 import { ADMIN_WALLET } from "./admin";
-import { getSolanaBalance } from "./solana";
+import { getSolanaBalance, SOLANA_RPC_URL } from "./solana";
 
 // Headless Relay SDK usage — same package HOODPrinter's own /swap uses
 // directly instead of the pre-built widget. Brought up to parity with
@@ -32,8 +32,6 @@ const APP_FEE_BPS = "85";
 // admin/owner address, already used that way elsewhere in this repo
 // (lib/admin.ts), not a new wallet.
 export const DYL_FEE_RECIPIENT = ADMIN_WALLET;
-
-const SOLANA_RPC_URL = "https://solana-rpc.publicnode.com";
 
 let clientReadyPromise: Promise<void> | null = null;
 
@@ -183,12 +181,16 @@ export function quoteOutputAmount(quote: Execute): string | null {
 // balance on whichever EVM chain a leg landed on — wagmi's useBalance is
 // hook-only. Small per-chain public-RPC map, same pattern lib/dylTokens.ts
 // already uses for resolveCustomToken.
-const EVM_RPC_URLS: Record<number, string> = {
+// Exported for reuse by lib/nftPurchase.ts, which needs the exact same
+// "read-only public client for one of our 3 EVM chains" capability (to read
+// a deployed collection's live mintPriceWei before building a mint tx) —
+// same map, not a second copy of the same 3 RPC URLs.
+export const EVM_RPC_URLS: Record<number, string> = {
   [robinhoodChain.id]: "https://rpc.mainnet.chain.robinhood.com",
   [base.id]: "https://mainnet.base.org",
   [mainnet.id]: "https://eth.llamarpc.com",
 };
-const EVM_CHAINS = { [robinhoodChain.id]: robinhoodChain, [base.id]: base, [mainnet.id]: mainnet } as const;
+export const EVM_CHAINS = { [robinhoodChain.id]: robinhoodChain, [base.id]: base, [mainnet.id]: mainnet } as const;
 
 async function getEvmNativeBalanceWei(chainId: number, address: string): Promise<bigint> {
   const chain = EVM_CHAINS[chainId as keyof typeof EVM_CHAINS];

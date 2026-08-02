@@ -11,6 +11,7 @@ import {
   buildUpgradeTx,
   buildAdminMintTx,
   buildDeployAlbumBuyerTx,
+  buildSetMintPriceTx,
 } from "@/lib/contractDeploy";
 import { wagmiConfig } from "@/lib/web3";
 import { ALBUMS, type ChainKey } from "@/lib/albums";
@@ -38,9 +39,18 @@ interface ChatMessage {
 
 // Admin-settable, no oracle (mirrors the contract's own admin-only
 // setMintPrice) — a rough ETH-denominated stand-in for the site's $0.99
-// public mint price. Fine-tune per chain after deploy via setMintPrice as
-// ETH/USD drifts; this is only ever the INITIAL value passed to initialize().
+// public mint price, used only as the INITIAL value passed to initialize()
+// at deploy time. Real re-pegging as ETH/USD moves afterward is the new
+// "Reprice Mint Price" button below (buildSetMintPriceTx, computed live via
+// getTokenUsdPrice) — added because this constant previously had no way to
+// be revisited post-deploy at all short of a manual raw contract call
+// outside the app.
 const DEFAULT_MINT_PRICE_WEI = BigInt("300000000000000"); // 0.0003 ETH
+
+// The flat public mint price every track's `priceUsd` in lib/albums.ts
+// currently uses (see the `track()` helper's default) — the target the
+// live mint-price re-peg and the Solana Candy Guard price both aim for.
+const PUBLIC_MINT_USD = 0.99;
 
 function metadataBaseURI(chainSlug: string) {
   return `https://dylmusic.vercel.app/api/metadata/${chainSlug}/`;
@@ -64,7 +74,8 @@ type DeployPhase =
         | "list-opensea"
         | "deploy"
         | "list"
-        | "reprice";
+        | "reprice"
+        | "reprice-mint-price";
       label: string;
     }
   | { step: "done"; label: string }
@@ -217,11 +228,36 @@ export default function AdminPage() {
     const chainKey = target.key as ChainKey; // only called for the 3 EVM targets (robinhood/base/ethereum) — see the `evm` check at the call site
     const tracks = ALBUMS.flatMap((a) => a.tracks);
     if (tracks.length === 0) return;
+    // Set synchronously, before any await, so a rapid double-click (or a
+    // second browser tab) can't start a second concurrent run before React
+    // re-renders the disabled button — busy() only reads phase state, and
+    // the previous version's first setPhase call was already past several
+    // awaits, leaving a real window where the button wasn't yet disabled.
+    setPhase((p) => ({ ...p, [target.key]: { step: "mint", label: "Starting…" } }));
     try {
       await ensureChain(target);
 
       for (let i = 0; i < tracks.length; i++) {
         const track = tracks[i];
+        // Resumable: adminMint's on-chain nextEditionIndex counter is
+        // binary per track (0 or 10, since this flow only ever mints in
+        // one quantity=10 call) — skip any track already fully minted so
+        // a partial failure can be recovered by just re-clicking this
+        // button, instead of hard-reverting with AdminAllocationExceeded
+        // on the very first already-done track.
+        const alreadyMinted = (await publicClient!.readContract({
+          address: target.address as Address,
+          abi: DylCollectionAbi,
+          functionName: "nextEditionIndex",
+          args: [BigInt(track.index)],
+        })) as bigint;
+        if (alreadyMinted >= BigInt(10)) {
+          setPhase((p) => ({
+            ...p,
+            [target.key]: { step: "mint", label: `Skipping "${track.title}" — already minted (track ${i + 1}/${tracks.length})…` },
+          }));
+          continue;
+        }
         setPhase((p) => ({
           ...p,
           [target.key]: { step: "mint", label: `Minting "${track.title}" #1-10 (track ${i + 1}/${tracks.length})…` },
@@ -264,7 +300,7 @@ export default function AdminPage() {
           sellerAddress: address,
         }))
       );
-      await fetch("/api/listings", {
+      const listingsRes = await fetch("/api/listings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -281,6 +317,15 @@ export default function AdminPage() {
           })),
         }),
       });
+      const listingsData = await listingsRes.json().catch(() => null);
+      if (!listingsRes.ok || !listingsData?.ok) {
+        // Real, signed, on-chain-fulfillable Seaport orders exist only in
+        // this browser's memory until this succeeds — a Redis hiccup here
+        // used to be silently swallowed and reported as full success.
+        throw new Error(
+          `Minted all editions and signed ${siteOrders.length} site listings, but failed to save them to the server (status ${listingsRes.status}) — they are NOT yet visible on the site. Retry "Mint #1-10 & List" (already-minted tracks will be skipped) or check Upstash Redis env vars.`
+        );
+      }
 
       let openSeaFailures = 0;
       if (isOpenSeaListable(chainKey)) {
@@ -341,6 +386,13 @@ export default function AdminPage() {
   async function handleRepriceAndRelist(target: ContractTarget) {
     if (!target.address || !address || !target.chainId) return;
     const chainKey = target.key as ChainKey; // only called for the 3 EVM targets — see the `evm` check at the call site
+    // Set synchronously before any await — see the identical comment in
+    // handleMintAndListAlbum. Matters even more here: two concurrent runs
+    // both calling cancelAllListings() can interleave (whichever's
+    // incrementCounter lands second invalidates the first's freshly-signed
+    // orders), which would leave Redis holding listings that display
+    // normally on the site but can never actually be fulfilled.
+    setPhase((p) => ({ ...p, [target.key]: { step: "cancel", label: "Starting…" } }));
     try {
       await ensureChain(target);
 
@@ -395,7 +447,7 @@ export default function AdminPage() {
           sellerAddress: address,
         }))
       );
-      await fetch("/api/listings", {
+      const listingsRes = await fetch("/api/listings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -412,6 +464,12 @@ export default function AdminPage() {
           })),
         }),
       });
+      const listingsData = await listingsRes.json().catch(() => null);
+      if (!listingsRes.ok || !listingsData?.ok) {
+        throw new Error(
+          `Cancelled old listings and signed ${siteOrders.length} fresh ones, but failed to save them to the server (status ${listingsRes.status}) — the OLD listings are now cancelled on-chain and the NEW ones are NOT yet visible on the site. Retry immediately or check Upstash Redis env vars.`
+        );
+      }
 
       let openSeaFailures = 0;
       if (isOpenSeaListable(chainKey)) {
@@ -450,6 +508,40 @@ export default function AdminPage() {
     }
   }
 
+  // "Reprice Mint Price" — re-pegs the ONGOING public mint price (editions
+  // #11-100, the actual $0.99-per-mint number advertised sitewide) to the
+  // current USD rate. Before this existed, DEFAULT_MINT_PRICE_WEI was set
+  // once at deploy time and never revisited by anything in this app —
+  // buildSetMintPriceTx (lib/contractDeploy.ts) already existed but had no
+  // caller anywhere, so as ETH/native-token price moved, the real USD cost
+  // of a public mint would silently drift with no in-app way to correct it
+  // short of a manual raw contract call outside this panel.
+  async function handleRepriceMintPrice(target: ContractTarget) {
+    if (!target.address || !target.chainId) return;
+    const chainKey = target.key as ChainKey;
+    setPhase((p) => ({ ...p, [target.key]: { step: "reprice-mint-price", label: "Starting…" } }));
+    try {
+      await ensureChain(target);
+      const nativeToken = getNativeTokenForChain(chainKey);
+      const nativeUsd = await getTokenUsdPrice(nativeToken);
+      if (!nativeUsd) throw new Error(`Could not price ${nativeToken.symbol} right now — try again shortly.`);
+      const newPriceWei = BigInt(Math.round((PUBLIC_MINT_USD / nativeUsd) * 1e18));
+
+      setPhase((p) => ({
+        ...p,
+        [target.key]: { step: "reprice-mint-price", label: `Setting mint price to $${PUBLIC_MINT_USD} (${newPriceWei} wei)…` },
+      }));
+      await sendAndWait(buildSetMintPriceTx(target.address as Address, newPriceWei));
+
+      setPhase((p) => ({
+        ...p,
+        [target.key]: { step: "done", label: `Mint price re-pegged to $${PUBLIC_MINT_USD} (${newPriceWei} wei per edition).` },
+      }));
+    } catch (err) {
+      setPhase((p) => ({ ...p, [target.key]: { step: "error", label: describeError(err) } }));
+    }
+  }
+
   // ---- Solana: same three admin actions as the EVM chains, real per-chain
   // shape differences (see the comments inside lib/solanaAdmin.ts and
   // lib/magicEdenListing.ts) — one Candy Machine per track instead of one
@@ -481,46 +573,128 @@ export default function AdminPage() {
     const provider = solWallet.getProvider();
     if (!provider || !solWallet.address || !target.address) return;
     const tracks = ALBUMS.flatMap((a) => a.tracks);
+    // Synchronous, before any await — same double-click guard as the EVM
+    // handlers above.
+    setPhase((p) => ({ ...p, solana: { step: "mint", label: "Starting…" } }));
     try {
-      const umi = createSolanaAdminUmi(provider);
-      const minted: SolanaMintRecord[] = [];
-
-      for (let i = 0; i < tracks.length; i++) {
-        const track = tracks[i];
-        const result = await deployTrackAndMintAdmin(
-          umi,
-          { trackId: track.index, title: track.title, collectionMint: target.address as string, editions: 100, priceLamports: 300000 },
-          (label) => setPhase((p) => ({ ...p, solana: { step: "mint", label: `Track ${i + 1}/${tracks.length} — ${label}` } }))
+      // Fail fast: minting spends real SOL/rent immediately, but listing
+      // (which needs this key) used to only happen afterward — a missing
+      // key meant burning real funds on real mints before ever discovering
+      // they can't be listed. Check before touching the mint loop at all.
+      if (!process.env.NEXT_PUBLIC_MAGIC_EDEN_API_KEY) {
+        throw new Error(
+          "NEXT_PUBLIC_MAGIC_EDEN_API_KEY is not set — request one at docs.magiceden.io and add it to the environment before running this."
         );
-        for (const e of result.editions) {
-          minted.push({ trackId: track.index, editionNumber: e.editionNumber, tokenId: e.tokenId, mint: e.mint, candyMachine: result.candyMachine });
-        }
       }
 
       const nativeToken = getNativeTokenForChain("solana");
       const solUsd = await getTokenUsdPrice(nativeToken);
-      if (!solUsd) throw new Error("Minted all editions, but could not price SOL right now — list again shortly.");
+      if (!solUsd) throw new Error("Could not price SOL right now — try again shortly.");
 
-      const priced: SolanaMintRecord[] = minted.map((m) => ({
-        ...m,
-        listedPriceSol: priceUsdForEdition(m.editionNumber) / solUsd,
-      }));
+      // Resumable: a track already fully recorded (10 admin editions) must
+      // NOT be re-run — deployTrackAndMintAdmin always creates a BRAND NEW
+      // Candy Machine with no awareness of prior runs, so re-running it for
+      // an already-done track would mint a second, fully separate Candy
+      // Machine whose config lines reuse the exact same tokenId strings
+      // (a pure function of trackId/edition) as the first — two different
+      // real NFT mints both claiming the same tokenId.
+      setPhase((p) => ({ ...p, solana: { step: "mint", label: "Checking existing progress…" } }));
+      const existingRes = await fetch("/api/solana-mints");
+      const existingData = (await existingRes.json().catch(() => ({ mints: [] as SolanaMintRecord[] }))) as {
+        mints: SolanaMintRecord[];
+      };
+      const existingByTrack = new Map<number, SolanaMintRecord[]>();
+      for (const m of existingData.mints ?? []) {
+        if (!existingByTrack.has(m.trackId)) existingByTrack.set(m.trackId, []);
+        existingByTrack.get(m.trackId)!.push(m);
+      }
 
-      setPhase((p) => ({ ...p, solana: { step: "list", label: `Listing ${priced.length} editions on Magic Eden…` } }));
+      const umi = createSolanaAdminUmi(provider);
+      const allMinted: SolanaMintRecord[] = [...(existingData.mints ?? [])];
+
+      for (let i = 0; i < tracks.length; i++) {
+        const track = tracks[i];
+        const already = existingByTrack.get(track.index) ?? [];
+        if (already.length >= 10) {
+          setPhase((p) => ({
+            ...p,
+            solana: { step: "mint", label: `Skipping "${track.title}" — already minted (track ${i + 1}/${tracks.length})…` },
+          }));
+          continue;
+        }
+        // Priced from the real track data (editionCap/priceUsd), not a
+        // flat hardcoded guess — the old `priceLamports: 300000` constant
+        // was never actually pegged to $0.99 in SOL terms at all (SOL and
+        // ETH trade at very different per-unit prices, unlike the rough
+        // ETH-denominated guess used on the EVM side).
+        const priceLamports = Math.round((track.priceUsd / solUsd) * 1_000_000_000);
+        const result = await deployTrackAndMintAdmin(
+          umi,
+          { trackId: track.index, title: track.title, collectionMint: target.address as string, editions: track.editionCap, priceLamports },
+          (label) => setPhase((p) => ({ ...p, solana: { step: "mint", label: `Track ${i + 1}/${tracks.length} — ${label}` } }))
+        );
+        const trackMints: SolanaMintRecord[] = result.editions.map((e) => ({
+          trackId: track.index,
+          editionNumber: e.editionNumber,
+          tokenId: e.tokenId,
+          mint: e.mint,
+          candyMachine: result.candyMachine,
+        }));
+        allMinted.push(...trackMints);
+
+        // Persist THIS track's mints immediately — not just once at the
+        // very end of all 19 tracks. Real, paid-for, on-chain mints for
+        // tracks 1..k must survive a crash/RPC failure on track k+1
+        // instead of existing only in this function's local memory.
+        setPhase((p) => ({ ...p, solana: { step: "mint", label: `Saving progress for "${track.title}"…` } }));
+        const saveRes = await fetch("/api/solana-mints", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ wallet: address, mints: trackMints }),
+        });
+        const saveData = await saveRes.json().catch(() => null);
+        if (!saveRes.ok || !saveData?.ok) {
+          throw new Error(
+            `Minted "${track.title}" (real, on-chain, paid for) but failed to save that progress to the server (status ${saveRes.status}). Do NOT re-run yet — check Upstash Redis env vars first, or this track's mints will be re-minted from scratch under a second Candy Machine.`
+          );
+        }
+      }
+
+      const toList = allMinted.filter((m) => m.editionNumber >= 1 && m.editionNumber <= 10 && m.listedPriceSol === undefined);
+      const priced = toList.map((m) => ({ mint: m.mint, priceSol: priceUsdForEdition(m.editionNumber) / solUsd }));
+
+      setPhase((p) => ({ ...p, solana: { step: "list", label: `Listing ${priced.length} edition(s) on Magic Eden…` } }));
       const connection = getConnection();
       const listResult = await listEditionsOnMagicEden(
         provider,
         connection,
         solWallet.address,
-        priced.map((m) => ({ mint: m.mint, priceSol: m.listedPriceSol! })),
+        priced,
         (done, total) => setPhase((p) => ({ ...p, solana: { step: "list", label: `Listing on Magic Eden… ${done}/${total}` } }))
       );
 
-      await fetch("/api/solana-mints", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wallet: address, mints: priced }),
-      });
+      // Only record success for editions Magic Eden actually confirmed —
+      // an optimistic write here (marking a failed listing as listed
+      // anyway) is a real, self-perpetuating bug: the NEXT reprice attempt
+      // would send the wrong "current price" to sell_change_price (which
+      // needs the real existing listing price as input), fail for the same
+      // reason, forever, until someone manually fixes the Redis record.
+      const failedMints = new Set(listResult.failed.map((f) => f.mint));
+      const updated: SolanaMintRecord[] = toList
+        .filter((m) => !failedMints.has(m.mint))
+        .map((m) => ({ ...m, listedPriceSol: priceUsdForEdition(m.editionNumber) / solUsd }));
+
+      if (updated.length > 0) {
+        const saveRes = await fetch("/api/solana-mints", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ wallet: address, mints: updated }),
+        });
+        const saveData = await saveRes.json().catch(() => null);
+        if (!saveRes.ok || !saveData?.ok) {
+          console.error("Failed to save Magic Eden listing state to the server", saveRes.status);
+        }
+      }
 
       if (listResult.failed.length > 0) console.error("Magic Eden listing failures:", listResult.failed);
       setPhase((p) => ({
@@ -529,8 +703,8 @@ export default function AdminPage() {
           step: "done",
           label:
             listResult.failed.length > 0
-              ? `Minted ${priced.length} editions across ${tracks.length} tracks. ${listResult.failed.length} Magic Eden listing(s) failed — see console.`
-              : `Minted + listed ${priced.length} editions across ${tracks.length} tracks on Magic Eden.`,
+              ? `Minted/verified ${allMinted.length} editions across ${tracks.length} tracks. ${listResult.failed.length} Magic Eden listing(s) failed — see console.`
+              : `Minted + listed ${priced.length} new edition(s) (${allMinted.length} total across ${tracks.length} tracks) on Magic Eden.`,
         },
       }));
     } catch (err) {
@@ -541,7 +715,14 @@ export default function AdminPage() {
   async function handleSolanaReprice() {
     const provider = solWallet.getProvider();
     if (!provider || !solWallet.address) return;
+    // Synchronous, before any await — same double-click guard as above.
+    setPhase((p) => ({ ...p, solana: { step: "reprice", label: "Starting…" } }));
     try {
+      if (!process.env.NEXT_PUBLIC_MAGIC_EDEN_API_KEY) {
+        throw new Error(
+          "NEXT_PUBLIC_MAGIC_EDEN_API_KEY is not set — request one at docs.magiceden.io and add it to the environment before running this."
+        );
+      }
       setPhase((p) => ({ ...p, solana: { step: "reprice", label: "Checking current holdings…" } }));
       const connection = getConnection();
       const res = await fetch("/api/solana-mints");
@@ -574,7 +755,7 @@ export default function AdminPage() {
         (done, total) => setPhase((p) => ({ ...p, solana: { step: "reprice", label: `Repricing… ${done}/${total}` } }))
       );
 
-      let listFailures = 0;
+      let listFailedMints = new Set<string>();
       if (notYetListed.length > 0) {
         setPhase((p) => ({ ...p, solana: { step: "reprice", label: `Listing ${notYetListed.length} not-yet-listed edition(s)…` } }));
         const listResult = await listEditionsOnMagicEden(
@@ -583,20 +764,32 @@ export default function AdminPage() {
           solWallet.address,
           notYetListed.map((m) => ({ mint: m.mint, priceSol: priceUsdForEdition(m.editionNumber) / solUsd }))
         );
-        listFailures = listResult.failed.length;
+        listFailedMints = new Set(listResult.failed.map((f) => f.mint));
       }
 
-      const updated: SolanaMintRecord[] = owned.map((m) => ({
-        ...m,
-        listedPriceSol: priceUsdForEdition(m.editionNumber) / solUsd,
-      }));
-      await fetch("/api/solana-mints", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wallet: address, mints: updated }),
-      });
+      // Only mark editions Magic Eden actually confirmed — see the
+      // identical reasoning in handleSolanaMintAndList. Writing the new
+      // price for an item whose reprice/list call actually failed would
+      // desync Redis from the real on-chain listing price, silently
+      // breaking every future reprice attempt for that item.
+      const repriceFailedMints = new Set(repriceResult.failed.map((f) => f.mint));
+      const updated: SolanaMintRecord[] = owned
+        .filter((m) => !repriceFailedMints.has(m.mint) && !listFailedMints.has(m.mint))
+        .map((m) => ({ ...m, listedPriceSol: priceUsdForEdition(m.editionNumber) / solUsd }));
 
-      const failures = repriceResult.failed.length + listFailures;
+      if (updated.length > 0) {
+        const saveRes = await fetch("/api/solana-mints", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ wallet: address, mints: updated }),
+        });
+        const saveData = await saveRes.json().catch(() => null);
+        if (!saveRes.ok || !saveData?.ok) {
+          console.error("Failed to save Magic Eden reprice state to the server", saveRes.status);
+        }
+      }
+
+      const failures = repriceResult.failed.length + listFailedMints.size;
       if (failures > 0) console.error("Magic Eden reprice failures:", repriceResult.failed);
       setPhase((p) => ({
         ...p,
@@ -770,6 +963,14 @@ export default function AdminPage() {
                           onClick={() => handleRepriceAndRelist(c)}
                         >
                           Reprice &amp; Relist
+                        </button>
+                        <button
+                          className="admin-contract-btn"
+                          disabled={busy(c.key) || !c.address}
+                          title={`Re-pegs the ONGOING public mint price (editions #11-100) to $${PUBLIC_MINT_USD} at the current rate — the initial deploy-time price is just a flat guess and never updates on its own as ${getNativeTokenForChain(c.key as ChainKey).symbol} price moves.`}
+                          onClick={() => handleRepriceMintPrice(c)}
+                        >
+                          Reprice Mint Price
                         </button>
                       </div>
                     ) : isSolana ? (
