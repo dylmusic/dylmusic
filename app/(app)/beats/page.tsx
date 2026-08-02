@@ -6,6 +6,7 @@ const DESCRIPTION = "Buy and lease beats from producers — coming soon on Dyl's
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
+  keywords: ["Music NFTs", "Web3 Music", "beats", "producers", "Onchain Music"],
   openGraph: { title: `${TITLE} | Dyl`, description: DESCRIPTION },
   twitter: { card: "summary_large_image", title: `${TITLE} | Dyl`, description: DESCRIPTION },
 };

@@ -3,11 +3,12 @@ import SwapCard from "@/components/SwapCard";
 
 const TITLE = "Swap";
 const DESCRIPTION =
-  "Swap any token cross-chain for $Dyl or any curated token on Robinhood Chain, Base, Ethereum, or Solana.";
+  "Swap any token or memecoin cross-chain for $Dyl on Robinhood Chain, Base, Ethereum, or Solana — Web3 crypto swaps, no bridge required.";
 
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
+  keywords: ["Web3", "Crypto", "Memecoins", "cross-chain swap", "$Dyl"],
   openGraph: { title: `${TITLE} | Dyl`, description: DESCRIPTION },
   twitter: { card: "summary_large_image", title: `${TITLE} | Dyl`, description: DESCRIPTION },
 };

@@ -27,21 +27,29 @@ const GOOGLE_SITE_VERIFICATION = "";
 
 // Every word here is deliberate — Dylan: "prioritize the words in our main
 // site title - thats why i made it that title... perfectly SEO optimized."
-// These are the same terms the title/description already lead with,
-// repeated as explicit keywords (still read by Bing/Yahoo and some
-// on-page-signal tooling even though Google itself ignores this specific
-// tag) and threaded through each page's own title/description below
-// rather than just dumped here once.
+// Music NFTs / Onchain Music lead the list as the two primary keywords
+// (2026-08-02 audit); the broader category terms (NFT, NFTs, Web3, Crypto,
+// Memecoins) were added the same pass so the site also surfaces for
+// shorter, higher-volume searches, not just the long-tail Dyl-specific
+// ones. Still read by Bing/Yahoo and some on-page-signal tooling even
+// though Google itself ignores this specific tag, and threaded through
+// each page's own title/description below rather than just dumped here
+// once.
 const KEYWORDS = [
-  "Dyl",
-  "$Dyl",
   "Music NFTs",
   "Onchain Music",
+  "NFTs",
+  "NFT",
+  "Web3 Music",
+  "Web3",
+  "Crypto",
+  "Memecoins",
+  "Dyl",
+  "$Dyl",
   "Crypto Rich",
   "Mint NFTs",
   "Burn NFTs",
   "Music NFT platform",
-  "Web3 music",
   "crypto rapper",
   "NFT music collector",
   "Robinhood Chain NFTs",
@@ -70,6 +78,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
+    site: "@famous_dyl",
+    creator: "@famous_dyl",
     title: TITLE,
     description: DESCRIPTION,
   },

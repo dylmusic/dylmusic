@@ -7,6 +7,7 @@ const DESCRIPTION = "A little easter egg — $PRINT pays 5% rewards in real ETH 
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
+  keywords: ["Crypto", "Web3", "Robinhood Chain", "$PRINT"],
   openGraph: { title: `${TITLE} | Dyl`, description: DESCRIPTION },
   twitter: { card: "summary_large_image", title: `${TITLE} | Dyl`, description: DESCRIPTION },
 };

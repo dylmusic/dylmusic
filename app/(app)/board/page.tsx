@@ -8,6 +8,7 @@ const DESCRIPTION =
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
+  keywords: ["Music NFTs", "NFT holders", "Web3", "community"],
   openGraph: { title: `${TITLE} | Dyl`, description: DESCRIPTION },
   twitter: { card: "summary_large_image", title: `${TITLE} | Dyl`, description: DESCRIPTION },
 };
