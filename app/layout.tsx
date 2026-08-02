@@ -22,8 +22,7 @@ const DESCRIPTION =
 const GA_MEASUREMENT_ID = "G-650PVPMDGC";
 
 // Google Search Console "HTML tag" verification token (the content= value).
-// Empty = meta tag not rendered — not set up yet, next step after GA.
-const GOOGLE_SITE_VERIFICATION = "";
+const GOOGLE_SITE_VERIFICATION = "H9LFp4Q0I554UrayhYSqoMW7lPdmHI2wFEgzv_8cprQ";
 
 // Every word here is deliberate — Dylan: "prioritize the words in our main
 // site title - thats why i made it that title... perfectly SEO optimized."
