@@ -7,11 +7,12 @@ const PRICE = ethers.parseEther("0.0003");
 describe("AlbumBuyer", () => {
   let admin: HardhatEthersSigner;
   let buyer: HardhatEthersSigner;
+  let other: HardhatEthersSigner;
   let collection: any;
   let albumBuyer: any;
 
   beforeEach(async () => {
-    [admin, buyer] = await ethers.getSigners();
+    [admin, buyer, other] = await ethers.getSigners();
     const Collection = await ethers.getContractFactory("DylCollection");
     collection = await upgrades.deployProxy(
       Collection,
@@ -21,7 +22,7 @@ describe("AlbumBuyer", () => {
     await collection.waitForDeployment();
 
     const AlbumBuyer = await ethers.getContractFactory("AlbumBuyer");
-    albumBuyer = await AlbumBuyer.deploy();
+    albumBuyer = await upgrades.deployProxy(AlbumBuyer, [admin.address], { kind: "uups", initializer: "initialize" });
     await albumBuyer.waitForDeployment();
   });
 
@@ -103,5 +104,34 @@ describe("AlbumBuyer", () => {
         value: PRICE * 2n,
       })
     ).to.be.revertedWithCustomError(albumBuyer, "LengthMismatch");
+  });
+
+  describe("UUPS upgrade flow", () => {
+    it("upgrades V1 -> V2, preserves owner, new function works", async () => {
+      const albumBuyerAddress = await albumBuyer.getAddress();
+
+      const V2 = await ethers.getContractFactory("AlbumBuyerV2Test");
+      const upgraded = await upgrades.upgradeProxy(albumBuyerAddress, V2, { kind: "uups" });
+
+      // same proxy address, state (owner) survived
+      expect(await upgraded.getAddress()).to.equal(albumBuyerAddress);
+      expect(await upgraded.owner()).to.equal(admin.address);
+
+      // existing batchMint behavior still works post-upgrade
+      await upgraded
+        .connect(buyer)
+        .batchMint(await collection.getAddress(), [5], [1], buyer.address, { value: PRICE });
+      expect(await collection.ownerOf(5 * 1000 + 1)).to.equal(buyer.address);
+
+      // new V2-only behavior works
+      await upgraded.connect(admin).setUpgradeMarker("v2-live");
+      expect(await upgraded.upgradeMarker()).to.equal("v2-live");
+    });
+
+    it("_authorizeUpgrade is owner-only", async () => {
+      const albumBuyerAddress = await albumBuyer.getAddress();
+      const V2 = await ethers.getContractFactory("AlbumBuyerV2Test", other);
+      await expect(upgrades.upgradeProxy(albumBuyerAddress, V2, { kind: "uups" })).to.be.reverted;
+    });
   });
 });

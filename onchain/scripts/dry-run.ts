@@ -68,9 +68,12 @@ async function runOne(target: ChainTarget) {
   if (owner1011 !== buyer.address) throw new Error("public mint: wrong owner/tokenId math");
   console.log(`✓ public mint edition 11 -> buyer (tokenId 1011 owner correct)`);
 
-  // 4. deploy AlbumBuyer, batch mint across tracks 2 and 3
+  // 4. deploy AlbumBuyer proxy, batch mint across tracks 2 and 3
   const AlbumBuyer = await ethers.getContractFactory("AlbumBuyer");
-  const albumBuyer = await AlbumBuyer.deploy();
+  const albumBuyer = await upgrades.deployProxy(AlbumBuyer, [admin.address], {
+    kind: "uups",
+    initializer: "initialize",
+  });
   await albumBuyer.waitForDeployment();
   const albumBuyerAddress = await albumBuyer.getAddress();
   await (
@@ -79,7 +82,16 @@ async function runOne(target: ChainTarget) {
   if ((await proxy.ownerOf(2001)) !== buyer.address || (await proxy.ownerOf(3001)) !== buyer.address) {
     throw new Error("AlbumBuyer: wrong recipient");
   }
-  console.log(`✓ AlbumBuyer (${albumBuyerAddress}) minted tracks 2+3 to buyer in one tx`);
+  console.log(`✓ AlbumBuyer proxy (${albumBuyerAddress}) minted tracks 2+3 to buyer in one tx`);
+
+  // 4b. real UUPS upgrade against the live-forked AlbumBuyer proxy
+  const AlbumBuyerV2 = await ethers.getContractFactory("AlbumBuyerV2Test");
+  const upgradedAlbumBuyer = await upgrades.upgradeProxy(albumBuyerAddress, AlbumBuyerV2, { kind: "uups" });
+  if ((await upgradedAlbumBuyer.getAddress()) !== albumBuyerAddress) {
+    throw new Error("AlbumBuyer upgrade: proxy address changed");
+  }
+  await (await upgradedAlbumBuyer.connect(admin).setUpgradeMarker("dry-run-ok")).wait();
+  console.log(`✓ AlbumBuyer upgraded to V2, new function works`);
 
   // 5. tokenURI shape check
   const uri1001 = await proxy.tokenURI(1001);

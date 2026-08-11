@@ -10,7 +10,9 @@ import {
   buildDeployProxyTx,
   buildUpgradeTx,
   buildAdminMintTx,
-  buildDeployAlbumBuyerTx,
+  buildDeployAlbumBuyerImplementationTx,
+  buildDeployAlbumBuyerProxyTx,
+  buildUpgradeAlbumBuyerTx,
   buildSetMintPriceTx,
 } from "@/lib/contractDeploy";
 import { wagmiConfig } from "@/lib/web3";
@@ -65,9 +67,12 @@ type DeployPhase =
       step:
         | "implementation"
         | "proxy"
-        | "albumBuyer"
+        | "albumBuyerImplementation"
+        | "albumBuyerProxy"
         | "newImplementation"
         | "upgrade"
+        | "albumBuyerNewImplementation"
+        | "albumBuyerUpgrade"
         | "mint"
         | "cancel"
         | "list-site"
@@ -180,14 +185,32 @@ export default function AdminPage() {
       const proxyAddress = proxyReceipt.contractAddress as Address;
       if (!proxyAddress) throw new Error("No contractAddress in proxy deploy receipt");
 
-      setPhase((p) => ({ ...p, [target.key]: { step: "albumBuyer", label: "3/3 — Deploying AlbumBuyer…" } }));
-      const albumBuyerReceipt = await sendAndWait(buildDeployAlbumBuyerTx(), target.chainId!);
-      const albumBuyerAddress = albumBuyerReceipt.contractAddress as Address;
+      setPhase((p) => ({
+        ...p,
+        [target.key]: { step: "albumBuyerImplementation", label: "3/4 — Deploying AlbumBuyer implementation…" },
+      }));
+      const albumBuyerImplReceipt = await sendAndWait(buildDeployAlbumBuyerImplementationTx(), target.chainId!);
+      const albumBuyerImplementationAddress = albumBuyerImplReceipt.contractAddress as Address;
+      if (!albumBuyerImplementationAddress) throw new Error("No contractAddress in AlbumBuyer implementation deploy receipt");
+
+      setPhase((p) => ({
+        ...p,
+        [target.key]: { step: "albumBuyerProxy", label: "4/4 — Deploying AlbumBuyer proxy…" },
+      }));
+      const albumBuyerProxyReceipt = await sendAndWait(
+        buildDeployAlbumBuyerProxyTx({
+          implementationAddress: albumBuyerImplementationAddress,
+          admin: address as Address,
+        }),
+        target.chainId!
+      );
+      const albumBuyerAddress = albumBuyerProxyReceipt.contractAddress as Address;
 
       setTargetField(target.key, {
         address: proxyAddress,
         implementationAddress,
         albumBuyerAddress: albumBuyerAddress ?? null,
+        albumBuyerImplementationAddress: albumBuyerAddress ? albumBuyerImplementationAddress : null,
       });
       setPhase((p) => ({
         ...p,
@@ -217,6 +240,40 @@ export default function AdminPage() {
       setPhase((p) => ({
         ...p,
         [target.key]: { step: "done", label: `Upgraded. New implementation ${truncate(newImplementationAddress)}.` },
+      }));
+    } catch (err) {
+      setPhase((p) => ({ ...p, [target.key]: { step: "error", label: describeError(err) } }));
+    }
+  }
+
+  async function handleUpgradeAlbumBuyer(target: ContractTarget) {
+    if (!target.albumBuyerAddress) return;
+    try {
+      await ensureChain(target);
+      setPhase((p) => ({
+        ...p,
+        [target.key]: { step: "albumBuyerNewImplementation", label: "1/2 — Deploying new AlbumBuyer implementation…" },
+      }));
+      const implReceipt = await sendAndWait(buildDeployAlbumBuyerImplementationTx(), target.chainId!);
+      const newImplementationAddress = implReceipt.contractAddress as Address;
+      if (!newImplementationAddress) throw new Error("No contractAddress in AlbumBuyer implementation deploy receipt");
+
+      setPhase((p) => ({
+        ...p,
+        [target.key]: { step: "albumBuyerUpgrade", label: "2/2 — Calling upgradeToAndCall on AlbumBuyer…" },
+      }));
+      await sendAndWait(
+        buildUpgradeAlbumBuyerTx(target.albumBuyerAddress as Address, newImplementationAddress),
+        target.chainId!
+      );
+
+      setTargetField(target.key, { albumBuyerImplementationAddress: newImplementationAddress });
+      setPhase((p) => ({
+        ...p,
+        [target.key]: {
+          step: "done",
+          label: `AlbumBuyer upgraded. New implementation ${truncate(newImplementationAddress)}.`,
+        },
       }));
     } catch (err) {
       setPhase((p) => ({ ...p, [target.key]: { step: "error", label: describeError(err) } }));
@@ -947,7 +1004,8 @@ export default function AdminPage() {
               (decided 2026-07-28). See CLAUDE.md &quot;Contract Requirement&quot; before writing any
               of these. Steps 1–4 are required; step 5 (marketplace) is optional — only do it if
               OpenSea&apos;s own listing flow (Seaport) turns out not to be enough. Deploy also
-              deploys that chain&apos;s AlbumBuyer wrapper in the same 3-transaction flow. Solana
+              deploys that chain&apos;s AlbumBuyer wrapper (itself UUPS-upgradeable now too, same
+              proxy pattern) in the same 4-transaction flow. Solana
               (step 4) needs a connected Phantom wallet in addition to the admin EVM wallet above —
               one Candy Machine gets created per track (not one shared contract), so &quot;Mint #1-10
               &amp; List&quot; means one Phantom prompt per instruction, per track. Lists through Magic
@@ -1000,6 +1058,14 @@ export default function AdminPage() {
                           onClick={() => handleUpgrade(c)}
                         >
                           Upgrade
+                        </button>
+                        <button
+                          className="admin-contract-btn"
+                          disabled={busy(c.key) || !c.albumBuyerAddress}
+                          title="Deploys a new AlbumBuyer implementation and calls upgradeToAndCall on the existing AlbumBuyer proxy — same UUPS pattern as the collection's own Upgrade button, just for the album-batch-mint wrapper."
+                          onClick={() => handleUpgradeAlbumBuyer(c)}
+                        >
+                          Upgrade AlbumBuyer
                         </button>
                         <button
                           className="admin-contract-btn"

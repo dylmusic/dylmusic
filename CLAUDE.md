@@ -213,11 +213,12 @@ wallet through `/admin`, never a raw key pasted into any session.
     `ERC2981Upgradeable` + `UUPSUpgradeable`). `mint`/`adminMint`/
     `setMintPrice`/`setMetadataBaseURI`/`setRoyalty`/`withdraw`/
     `contractURI`. Same bytecode deployed 3× (once per EVM chain).
-  - `contracts/AlbumBuyer.sol` — separate, non-upgradeable multicall-style
-    wrapper for "buy the whole album in one signature" (Dylan's chosen
-    approach over building it into the collection contract itself) — loops
-    plain external calls to the collection's own `mint()`, atomic revert
-    on any failure, no low-level `.call()`-with-swallowed-return.
+  - `contracts/AlbumBuyer.sol` — separate, **UUPS-upgradeable** (as of
+    2026-08-11, see below) multicall-style wrapper for "buy the whole album
+    in one signature" (Dylan's chosen approach over building it into the
+    collection contract itself) — loops plain external calls to the
+    collection's own `mint()`, atomic revert on any failure, no low-level
+    `.call()`-with-swallowed-return.
   - `test/*.test.ts` — 27 passing tests: init-guards, tokenId math, the
     100-edition cap, the 10-edition admin allocation cap, payment
     enforcement, `tokensOfOwner`, `supportsInterface`, royalty, withdraw
@@ -338,6 +339,56 @@ wallet through `/admin`, never a raw key pasted into any session.
     keys" model as the EVM admin panel, just script-invoked rather than
     browser-clicked since Candy Machine setup doesn't fit the repeatable
     Deploy/Upgrade button shape the EVM chains use.
+
+### AlbumBuyer made UUPS-upgradeable too — 2026-08-11
+
+Dylan, asked directly whether every contract is upgradeable: "yeah make
+everything as changeable and upgradeable as possible - why not? in 2026
+nobody worries about security on that level." Flagged once before doing it
+— upgradeable NFT-adjacent contracts read as a "rug pull" risk signal to
+buyers/marketplaces (an upgrade authority can technically change logic
+after purchase) — but this is Dylan's own call on his own project, and
+nothing was deployed yet so it cost nothing to change. `AlbumBuyer.sol`
+was originally built deliberately non-upgradeable (see the "Built and
+dry-run-proven" bullet above, now stale on this point) — reasoning at the
+time was that it holds no state/funds between calls, so there was
+"nothing to preserve across an upgrade" and a bug fix could just be a
+fresh deploy + frontend repoint. Converted to the exact same UUPS pattern
+`DylCollection.sol` already uses: `OwnableUpgradeable` + `UUPSUpgradeable`,
+`_disableInitializers()` in the constructor, a plain `initialize(address
+admin_)` (no other constructor params needed — `batchMint` itself stays
+fully permissionless, only the upgrade path is owner-gated via
+`_authorizeUpgrade`).
+- **`lib/contractDeploy.ts`**: `buildDeployAlbumBuyerTx` (single
+  contract-creation tx) replaced with `buildDeployAlbumBuyerImplementationTx`
+  + `buildDeployAlbumBuyerProxyTx` (same 2-tx implementation-then-
+  ERC1967Proxy shape as the collection's own `buildDeployImplementationTx`/
+  `buildDeployProxyTx`), plus a new `buildUpgradeAlbumBuyerTx`.
+- **`lib/admin.ts`**: `ContractTarget` gained `albumBuyerImplementationAddress`
+  alongside the existing `albumBuyerAddress` (which is now the ERC1967
+  PROXY address, not a plain contract address) — same
+  proxy/implementation split the collection's own `address`/
+  `implementationAddress` pair already tracks.
+- **`app/admin/page.tsx`**: `handleDeploy` is now a 4-transaction flow per
+  EVM chain (implementation → proxy → AlbumBuyer implementation →
+  AlbumBuyer proxy), and a new `handleUpgradeAlbumBuyer` + "Upgrade
+  AlbumBuyer" button mirrors the collection's own existing
+  Upgrade button exactly.
+- **Tests/dry-run**: `onchain/contracts/test/AlbumBuyerV2Test.sol` mirrors
+  `DylCollectionV2Test.sol` (appends one new var + one new function, never
+  reorders existing state) so `onchain/test/AlbumBuyer.test.ts` has a real
+  "UUPS upgrade flow" describe block (upgrade preserves owner + existing
+  `batchMint` behavior, new function works; `_authorizeUpgrade` is
+  owner-only) — same shape as `DylCollection.test.ts`'s. 29/29 tests pass.
+  `onchain/scripts/dry-run.ts` deploys AlbumBuyer as a real proxy and
+  upgrades it, verified against real forked mainnet state on all 3 EVM
+  chains (Robinhood/Base/Ethereum) — not just the unit tests.
+- **`lib/nftPurchase.ts`** needed no change — it already just calls
+  `batchMint` against whatever address is in `target.albumBuyerAddress`,
+  which is still the right thing to call regardless of it now being a
+  proxy address rather than a plain contract address.
+
+---
 
 **Explicitly NOT done, on purpose — scope boundary agreed with Dylan
 before starting**: the site's existing simulated buy/mint/sell UI

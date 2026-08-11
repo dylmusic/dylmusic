@@ -39,8 +39,10 @@ export interface ContractTarget {
   address: string | null;
   /** EVM only — tracks the CURRENT implementation behind the proxy, for upgrade bookkeeping. Irrelevant for solana/marketplace. */
   implementationAddress?: string | null;
-  /** EVM only — the deployed AlbumBuyer wrapper for this chain (see onchain/contracts/AlbumBuyer.sol). */
+  /** EVM only — the deployed AlbumBuyer wrapper for this chain (see onchain/contracts/AlbumBuyer.sol). The ERC1967 PROXY address — AlbumBuyer is UUPS-upgradeable too, same as the collection. */
   albumBuyerAddress?: string | null;
+  /** EVM only — tracks the CURRENT implementation behind albumBuyerAddress's proxy, for upgrade bookkeeping. */
+  albumBuyerImplementationAddress?: string | null;
   /** wagmi/viem chainId — required to know which network the admin panel should sign a deploy/upgrade tx on. Absent for solana/marketplace. */
   chainId?: number;
   reason: string;
@@ -56,6 +58,7 @@ export const CONTRACT_TARGETS: ContractTarget[] = [
     address: null,
     implementationAddress: null,
     albumBuyerAddress: null,
+    albumBuyerImplementationAddress: null,
     chainId: 4663,
     reason: "Home chain — the flagship collection, deploy first.",
   },
@@ -67,6 +70,7 @@ export const CONTRACT_TARGETS: ContractTarget[] = [
     address: null,
     implementationAddress: null,
     albumBuyerAddress: null,
+    albumBuyerImplementationAddress: null,
     chainId: 8453,
     reason: "Second EVM chain, same contract shape as Robinhood Chain.",
   },
@@ -78,6 +82,7 @@ export const CONTRACT_TARGETS: ContractTarget[] = [
     address: null,
     implementationAddress: null,
     albumBuyerAddress: null,
+    albumBuyerImplementationAddress: null,
     chainId: 1,
     reason: "Added 2026-07-28 (gas is cheap enough now) — same shape again, third EVM deploy.",
   },

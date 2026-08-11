@@ -1,23 +1,40 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+
 interface IDylCollectionMint {
     function mint(uint256 trackId, uint256 quantity, address to) external payable;
     function mintPriceWei() external view returns (uint256);
 }
 
-/// Lightweight, stateless, permissionless multicall-style forwarder for
-/// "buy the whole album in one signature" — a genuinely separate primitive
-/// from ERC721A's own mint(quantity), which can only batch consecutive ids
-/// within ONE track's range, never across the ~19 non-sequential per-track
-/// ranges an album spans. Deliberately NOT upgradeable: it holds no state
-/// or funds between calls, so there's nothing to preserve across an
-/// "upgrade" — if a bug is ever found, deploy a new one and repoint the
-/// frontend, cheap and safe, without touching the main collection's own
-/// upgrade authority at all.
-contract AlbumBuyer {
+/// Multicall-style forwarder for "buy the whole album in one signature" — a
+/// genuinely separate primitive from ERC721A's own mint(quantity), which can
+/// only batch consecutive ids within ONE track's range, never across the
+/// ~19 non-sequential per-track ranges an album spans.
+///
+/// UUPS-upgradeable per Dylan's 2026-08-11 standing direction ("make
+/// everything as changeable and upgradeable as possible") — one proxy per
+/// EVM chain, same pattern as DylCollection, admin wallet holds upgrade
+/// authority. Holds no funds/state between calls (batchMint refunds any
+/// dust in the same transaction), so an upgrade never has anything at risk
+/// to migrate — this is purely so a logic bug/change never needs a fresh
+/// deployment + frontend repoint the way the old non-upgradeable version
+/// would have required.
+contract AlbumBuyer is OwnableUpgradeable, UUPSUpgradeable {
     error LengthMismatch();
     error RefundFailed();
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address admin_) public initializer {
+        __Ownable_init(admin_);
+        // UUPSUpgradeable (OZ v5) is stateless — no __UUPSUpgradeable_init() call.
+    }
 
     /// Mints `quantities[i]` editions of `trackIds[i]` for each i, straight
     /// to `to` (the real buyer, not this contract), in one transaction.
@@ -25,7 +42,9 @@ contract AlbumBuyer {
     /// .call() with a swallowed return the way Multicall3's
     /// aggregate3/tryAggregate support partial failure — so a revert in any
     /// single track's mint bubbles up automatically and reverts the whole
-    /// album purchase atomically, with zero extra code.
+    /// album purchase atomically, with zero extra code. Permissionless by
+    /// design, same as before — batchMint itself is not owner-gated, only
+    /// the contract's own upgrade path is.
     function batchMint(
         address collection,
         uint256[] calldata trackIds,
@@ -44,4 +63,6 @@ contract AlbumBuyer {
             if (!ok) revert RefundFailed();
         }
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 }

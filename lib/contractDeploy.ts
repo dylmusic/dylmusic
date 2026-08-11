@@ -147,14 +147,54 @@ export function buildWithdrawTx(proxyAddress: Address, to: Address): RawTx {
   return { to: proxyAddress, data, value: ZERO };
 }
 
-/** AlbumBuyer is plain, non-upgradeable — one normal contract-creation transaction. */
-export function buildDeployAlbumBuyerTx(): RawTx {
+/** AlbumBuyer step 1 of a UUPS deploy: the implementation contract, no constructor args. */
+export function buildDeployAlbumBuyerImplementationTx(): RawTx {
   const data = encodeDeployData({
     abi: AlbumBuyerAbi,
     bytecode: AlbumBuyerBytecode,
     args: [],
   });
   return { data, value: ZERO };
+}
+
+/**
+ * AlbumBuyer step 2 of a UUPS deploy: same ERC1967Proxy pattern as
+ * DylCollection above, pointed at the implementation from step 1 with
+ * encoded `initialize(admin)` calldata. The address this transaction
+ * creates is the permanent, real AlbumBuyer address — the one that goes in
+ * lib/admin.ts, never the implementation address from step 1.
+ */
+export function buildDeployAlbumBuyerProxyTx(params: {
+  implementationAddress: Address;
+  admin: Address;
+}): RawTx {
+  const initData = encodeFunctionData({
+    abi: AlbumBuyerAbi,
+    functionName: "initialize",
+    args: [params.admin],
+  });
+  const data = encodeDeployData({
+    abi: ERC1967ProxyAbi,
+    bytecode: ERC1967ProxyBytecode,
+    args: [params.implementationAddress, initData],
+  });
+  return { data, value: ZERO };
+}
+
+/**
+ * Upgrade AlbumBuyer: deploy a new implementation separately
+ * (buildDeployAlbumBuyerImplementationTx against the new contract's own
+ * artifact), then call this against the EXISTING AlbumBuyer proxy address.
+ * Same validate-upgrade.ts safety-check requirement as DylCollection's own
+ * buildUpgradeTx above.
+ */
+export function buildUpgradeAlbumBuyerTx(proxyAddress: Address, newImplementationAddress: Address): RawTx {
+  const data = encodeFunctionData({
+    abi: AlbumBuyerAbi,
+    functionName: "upgradeToAndCall",
+    args: [newImplementationAddress, "0x"],
+  });
+  return { to: proxyAddress, data, value: ZERO };
 }
 
 export function buildAlbumBatchMintTx(params: {
