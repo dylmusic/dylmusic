@@ -471,6 +471,26 @@ Built:
   (devnet or a fresh local validator) before relying on it against a real
   deployed track.
 
+**Multi-admin explicitly declined, single "reprice everything" button
+built instead.** Asked whether to open EVM contracts up to multiple
+independent admin wallets (`AccessControl` role instead of `Ownable`) and
+whether to stand up a real Solana multisig (Squads) for the same reason —
+Dylan's answer: "maybe we shouldnt do that. I can just reprice every so
+often... I'll do it from my wallet specifically for now." So both
+contracts stay single-owner/single-authority. What he actually asked for
+instead: "make sure we have controls to easily reprice all the mints" —
+a new **"Reprice Mint Price — All Chains"** button in the Contracts
+section header (`handleRepriceAllMintPrices`) runs every deployed EVM
+chain's existing `handleRepriceMintPrice` in sequence, then Solana's
+`handleSolanaRepriceMintPrice` if Phantom is connected — one click
+instead of visiting 4 separate rows. Reuses the existing per-chain
+handlers as-is (each already swallows its own errors into that chain's
+own phase state rather than throwing), so one chain's RPC hiccup or a
+rejected wallet prompt doesn't block the rest from running. Deliberately
+scoped to the ONGOING public mint price only, not the #1-10 secondary
+listing prices — those still go through each row's own existing
+"Reprice & Relist."
+
 **Two off-chain "knobs" — confirmed out of scope.** Dylan clarified
 directly: "I only care about unchangeable onchain stuff of course. we'll
 always have to update the site. this isn't a system to deploy the full

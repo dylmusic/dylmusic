@@ -1001,6 +1001,36 @@ export default function AdminPage() {
     }
   }
 
+  // One-click "reprice everything to the current USD peg" — Dylan's own
+  // stated workflow going forward ("I'll do it from my wallet... make sure
+  // we have controls to easily reprice all the mints"), so this exists
+  // specifically to make a periodic manual check-in a single click instead
+  // of visiting every chain row separately (3 EVM clicks + the Solana
+  // per-track button). Runs the exact same per-chain handlers already
+  // used by the individual "Reprice Mint Price" buttons, just in sequence
+  // — each one already swallows its own errors into that chain's phase
+  // state instead of throwing, so one chain's RPC hiccup or a rejected
+  // wallet prompt doesn't stop the rest from running.
+  const [repriceAllRunning, setRepriceAllRunning] = useState(false);
+  async function handleRepriceAllMintPrices() {
+    if (repriceAllRunning) return;
+    setRepriceAllRunning(true);
+    try {
+      const evmTargets = targets.filter(
+        (t) => (t.key === "robinhood" || t.key === "base" || t.key === "ethereum") && !!t.address
+      );
+      for (const t of evmTargets) {
+        await handleRepriceMintPrice(t);
+      }
+      const solanaTarget = targets.find((t) => t.key === "solana");
+      if (solanaTarget?.address && solWallet.address) {
+        await handleSolanaRepriceMintPrice();
+      }
+    } finally {
+      setRepriceAllRunning(false);
+    }
+  }
+
   function describeError(err: unknown): string {
     if (err instanceof Error) return err.message;
     return "Unknown error — see console.";
@@ -1082,6 +1112,14 @@ export default function AdminPage() {
           <div className="admin-section">
             <div className="admin-section-head">
               <h2>Contracts — deploy in this order</h2>
+              <button
+                className="admin-refresh"
+                disabled={repriceAllRunning || !targets.some((t) => !!t.address)}
+                title={`One click instead of visiting every chain row — re-pegs the ongoing public mint price to $${PUBLIC_MINT_USD} at the current rate on every deployed chain (EVM chains' setMintPrice, then Solana's per-track Candy Guard reprice). Does NOT touch the #1-10 secondary-listing prices — use each row's own "Reprice & Relist" for that.`}
+                onClick={handleRepriceAllMintPrices}
+              >
+                {repriceAllRunning ? "Repricing…" : "Reprice Mint Price — All Chains"}
+              </button>
             </div>
             <div className="admin-empty" style={{ marginBottom: 14 }}>
               One upgradable collection contract per chain — every track/album mints onto the
