@@ -1578,13 +1578,87 @@ correctly excluded):
   can't fire before the read effect has finished resolving whatever the
   page actually loaded with (same guard HOODPrinter needed after hitting
   this exact race).
-- **Not ported from that same HOODPrinter update**: the mobile
-  Transactions-row rework and the per-row chain-hover popup — `/swap` here
-  has no persisted transaction-history list at all (just a single
-  "✅ Swap sent" line for the current swap), so neither applies.
-
 Verified via `npm run build` (clean, `/swap` still prerenders `○ Static`)
 and a standalone `tsc --noEmit` pass on the touched files.
+
+## Swap parity, round 3 (2026-08-11, same day) — the actual visible UI
+
+Dylan, right after round 2 landed: "make sure it works EXACTLY the same
+as the current version of PRINT Swap. Were basically just re-skinning
+it." Round 2 above was internal robustness (fee-fallback, false-failure
+recovery, the ticking overlay, shareable links) — genuinely important,
+but none of it is visible on the page itself. This round ports the
+actual UI/UX PRINT Swap has around the swap box, which was the real gap
+round 2's own "NOT ported: mobile Transactions-row rework and per-row
+chain-hover popup" note undersold (that note is now stale — both shipped
+this round):
+
+- **Per-side USD pricing + mismatch warning** — `getTokenUsdPrice`
+  (`lib/tokenUsdPrice.ts`) already existed (built earlier for the
+  any-token-to-NFT engine) but `/swap` itself never called it. Now
+  fetched once per token **selection** (not per keystroke) for both
+  sides; a `≈ $X` line renders under each panel via the already-typed
+  amount / already-fetched Relay preview output. `mismatchPct =
+  |fromUsdTotal - toUsdTotal| / fromUsdTotal * 100`; past 25% the normal
+  green CTA is REPLACED (not just decorated) by a red "Swap Anyway"
+  (`swap-cta-danger`) plus an explanatory `swap-mismatch-warn` box — same
+  behavior/threshold/copy as HOODPrinter's own version, same reasoning
+  (a gap that big means a bad quote, illiquid token, or a real mistake,
+  not normal fee/slippage noise).
+- **Balance display parity** — dropped the "Balance:" label (just the
+  number + symbol now, e.g. "1.284 ETH"), added `fmtBalance` (3 decimals
+  once ≥1, full 6 below it — a wallet holding 39,059.161337 CASHCAT
+  doesn't need all 6 digits shown). The "You Receive" panel now also
+  shows a **static** (non-clickable) balance for the destination token —
+  previously only "You Pay" showed a balance at all. Required adding a
+  `toBalanceEvm` (`useBalance`) hook and a `toSolBalance` effect mirroring
+  the existing `fromBalance`/`solBalance` ones, since nothing tracked the
+  receiving side's balance before this.
+- **Persisted per-wallet Transactions feed** — `/swap` had no transaction
+  history at all before this, just a single "✅ Swap sent" line for
+  whatever swap just ran. New `SwapTxRow`/`loadTxsByWallet`/
+  `saveTxsByWallet` (`dyl_swap_txs` localStorage key, separate from any
+  other feed in this app), keyed per-address (not one shared slot —
+  switching between an EVM and a Solana selection is a genuinely
+  different signer, so a different feed is correct) exactly the way
+  HOODPrinter's own feed is keyed. `doSwap` calls `addTx` once, on
+  success only (mirrors HOODPrinter's own `relay-only` branch, the
+  architectural shape every dylmusic swap actually has — no separate
+  "pending" row is meaningful here since there's no second leg of ours to
+  wait on). Each row shows amount/symbol both sides, a timestamp, and a
+  Relay transaction link when the swap touched Relay (always, on this
+  page).
+- **Chain-hover popup on every currency in Transactions** (`ChainTag`) —
+  ported since cross-chain means the same symbol (ETH, USDC) can
+  legitimately appear on 3+ different chains in the list. Needed adding
+  `icon` (Relay's own real chain-icon CDN, `assets.relay.link` — same
+  source HOODPrinter's `CHAINS` list uses) to `SWAP_CHAINS`
+  (`lib/dylTokens.ts`) — also reused for a small icon on each chain pill
+  in `TokenPickerModal`'s chain-select row, which had none before this,
+  free bonus parity. Same "no silent guess when chainId is missing"
+  behavior as HOODPrinter's version (rows persisted before this shipped
+  just show the plain symbol, no popup, rather than a possibly-wrong
+  chain).
+- **Deliberately NOT ported**: the per-tx-row link to a single chain's
+  block explorer. HOODPrinter's version links its one known chain's
+  explorer; this page is cross-chain-by-default with no single "the"
+  chain to pick for an arbitrary row, so the Relay link (which already
+  covers both legs of a bridge on Relay's own status page) stands in for
+  it alone rather than guessing which of 4 explorers to show.
+- **Also not ported (still correctly excluded, same reasoning as round
+  1/2)**: Resume-swap/pending-resume persistence and the balance-poll
+  "waiting for bridge" counter — every swap on this page is architecturally
+  the single-Relay-leg case, so there's no second leg of ours to resume.
+
+Verified via `npm run build` (clean, `/swap` still `○ Static`, bundle
+grew from 4.23 kB to 5.98 kB), a standalone `tsc --noEmit` pass, and a
+live SSR fetch of a real prod build (`npm run start`) confirming the
+Transactions section and its empty state render server-side with zero
+markup errors. USD pricing/mismatch/populated-transaction-row states
+couldn't be exercised end-to-end (no funded wallet in this environment,
+same gap already accepted throughout this codebase and HOODPrinter's own
+swap) — the code paths mirror HOODPrinter's own already-verified-live
+logic exactly, field names and all.
 
 ---
 

@@ -127,6 +127,8 @@ export default function TokenPickerModal({
                     disabled={!c.enabled}
                     onClick={() => setBrowseChainId(c.id)}
                   >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={c.icon} alt="" className="tp-chain-pill-icon" />
                     {c.name}
                     {!c.enabled && <span className="tp-chain-pill-soon">Soon</span>}
                   </button>

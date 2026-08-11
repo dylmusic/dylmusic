@@ -14,18 +14,22 @@ export interface SwapChain {
   id: number;
   key: "robinhood" | "base" | "solana" | "ethereum";
   name: string;
+  icon: string;
   enabled: boolean;
 }
 
 // Ethereum mainnet added as a 4th swap chain (parity with HOODPrinter's own
 // /swap) — the wagmi/RainbowKit plumbing already existed (lib/web3.ts added
 // mainnet to wagmiConfig.chains for the admin panel), this just makes it
-// pickable in the token picker too.
+// pickable in the token picker too. `icon` is Relay's own real chain-icon
+// CDN (assets.relay.link) — same source HOODPrinter's own CHAINS list uses,
+// not a new/guessed asset — powers both the chain-picker pills and the
+// Transactions section's per-currency chain-hover tag.
 export const SWAP_CHAINS: SwapChain[] = [
-  { id: robinhoodChain.id, key: "robinhood", name: "Robinhood", enabled: true },
-  { id: base.id, key: "base", name: "Base", enabled: true },
-  { id: SOLANA_CHAIN_ID, key: "solana", name: "Solana", enabled: true },
-  { id: mainnet.id, key: "ethereum", name: "Ethereum", enabled: true },
+  { id: robinhoodChain.id, key: "robinhood", name: "Robinhood", icon: "https://assets.relay.link/icons/4663/light.png", enabled: true },
+  { id: base.id, key: "base", name: "Base", icon: "https://assets.relay.link/icons/8453/light.png", enabled: true },
+  { id: SOLANA_CHAIN_ID, key: "solana", name: "Solana", icon: "https://assets.relay.link/icons/792703809/light.png", enabled: true },
+  { id: mainnet.id, key: "ethereum", name: "Ethereum", icon: "https://assets.relay.link/icons/1/light.png", enabled: true },
 ];
 
 // Relay's own sentinel address for native SOL (Solana's System Program id —

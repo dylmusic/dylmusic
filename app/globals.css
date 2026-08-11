@@ -3440,6 +3440,220 @@ input {
   cursor: not-allowed;
 }
 
+.swap-balance-static {
+  background: none;
+  border: none;
+  color: #7c8a80;
+  font-size: 0.76rem;
+  padding: 0;
+  cursor: default;
+}
+
+.swap-usd-note {
+  margin-top: 4px;
+  font-size: 0.74rem;
+  color: #7c8a80;
+}
+
+.swap-mismatch-warn {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 77, 77, 0.1);
+  border: 1px solid rgba(255, 77, 77, 0.4);
+  color: #ff8080;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+.swap-mismatch-warn strong {
+  color: #ffb0b0;
+}
+.swap-cta-danger {
+  background: #ff4d4d !important;
+  color: #2a0000 !important;
+}
+.swap-cta-danger:hover {
+  background: #ff6b6b !important;
+}
+
+/* ---------- Swap: Transactions feed ---------- */
+.swap-tx-card {
+  width: 100%;
+  max-width: 460px;
+  margin: 16px auto 0;
+  border-radius: 16px;
+  background: linear-gradient(160deg, #171c20 0%, #12161a 55%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 20px;
+}
+
+.swap-tx-card h2 {
+  font-size: 0.95rem;
+  font-weight: 800;
+  margin: 0 0 12px;
+  color: var(--accent);
+}
+
+.swap-tx-empty {
+  color: #7c8a80;
+  font-size: 0.85rem;
+  padding: 6px 0;
+}
+
+.swap-txs {
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.swap-tx {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 0.78rem;
+  color: #eef2ee;
+}
+
+.swap-tx:last-child {
+  border-bottom: none;
+}
+
+.swap-tx-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.swap-tx-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.swap-tx-status {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.swap-tx-amt {
+  flex: 0 0 auto;
+  font-weight: 700;
+  min-width: 76px;
+}
+
+.swap-tx-hash {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #7c8a80;
+  white-space: nowrap;
+}
+
+.swap-tx-hash-truncate {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.swap-tx-t {
+  flex: 0 0 auto;
+  color: #5f7266;
+  font-size: 0.72rem;
+}
+
+.swap-tx-link {
+  flex: 0 0 auto;
+  color: #7c8a80;
+  font-size: 0.7rem;
+  text-decoration: none;
+  white-space: nowrap;
+  padding: 2px 4px;
+}
+.swap-tx-link:hover {
+  color: #eef2ee;
+}
+.swap-tx-relay {
+  color: #7fc4ff;
+}
+.swap-tx-relay:hover {
+  color: #a8d8ff;
+}
+
+/* Hover a currency symbol in Transactions to see which chain it was on —
+   cross-chain swaps mean the same symbol can show up on 3+ different
+   chains. Plain CSS :hover popup, site-styled, not the native `title`
+   tooltip. Opens downward — .swap-txs is a scroll container, so an upward
+   popup on the first row would have nowhere to go but under the
+   container's own top edge. */
+.swap-chain-tag {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: default;
+  border-bottom: 1px dotted rgba(255, 255, 255, 0.25);
+}
+.swap-chain-tip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: #0c1013;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent);
+  color: #eef2ee;
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-50%) translateY(-2px);
+  transition: opacity 0.12s, transform 0.12s;
+  pointer-events: none;
+  z-index: 20;
+}
+.swap-chain-tag:hover .swap-chain-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+.swap-chain-tip-icon {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+@media (max-width: 640px) {
+  .swap-tx {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .swap-tx-main {
+    flex: 1 1 100%;
+  }
+  .swap-tx-hash {
+    white-space: normal;
+  }
+  .swap-tx-meta {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    padding-left: 18px;
+  }
+}
+
 /* ---------- Token picker modal ---------- */
 
 .tp-overlay {
@@ -3547,6 +3761,13 @@ input {
 
 .tp-chain-pill.disabled {
   opacity: 0.55;
+}
+
+.tp-chain-pill-icon {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .tp-chain-pill-soon {
