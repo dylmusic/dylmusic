@@ -1639,12 +1639,34 @@ this round):
   behavior as HOODPrinter's version (rows persisted before this shipped
   just show the plain symbol, no popup, rather than a possibly-wrong
   chain).
-- **Deliberately NOT ported**: the per-tx-row link to a single chain's
-  block explorer. HOODPrinter's version links its one known chain's
-  explorer; this page is cross-chain-by-default with no single "the"
-  chain to pick for an arbitrary row, so the Relay link (which already
-  covers both legs of a bridge on Relay's own status page) stands in for
-  it alone rather than guessing which of 4 explorers to show.
+- **Per-row block-explorer link — built correctly, NOT a copy of
+  HOODPrinter's own version.** First pass here (wrongly) reasoned this
+  wasn't portable at all: "HOODPrinter's version links its one known
+  chain's explorer; this page has no single 'the' chain to pick." Dylan
+  caught it — "PRINT Swap is not always Robinhood chain, I dont
+  understand what you mean" — and he was right: PRINT Swap has been
+  cross-chain (Base/Solana/Ethereum mainnet) since 2026-07-28. Rereading
+  HOODPrinter's actual code confirmed the real story —
+  `components/PrintDirectSwap.tsx`'s `CHAIN.explorer` is a single
+  hardcoded constant (`siteConfig.chain.explorerUrl`, always Robinhood's
+  blockscout) used on EVERY tx row regardless of which chain that row's
+  hash is actually on — a real bug on HOODPrinter's side for any
+  `relay-only` swap that never touches Robinhood Chain at all (e.g. Base
+  ETH → Solana USDC), not a deliberate design choice worth matching.
+  Built the actually-correct version instead: `SWAP_CHAINS` gained a real
+  `explorer` field per chain (`lib/dylTokens.ts`) — Base/Ethereum pull
+  their real explorer straight off their own already-imported wagmi
+  `Chain` objects (`base.blockExplorers!.default.url` /
+  `mainnet.blockExplorers!.default.url`, so it can't drift from those
+  chains' real definitions), Robinhood Chain off its own real definition
+  in `lib/web3.ts`, Solana off a plain Solscan constant (no wagmi `Chain`
+  object exists for it). Each Transactions row now picks its own real
+  explorer link off `tx.fromChainId` (the hash is always the origin-chain
+  tx — `quoteLastTxHash(result, fromToken.chainId)` on the normal path,
+  `recovered.originTxHash` first on the Relay-recovery path), skipped
+  entirely for the rare synthetic `relay-<id>` placeholder hash (no real
+  hash was ever recoverable). This is strictly better than what PRINT
+  Swap currently does, not just parity with it.
 - **Also not ported (still correctly excluded, same reasoning as round
   1/2)**: Resume-swap/pending-resume persistence and the balance-poll
   "waiting for bridge" counter — every swap on this page is architecturally

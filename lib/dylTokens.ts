@@ -15,6 +15,7 @@ export interface SwapChain {
   key: "robinhood" | "base" | "solana" | "ethereum";
   name: string;
   icon: string;
+  explorer: string;
   enabled: boolean;
 }
 
@@ -25,11 +26,21 @@ export interface SwapChain {
 // CDN (assets.relay.link) — same source HOODPrinter's own CHAINS list uses,
 // not a new/guessed asset — powers both the chain-picker pills and the
 // Transactions section's per-currency chain-hover tag.
+// `explorer` pulls Base/Ethereum's real block-explorer URL straight off
+// their own wagmi/viem Chain objects (already imported for chainId, so no
+// separate hardcoded value can drift from them) and Robinhood Chain's off
+// its own real definition in lib/web3.ts; Solana has no wagmi Chain object,
+// so Solscan is a plain constant. Powers a real per-row "view on chain"
+// link in the Transactions feed — HOODPrinter's own /swap gets this wrong
+// (a single hardcoded Robinhood-only explorer link on every row, even for
+// a cross-chain swap that never touches Robinhood Chain at all), so this
+// is deliberately NOT copying that bug.
+const SOLSCAN_URL = "https://solscan.io";
 export const SWAP_CHAINS: SwapChain[] = [
-  { id: robinhoodChain.id, key: "robinhood", name: "Robinhood", icon: "https://assets.relay.link/icons/4663/light.png", enabled: true },
-  { id: base.id, key: "base", name: "Base", icon: "https://assets.relay.link/icons/8453/light.png", enabled: true },
-  { id: SOLANA_CHAIN_ID, key: "solana", name: "Solana", icon: "https://assets.relay.link/icons/792703809/light.png", enabled: true },
-  { id: mainnet.id, key: "ethereum", name: "Ethereum", icon: "https://assets.relay.link/icons/1/light.png", enabled: true },
+  { id: robinhoodChain.id, key: "robinhood", name: "Robinhood", icon: "https://assets.relay.link/icons/4663/light.png", explorer: robinhoodChain.blockExplorers!.default.url, enabled: true },
+  { id: base.id, key: "base", name: "Base", icon: "https://assets.relay.link/icons/8453/light.png", explorer: base.blockExplorers!.default.url, enabled: true },
+  { id: SOLANA_CHAIN_ID, key: "solana", name: "Solana", icon: "https://assets.relay.link/icons/792703809/light.png", explorer: SOLSCAN_URL, enabled: true },
+  { id: mainnet.id, key: "ethereum", name: "Ethereum", icon: "https://assets.relay.link/icons/1/light.png", explorer: mainnet.blockExplorers!.default.url, enabled: true },
 ];
 
 // Relay's own sentinel address for native SOL (Solana's System Program id —

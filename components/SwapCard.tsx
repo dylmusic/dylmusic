@@ -68,11 +68,13 @@ import TokenPickerModal, { TokenIcon } from "./TokenPickerModal";
 // there's no analog to HOODPrinter's waitForBalanceIncrease/Resume-swap
 // machinery to port here; that mechanism belongs to the NFT buy flow
 // instead (lib/useTrackCommerce.ts), which genuinely has two real legs.
-// Also not ported: the per-currency explorer-link chip on each tx row —
-// HOODPrinter's version links a single known chain's explorer; a
-// cross-chain-by-default page like this one has no one right explorer to
-// pick, so the Relay link (which covers both legs of a bridge) stands in
-// for it alone.
+// The per-tx-row explorer link is DELIBERATELY NOT a copy of HOODPrinter's
+// own version — theirs hardcodes a single Robinhood-chain explorer on
+// every row, which is wrong for any cross-chain swap that never touches
+// Robinhood Chain at all (real bug, not a design choice, on their side).
+// This page is cross-chain by default, so each row picks its own real
+// explorer (SWAP_CHAINS' `explorer` field) off the tx's actual origin
+// chain (tx.fromChainId) instead.
 
 const DEFAULT_FROM: DylToken = PINNED_TOKENS.robinhood[0]; // ETH on Robinhood
 const DEFAULT_TO: DylToken = PINNED_TOKENS.robinhood[2]; // USDG on Robinhood
@@ -740,35 +742,49 @@ export default function SwapCard() {
         <h2>Transactions</h2>
         <div className="swap-txs">
           {txs.length === 0 && <div className="swap-tx-empty">No swaps yet — your recent swaps will land here.</div>}
-          {txs.map((tx) => (
-            <div key={tx.hash} className="swap-tx ok">
-              <div className="swap-tx-main">
-                <span className="swap-tx-status" />
-                <span className="swap-tx-amt">
-                  {tx.fromAmt} <ChainTag chainId={tx.fromChainId}>{tx.fromSym}</ChainTag>
-                </span>
-                <span className="swap-tx-hash">
-                  {tx.toAmt ? (
-                    <>
-                      → {tx.toAmt} <ChainTag chainId={tx.toChainId}>{tx.toSym}</ChainTag>
-                    </>
-                  ) : (
-                    <span className="swap-tx-hash-truncate">
-                      {tx.hash.slice(0, 10)}…{tx.hash.slice(-6)}
-                    </span>
+          {txs.map((tx) => {
+            // The recorded hash is always the origin (fromChainId) tx —
+            // doSwap reads it via quoteLastTxHash(result, fromToken.chainId)
+            // on the normal path, or recovered.originTxHash first on the
+            // Relay-recovery path. A synthetic `relay-<id>` placeholder (no
+            // real hash was ever recoverable) has nothing to link to.
+            const isRealHash = !tx.hash.startsWith("relay-");
+            const explorerChain = isRealHash ? SWAP_CHAINS.find((c) => c.id === tx.fromChainId) : undefined;
+            return (
+              <div key={tx.hash} className="swap-tx ok">
+                <div className="swap-tx-main">
+                  <span className="swap-tx-status" />
+                  <span className="swap-tx-amt">
+                    {tx.fromAmt} <ChainTag chainId={tx.fromChainId}>{tx.fromSym}</ChainTag>
+                  </span>
+                  <span className="swap-tx-hash">
+                    {tx.toAmt ? (
+                      <>
+                        → {tx.toAmt} <ChainTag chainId={tx.toChainId}>{tx.toSym}</ChainTag>
+                      </>
+                    ) : (
+                      <span className="swap-tx-hash-truncate">
+                        {tx.hash.slice(0, 10)}…{tx.hash.slice(-6)}
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="swap-tx-meta">
+                  <span className="swap-tx-t">{tx.t}</span>
+                  {tx.relayUrl && (
+                    <a className="swap-tx-link swap-tx-relay" href={tx.relayUrl} target="_blank" rel="noopener noreferrer">
+                      Relay ↗
+                    </a>
                   )}
-                </span>
+                  {explorerChain && (
+                    <a className="swap-tx-link" href={`${explorerChain.explorer}/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer">
+                      ↗
+                    </a>
+                  )}
+                </div>
               </div>
-              <div className="swap-tx-meta">
-                <span className="swap-tx-t">{tx.t}</span>
-                {tx.relayUrl && (
-                  <a className="swap-tx-link swap-tx-relay" href={tx.relayUrl} target="_blank" rel="noopener noreferrer">
-                    Relay ↗
-                  </a>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
     </>
