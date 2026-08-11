@@ -1,10 +1,11 @@
 import { generateSigner, publicKey as toPublicKey, some } from "@metaplex-foundation/umi";
 import { mintV2 } from "@metaplex-foundation/mpl-candy-machine";
-import { TokenStandard } from "@metaplex-foundation/mpl-token-metadata";
+import { TokenStandard, fetchDigitalAsset } from "@metaplex-foundation/mpl-token-metadata";
 import { setComputeUnitLimit } from "@metaplex-foundation/mpl-toolbox";
 import { createSolanaAdminUmi, fetchCollectionUpdateAuthority } from "./solanaAdmin";
 import { fulfillMagicEdenPurchase, type MeBuyInput } from "./magicEdenListing";
 import { CONTRACT_TARGETS } from "./admin";
+import { decodeTokenId } from "./tokenIdScheme";
 import type { PhantomProvider } from "./solana";
 import type { Connection } from "@solana/web3.js";
 
@@ -29,6 +30,13 @@ export interface FulfillSolanaMintParams {
   candyGuard: string;
 }
 
+export interface SolanaMintResult {
+  mint: string;
+  tokenId: number;
+  trackId: number;
+  editionNumber: number;
+}
+
 /**
  * Real public mint through a track's Candy Guard — the Solana counterpart
  * to lib/nftPurchase.ts's fulfillMintPurchase. `collectionUpdateAuthority`/
@@ -37,8 +45,16 @@ export interface FulfillSolanaMintParams {
  * hardcoded wallet — there's no separate "Solana admin wallet" constant
  * anywhere in this codebase (a Solana pubkey is a completely different
  * address format from lib/admin.ts's EVM ADMIN_WALLET).
+ *
+ * Returns the real tokenId the Candy Machine actually assigned, read back
+ * from the freshly minted NFT's own on-chain metadata URI (config lines
+ * were uploaded as `uri: "<tokenId>"`, same lib/tokenIdScheme.ts numbering
+ * — see lib/solanaAdmin.ts's deployTrackAndMintAdmin) rather than assumed
+ * from `isSequential` — this is what lets a fresh public mint be recorded
+ * into SolanaMintsStore (see useTrackCommerce.ts) so it can be resold
+ * later, same as an admin-premint edition already can.
  */
-export async function fulfillSolanaMintPurchase(params: FulfillSolanaMintParams): Promise<{ mint: string }> {
+export async function fulfillSolanaMintPurchase(params: FulfillSolanaMintParams): Promise<SolanaMintResult> {
   const target = CONTRACT_TARGETS.find((t) => t.key === "solana");
   if (!target?.address) throw new Error("No deployed Solana collection yet.");
   const updateAuthority = await fetchCollectionUpdateAuthority(target.address);
@@ -58,7 +74,15 @@ export async function fulfillSolanaMintPurchase(params: FulfillSolanaMintParams)
       })
     )
     .sendAndConfirm(umi);
-  return { mint: nftMint.publicKey.toString() };
+
+  const asset = await fetchDigitalAsset(umi, nftMint.publicKey);
+  const tokenIdStr = asset.metadata.uri.split("/").filter(Boolean).pop() ?? "";
+  const tokenId = Number(tokenIdStr);
+  if (!Number.isInteger(tokenId) || tokenId <= 0) {
+    throw new Error(`Minted successfully but could not parse a real tokenId from the on-chain URI (${asset.metadata.uri}).`);
+  }
+  const { trackId, editionNumber } = decodeTokenId(tokenId);
+  return { mint: nftMint.publicKey.toString(), tokenId, trackId, editionNumber };
 }
 
 export interface FulfillSolanaResaleParams {

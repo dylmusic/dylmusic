@@ -39,6 +39,8 @@ import {
 } from "./realSolanaOrderBook";
 import { fulfillSolanaMintPurchase, fulfillSolanaResalePurchase } from "./solanaPurchase";
 import { getConnection } from "./solana";
+import { filterOwnedMints } from "./solanaAdmin";
+import { listEditionsOnMagicEden, cancelEditionsOnMagicEden } from "./magicEdenListing";
 import type { SolanaMintRecord } from "./solanaMintsStore";
 
 function isNativePayTokenLegacy(payToken: DylToken, nativeToken: DylToken): boolean {
@@ -173,8 +175,11 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
 
   const [realOwnedEditions, setRealOwnedEditions] = useState<Record<string, number[]>>({});
 
-  // Real on-chain ownership (ERC721AQueryableUpgradeable's tokensOfOwner)
-  // replaces lib/holdings.ts's simulated per-wallet ledger once deployed.
+  // Real on-chain ownership — ERC721AQueryableUpgradeable's tokensOfOwner
+  // for EVM, a real per-mint Associated Token Account balance check
+  // (filterOwnedMints, same call app/admin's "Reprice & Relist" already
+  // uses, generalized to any wallet not just admin) for Solana — replaces
+  // lib/holdings.ts's simulated per-wallet ledger once deployed.
   useEffect(() => {
     if (!deployed || !walletAddress) {
       setRealOwnedEditions({});
@@ -182,6 +187,18 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     }
     let cancelled = false;
     (async () => {
+      if (chain === "solana") {
+        const owned = await filterOwnedMints(getConnection(), solanaMintRecords, walletAddress);
+        if (cancelled) return;
+        const byTrack: Record<string, number[]> = {};
+        for (const t of tracks) byTrack[t.id] = [];
+        for (const r of owned) {
+          const track = tracks.find((t) => t.index === r.trackId);
+          if (track) byTrack[track.id].push(r.editionNumber);
+        }
+        if (!cancelled) setRealOwnedEditions(byTrack);
+        return;
+      }
       const tokenIds = await fetchRealOwnedTokenIds(chain, walletAddress);
       if (cancelled) return;
       const byTrack: Record<string, number[]> = {};
@@ -197,7 +214,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deployed, chain, tracks, walletAddress, tick]);
+  }, [deployed, chain, tracks, walletAddress, tick, solanaMintRecords]);
 
   const simulatedMinted = useMemo(() => {
     const m: Record<string, number> = {};
@@ -358,7 +375,29 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
           const record = solanaMintRecords.find((r) => r.trackId === t.index);
           if (!record?.candyGuard) throw new Error("This track's Solana mint isn't set up yet.");
           setBuyStep({ part: 1, total: 1, label: "Confirm purchase" });
-          await fulfillSolanaMintPurchase({ provider, candyMachine: record.candyMachine, candyGuard: record.candyGuard });
+          const result = await fulfillSolanaMintPurchase({ provider, candyMachine: record.candyMachine, candyGuard: record.candyGuard });
+          // Record the fresh mint so it can be found/resold later (Magic
+          // Eden has no concept of our own trackId/editionNumber numbering
+          // — without this, a real public mint would be untrackable by
+          // our own "List for sale" flow). Best-effort: the real on-chain
+          // mint already succeeded regardless of whether this write does.
+          await fetch("/api/solana-mints", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              wallet: sol.address,
+              mints: [
+                {
+                  trackId: result.trackId,
+                  editionNumber: result.editionNumber,
+                  tokenId: result.tokenId,
+                  mint: result.mint,
+                  candyMachine: record.candyMachine,
+                  candyGuard: record.candyGuard,
+                },
+              ],
+            }),
+          }).catch(() => {});
         } else {
           const listing = entry.raw as RealSolanaListing;
           setBuyStep({ part: 1, total: 1, label: "Confirm purchase" });
@@ -529,8 +568,47 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     refresh();
   }
 
+  // Real Solana "List for sale" — Magic Eden only (no site-native listing
+  // exists for Solana, same asymmetry already documented in CLAUDE.md).
+  // Requires the edition to already have a SolanaMintRecord (an
+  // admin-premint edition, or a fresh public mint the buy flow above just
+  // recorded) — nothing to list otherwise, since Magic Eden needs the
+  // real mint address, not just a track/edition number.
+  async function setEditionPriceSolanaReal(t: Track, editionNumber: number, price: number) {
+    const provider = sol.getProvider();
+    if (!sol.address || !provider) return;
+    const record = solanaMintRecords.find((r) => r.trackId === t.index && r.editionNumber === editionNumber);
+    if (!record) {
+      setSellError("This edition isn't recorded yet — try refreshing.");
+      return;
+    }
+    setSellBusy(true);
+    setSellError(null);
+    try {
+      const solToken = getNativeTokenForChain("solana");
+      const solUsd = await getTokenUsdPrice(solToken);
+      if (!solUsd) throw new Error("Could not price SOL right now — try again shortly.");
+      const priceSol = price / solUsd;
+      const result = await listEditionsOnMagicEden(provider, getConnection(), sol.address, [{ mint: record.mint, priceSol }]);
+      if (result.failed.length > 0) throw result.failed[0].error;
+      await fetch("/api/solana-mints", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet: sol.address, mints: [{ ...record, listedPriceSol: priceSol }] }),
+      }).catch(() => {});
+      recordActivity({ type: "sell", chain, wallet: sol.address, trackTitle: t.title, editionNumber, priceUsd: price });
+      refresh();
+    } catch (err) {
+      setSellError(err instanceof Error ? err.message : "Listing failed — see console.");
+      console.error("setEditionPriceSolanaReal failed", err);
+    } finally {
+      setSellBusy(false);
+    }
+  }
+
   function setEditionPrice(t: Track, editionNumber: number, price: number) {
-    if (deployed) void setEditionPriceReal(t, editionNumber, price);
+    if (deployed && chain === "solana") void setEditionPriceSolanaReal(t, editionNumber, price);
+    else if (deployed) void setEditionPriceReal(t, editionNumber, price);
     else setEditionPriceSimulated(t, editionNumber, price);
   }
 
@@ -573,8 +651,37 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     refresh();
   }
 
+  /** Real Solana cancel — Magic Eden's own sell_cancel instruction, needs the listing's exact CURRENT price as an input (their Auction House model, not Seaport). */
+  async function cancelEditionListingSolanaReal(t: Track, editionNumber: number) {
+    const provider = sol.getProvider();
+    if (!sol.address || !provider) return;
+    const record = solanaMintRecords.find((r) => r.trackId === t.index && r.editionNumber === editionNumber);
+    if (!record?.listedPriceSol) return; // nothing of ours to cancel (already sold, or was never listed)
+    setSellBusy(true);
+    setSellError(null);
+    try {
+      const result = await cancelEditionsOnMagicEden(provider, getConnection(), sol.address, [
+        { mint: record.mint, priceSol: record.listedPriceSol },
+      ]);
+      if (result.failed.length > 0) throw result.failed[0].error;
+      const { listedPriceSol: _drop, ...withoutPrice } = record;
+      await fetch("/api/solana-mints", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet: sol.address, mints: [withoutPrice] }),
+      }).catch(() => {});
+      refresh();
+    } catch (err) {
+      setSellError(err instanceof Error ? err.message : "Cancel failed — see console.");
+      console.error("cancelEditionListingSolanaReal failed", err);
+    } finally {
+      setSellBusy(false);
+    }
+  }
+
   function cancelEditionListing(t: Track, editionNumber: number) {
-    if (deployed) void cancelEditionListingReal(t, editionNumber);
+    if (deployed && chain === "solana") void cancelEditionListingSolanaReal(t, editionNumber);
+    else if (deployed) void cancelEditionListingReal(t, editionNumber);
     else cancelEditionListingSimulated(t, editionNumber);
   }
 

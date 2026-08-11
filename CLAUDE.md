@@ -1950,6 +1950,60 @@ All 4 parts of the plan (`~/.claude/plans/idempotent-wandering-moth.md`)
 are now built. Nothing is live — every gate Dylan asked to keep
 (`BuyConfirmModal.tsx`/`ListingsModal.tsx`'s "Not live yet") is untouched.
 
+**Follow-up, same day: closed the Magic Eden real-sell gap Part 4 left
+open.** Asked directly "are we compatible with as many marketplaces as
+possible" — answer was OpenSea yes (both directions), Magic Eden buy-only.
+Dylan's call: close that gap first before adding any new marketplace.
+- **`lib/solanaPurchase.ts`'s `fulfillSolanaMintPurchase` now reads back
+  the real tokenId** the Candy Machine actually assigned, via
+  `fetchDigitalAsset` on the freshly minted NFT and parsing its own
+  on-chain metadata URI (config lines were uploaded as `uri: "<tokenId>"`
+  — same numbering `lib/tokenIdScheme.ts` already uses) — not assumed
+  from `isSequential`. Returns `{mint, tokenId, trackId, editionNumber}`
+  instead of just `{mint}`.
+- **`/api/solana-mints`'s `POST` opened to any wallet**, not just admin —
+  a real public mint has to be able to record itself so it can be found/
+  resold later (Magic Eden has no concept of this app's trackId/
+  editionNumber numbering, only the real mint address). Guarded
+  differently from EVM's `/api/listings` POST on purpose: a bad Solana
+  record would corrupt the shared track/edition↔mint mapping for every
+  future visitor, not just the submitter's own view, so this checks a
+  REAL on-chain read (`getAccount` on the submitted wallet's own
+  Associated Token Account for that mint) rather than just a
+  self-reported field match. Admin's own premint writes stay exempt from
+  the check (same trust already implicit in "this wallet is the site's
+  own admin").
+- **`useTrackCommerce`'s Solana `confirmPendingBuy` mint branch now
+  POSTs the new record** right after a successful `mintV2` call
+  (best-effort — the real on-chain mint already succeeded regardless of
+  whether this write does).
+- **Real Solana ownership**: the owned-editions effect gained a Solana
+  branch using `filterOwnedMints` (`lib/solanaAdmin.ts` — the same call
+  `/admin`'s "Reprice & Relist" already uses, generalized to any wallet,
+  not admin-only) instead of falling back to the simulated ledger.
+- **Real Solana "List for sale"/cancel**: `setEditionPrice`/
+  `cancelEditionListing` gained Solana branches calling
+  `listEditionsOnMagicEden`/`cancelEditionsOnMagicEden` (already built in
+  Part 4-era `lib/magicEdenListing.ts`) directly against the edition's
+  real recorded mint, updating/clearing `SolanaMintRecord.listedPriceSol`
+  after each. No site-native listing exists for Solana (same asymmetry
+  already documented) — Magic Eden is the only venue.
+- `npm run build` stayed clean through this too. Not run against a live
+  wallet — same gap as everywhere else in this section.
+
+**Then asked to go broader: "make it as multi-compatible as possible,
+whatever's realistic."** Real but important nuance already true before
+any of this: because these are plain standard ERC-721 (EVM) / Metaplex
+(Solana) tokens with no custom transfer restrictions, ANY marketplace can
+already independently index/list/trade them with zero work from this
+codebase — real ownership and transfer history shows up correctly
+everywhere automatically the moment a sale happens, on any platform. What
+was actually missing was "can someone buy or sell through OUR OWN site
+no matter where the listing lives," which — as of the two rounds of work
+above — covers OpenSea (both directions) and Magic Eden (now both
+directions too). See below for what else was evaluated as a realistic
+next addition.
+
 ---
 
 ## Reprice & Relist (EVM) + Solana wired into `/admin` — built 2026-07-29
