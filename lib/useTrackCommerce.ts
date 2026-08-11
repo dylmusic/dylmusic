@@ -30,6 +30,16 @@ import { getOpenSeaSdk, isOpenSeaListable, createOpenSeaListings } from "./openS
 import { createSiteListings, cancelSiteListing, type StoredListing } from "./siteListing";
 import { getTokenUsdPrice } from "./tokenUsdPrice";
 import { encodeTokenId, decodeTokenId } from "./tokenIdScheme";
+import {
+  fetchRealSolanaListings,
+  buildRealSolanaOrderBook,
+  fetchRealSolanaMintRow,
+  fetchMintRecords as fetchSolanaMintRecords,
+  type RealSolanaListing,
+} from "./realSolanaOrderBook";
+import { fulfillSolanaMintPurchase, fulfillSolanaResalePurchase } from "./solanaPurchase";
+import { getConnection } from "./solana";
+import type { SolanaMintRecord } from "./solanaMintsStore";
 
 function isNativePayTokenLegacy(payToken: DylToken, nativeToken: DylToken): boolean {
   return payToken.chainId === nativeToken.chainId && payToken.address === nativeToken.address;
@@ -49,12 +59,13 @@ export interface PendingBuy {
 // A chain is "real" here once its collection contract is actually
 // deployed (lib/admin.ts CONTRACT_TARGETS) — every chain today, so every
 // call site below falls back to the exact simulated behavior that existed
-// before this real wiring, zero pre-launch regression. Solana isn't
-// wired for real buy/sell yet (see lib/realOrderBook.ts's EVM-only scope
-// note) — always simulated here regardless of deployment state until
-// that ships.
+// before this real wiring, zero pre-launch regression. For Solana this
+// means the Collection NFT exists — individual TRACKS may still have no
+// Candy Machine yet (per-track, not one shared contract); those simply
+// produce an empty real order book (no mint row, no listings) rather than
+// falling back to simulated data, which is correct since they genuinely
+// aren't purchasable yet either way.
 function isRealDeployed(chain: ChainKey): boolean {
-  if (chain === "solana") return false;
   return !!CONTRACT_TARGETS.find((t) => t.key === chain)?.address;
 }
 
@@ -88,16 +99,42 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
   const [realBooks, setRealBooks] = useState<Record<string, OrderBookEntry[]>>({});
   const [realMinted, setRealMinted] = useState<Record<string, number>>({});
   const [realBooksLoading, setRealBooksLoading] = useState(false);
+  const [solanaMintRecords, setSolanaMintRecords] = useState<SolanaMintRecord[]>([]);
 
   // Real order-book fetch — one merged sweep for the whole track list, not
-  // per-track (fetchRealEvmListings is already collection-scoped). Refetches
-  // on `tick` (the same refresh() every mutating action below already
-  // calls) so a buy/sell is reflected without a full page reload.
+  // per-track (fetchRealEvmListings/fetchRealSolanaListings are already
+  // collection-scoped). Refetches on `tick` (the same refresh() every
+  // mutating action below already calls) so a buy/sell is reflected
+  // without a full page reload. EVM and Solana are different enough
+  // (real Seaport/OpenSea orders vs. real Magic Eden listings + per-track
+  // Candy Machines) that they get separate branches rather than one
+  // forced-generic code path.
   useEffect(() => {
     if (!deployed) return;
     let cancelled = false;
     setRealBooksLoading(true);
     (async () => {
+      if (chain === "solana") {
+        const records = await fetchSolanaMintRecords();
+        if (cancelled) return;
+        setSolanaMintRecords(records);
+        const listings = await fetchRealSolanaListings();
+        if (cancelled) return;
+        const nextBooks: Record<string, OrderBookEntry[]> = {};
+        const nextMinted: Record<string, number> = {};
+        for (const t of tracks) {
+          nextBooks[t.id] = await buildRealSolanaOrderBook(t, records, listings);
+          const mintRow = await fetchRealSolanaMintRow(t, records);
+          nextMinted[t.id] = mintRow ? t.editionCap - mintRow.remaining : 0;
+        }
+        if (!cancelled) {
+          setRealBooks(nextBooks);
+          setRealMinted(nextMinted);
+          setRealBooksLoading(false);
+        }
+        return;
+      }
+
       let sdk = null;
       // A signer is required to construct OpenSeaSDK even for read-only
       // calls (no signer-less constructor exists) — until a wallet is
@@ -306,7 +343,33 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     setBusyKey(`${t.id}:${entryKey}`);
     setBuyError(null);
     try {
-      if (deployed) {
+      if (deployed && chain === "solana") {
+        // Solana branch is direct-SOL only for now — payToken is ignored
+        // here, unlike the EVM branch below which runs
+        // lib/payWithAnyToken.ts's runPayWithAnyToken first for a
+        // non-native payToken. Real, deliberate scope cut for this pass
+        // (see CLAUDE.md "Real buy/sell" Part 4), not an oversight — the
+        // BuyConfirmModal UI still offers the token picker regardless, so
+        // a non-SOL selection would currently be silently ignored rather
+        // than honored; worth fixing before this ever goes live.
+        const provider = sol.getProvider();
+        if (!sol.address || !provider) throw new Error("Connect Phantom first.");
+        if (entry.type === "mint") {
+          const record = solanaMintRecords.find((r) => r.trackId === t.index);
+          if (!record?.candyGuard) throw new Error("This track's Solana mint isn't set up yet.");
+          setBuyStep({ part: 1, total: 1, label: "Confirm purchase" });
+          await fulfillSolanaMintPurchase({ provider, candyMachine: record.candyMachine, candyGuard: record.candyGuard });
+        } else {
+          const listing = entry.raw as RealSolanaListing;
+          setBuyStep({ part: 1, total: 1, label: "Confirm purchase" });
+          await fulfillSolanaResalePurchase({
+            provider,
+            connection: getConnection(),
+            buyerAddress: sol.address,
+            listing: { buyer: sol.address, seller: listing.sellerAddress, tokenMint: listing.mint, priceSol: listing.priceSol, sellerExpiry: listing.expiry },
+          });
+        }
+      } else if (deployed) {
         const chainId = chainIdForKey(chain);
         if (!isNativePayToken(payToken, chain)) {
           const result = await runPayWithAnyToken({

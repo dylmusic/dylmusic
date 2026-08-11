@@ -146,6 +146,88 @@ export async function repriceEditionsOnMagicEden(
   return { successful, failed };
 }
 
+/**
+ * Resolves the collection SYMBOL (the {symbol} path param every
+ * /collections/{symbol}/... endpoint needs) from any one real mint we
+ * already know about — GET /tokens/{mint} (public, no key, verified live
+ * against docs.magiceden.io) returns a `collection` field. **Real, flagged
+ * unknown, not fully confirmed**: Magic Eden's own docs describe this
+ * field only as "the collection identifier," not explicitly as the same
+ * string used in the {symbol} path param elsewhere — needs a live check
+ * once a real mint exists (same category of caveat already recorded for
+ * OpenSea's own collection-slug resolution in lib/realOrderBook.ts).
+ */
+export async function resolveMagicEdenCollectionSymbol(anyKnownMint: string): Promise<string | null> {
+  const res = await fetch(`${ME_API_BASE}/tokens/${anyKnownMint}`);
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => null);
+  return typeof data?.collection === "string" ? data.collection : null;
+}
+
+export interface MeListing {
+  tokenMint: string;
+  seller: string;
+  priceSol: number;
+  auctionHouse: string;
+  expiry: number;
+}
+
+/**
+ * Public, no API key — GET /collections/{symbol}/listings, verified live
+ * against docs.magiceden.io (2026-08-11): every active listing for the
+ * WHOLE collection (anyone's, not just ones listed through /admin),
+ * paginated via offset/limit (max 100/page). Pairs with a
+ * SolanaMintRecord lookup (lib/solanaMintsStore.ts) to map a returned
+ * tokenMint back to a trackId/editionNumber — Magic Eden has no concept
+ * of this app's own numbering scheme, only the real mint address.
+ */
+export async function fetchMagicEdenCollectionListings(symbol: string): Promise<MeListing[]> {
+  const all: MeListing[] = [];
+  const LIMIT = 100;
+  for (let offset = 0; ; offset += LIMIT) {
+    const res = await fetch(`${ME_API_BASE}/collections/${encodeURIComponent(symbol)}/listings?offset=${offset}&limit=${LIMIT}`);
+    if (!res.ok) {
+      throw new Error(`Magic Eden API error (${res.status}) fetching collection listings: ${await res.text().catch(() => res.statusText)}`);
+    }
+    const page = (await res.json()) as Array<{ tokenMint: string; seller: string; price: number; auctionHouse: string; expiry: number }>;
+    all.push(...page.map((p) => ({ tokenMint: p.tokenMint, seller: p.seller, priceSol: p.price, auctionHouse: p.auctionHouse, expiry: p.expiry })));
+    if (page.length < LIMIT) break;
+  }
+  return all;
+}
+
+export interface MeBuyInput {
+  buyer: string;
+  seller: string;
+  tokenMint: string;
+  priceSol: number;
+  sellerExpiry: number;
+}
+
+/**
+ * Real resale purchase — GET /instructions/buy_now (Bearer auth, verified
+ * live against docs.magiceden.io: required params buyer/seller/tokenMint/
+ * tokenATA/price/sellerExpiry). `priceSol`/`sellerExpiry` must exactly
+ * match the seller's live listing (fetchMagicEdenCollectionListings'
+ * output) — Auction House needs the real current terms, not a guess.
+ */
+export async function fulfillMagicEdenPurchase(
+  provider: PhantomProvider,
+  connection: Connection,
+  input: MeBuyInput
+): Promise<string> {
+  const tokenATA = await tokenAccountFor(input.tokenMint, input.seller);
+  const tx = await fetchMeTransaction("/instructions/buy_now", {
+    buyer: input.buyer,
+    seller: input.seller,
+    tokenMint: input.tokenMint,
+    tokenATA,
+    price: input.priceSol,
+    sellerExpiry: input.sellerExpiry,
+  });
+  return signAndSend(provider, connection, tx);
+}
+
 export interface MeCancelInput {
   mint: string;
   priceSol: number;

@@ -1880,8 +1880,75 @@ pattern already in this file).
 - **Not run against a live wallet** — same gap as everywhere else in this
   section; verified via a clean `npm run build` after this part too.
 
-**Part 4 (the entire Solana Magic Eden buy/sell layer) is scoped in the
-plan file but not yet built** — pick up there, don't re-derive.
+**Part 4 — real Solana buy via Magic Eden (`lib/magicEdenListing.ts`,
+`lib/realSolanaOrderBook.ts`, new `lib/solanaPurchase.ts`, `lib/solanaAdmin.ts`):**
+- `lib/magicEdenListing.ts` gained `fetchMagicEdenCollectionListings`
+  (public, no key, paginated `GET /collections/{symbol}/listings`,
+  verified live against docs.magiceden.io), `fulfillMagicEdenPurchase`
+  (`GET /instructions/buy_now`, Bearer auth, same verified param set —
+  `buyer/seller/tokenMint/tokenATA/price/sellerExpiry`), and
+  `resolveMagicEdenCollectionSymbol` (`GET /tokens/{mint}`, public — reads
+  the `collection` field as the candidate {symbol}; **real, flagged
+  unknown**, Magic Eden's own docs don't explicitly confirm this field is
+  literally the same string `/collections/{symbol}/...` expects, same
+  caveat class as OpenSea's slug resolution).
+- `lib/realSolanaOrderBook.ts` (new) mirrors `lib/realOrderBook.ts`'s EVM
+  shape but keeps Solana's real differences rather than forcing a common
+  abstraction: mint progress/price are per-TRACK (`fetchTrackMintProgress`/
+  `fetchTrackGuardPriceLamports`, new in `lib/solanaAdmin.ts` — the guard
+  price is read LIVE so the real order book stays consistent with a real
+  "Reprice Mint Price" action instead of showing a stale static price),
+  and a Magic Eden listing's `tokenMint` has to be cross-referenced
+  against our own recorded `SolanaMintRecord[]` (`/api/solana-mints`) to
+  know which track/edition it even is — Magic Eden has no concept of this
+  app's tokenId numbering.
+- `lib/solanaPurchase.ts` (new, the Solana counterpart to `lib/nftPurchase.ts`):
+  `fulfillSolanaMintPurchase` — a real public `mintV2` call through a
+  track's Candy Guard, verified against `onchain-solana/scripts/
+  dry-run-devnet.ts`'s own proven instruction sequence (real cloned
+  mainnet programs, local validator). `collectionUpdateAuthority`/the
+  guard's `solPayment.destination` are read LIVE from the Collection
+  NFT's real on-chain update authority (`fetchCollectionUpdateAuthority`,
+  new) rather than hardcoded — there's no separate "Solana admin wallet"
+  constant anywhere in this codebase (a Solana pubkey is a different
+  address format from `lib/admin.ts`'s EVM `ADMIN_WALLET`), so guessing
+  one would be exactly the kind of unverified assumption avoided
+  elsewhere. `fulfillSolanaResalePurchase` wraps `fulfillMagicEdenPurchase`.
+- `useTrackCommerce`'s Solana branch of `confirmPendingBuy` uses the
+  connected Phantom wallet directly (`lib/solana.ts useSolanaWallet`), not
+  wagmi.
+- **Real, deliberate scope cuts for this pass — not oversights, flagged in
+  the code itself:**
+  - **Direct-SOL only** — the Solana branch ignores `payToken` entirely;
+    `lib/payWithAnyToken.ts`'s `runPayWithAnyToken` (used for every EVM
+    purchase) isn't wired in here, so a non-SOL token picked in the UI
+    would currently be silently ignored rather than honored.
+  - **Real selling (list-your-own-edition) and real per-wallet ownership
+    tracking are NOT wired for Solana** — `commerce.ownedEditions`/
+    `setEditionPrice`/`cancelEditionListing` still use the simulated
+    `lib/holdings.ts` ledger for `chain === "solana"` regardless of
+    deployment state. A real public `mintV2` buy is NOT recorded into
+    `SolanaMintsStore` either (that store's `POST` is still admin-gated,
+    same as before this session — opening it to any wallet, plus a real
+    ownership check before accepting a write, is the next piece needed
+    before Solana resale-by-regular-users can work at all).
+- **Not run against a live wallet** — same gap as every other real
+  Solana integration in this codebase; every endpoint/instruction/account
+  shape was verified against docs.magiceden.io or the installed SDK
+  source, not guessed. `npm run build` stayed clean through this part too.
+
+**Known, real, un-fixed tradeoff across all 4 parts**: `/music/[slug]`'s
+first-load JS grew substantially each part (now ~1.03 MB, was ~320 KB
+before this work) — `AlbumView.tsx` now pulls in the OpenSea/Seaport SDKs
+AND the Metaplex/Candy Machine/Umi stack via `useTrackCommerce.ts`, even
+on chains with nothing deployed yet. Real follow-up, not attempted this
+pass: dynamically `import()` the chain-specific real-data modules so they
+only load once a chain actually has something deployed, instead of on
+every album page view regardless.
+
+All 4 parts of the plan (`~/.claude/plans/idempotent-wandering-moth.md`)
+are now built. Nothing is live — every gate Dylan asked to keep
+(`BuyConfirmModal.tsx`/`ListingsModal.tsx`'s "Not live yet") is untouched.
 
 ---
 

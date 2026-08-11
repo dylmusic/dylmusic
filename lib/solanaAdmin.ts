@@ -1,6 +1,6 @@
 import { createUmi as createUmiCore } from "@metaplex-foundation/umi-bundle-defaults";
-import { generateSigner, percentAmount, publicKey as toPublicKey, signerIdentity, some, none, sol, type Umi } from "@metaplex-foundation/umi";
-import { createNft, mplTokenMetadata, TokenStandard } from "@metaplex-foundation/mpl-token-metadata";
+import { generateSigner, percentAmount, publicKey as toPublicKey, signerIdentity, some, none, sol, isSome, type Umi } from "@metaplex-foundation/umi";
+import { createNft, mplTokenMetadata, TokenStandard, fetchDigitalAsset } from "@metaplex-foundation/mpl-token-metadata";
 import {
   mplCandyMachine,
   createCandyMachineV2,
@@ -11,6 +11,7 @@ import {
   findCandyGuardPda,
   fetchCandyGuard,
   updateCandyGuard,
+  fetchCandyMachine,
 } from "@metaplex-foundation/mpl-candy-machine";
 import { setComputeUnitLimit } from "@metaplex-foundation/mpl-toolbox";
 import { Connection, PublicKey } from "@solana/web3.js";
@@ -42,6 +43,61 @@ export function createSolanaAdminUmi(provider: PhantomProvider): Umi {
   const umi = createUmiCore(SOLANA_RPC_URL).use(mplTokenMetadata()).use(mplCandyMachine());
   umi.use(signerIdentity(createPhantomUmiSigner(provider)));
   return umi;
+}
+
+// No signer needed for a plain account read — used by the real Solana
+// order book (lib/realSolanaOrderBook.ts) to show accurate "remaining
+// editions" without requiring a connected Phantom wallet first.
+export function createReadOnlySolanaUmi(): Umi {
+  return createUmiCore(SOLANA_RPC_URL).use(mplCandyMachine()).use(mplTokenMetadata());
+}
+
+/**
+ * The Solana Collection NFT's real on-chain update authority — needed as
+ * `collectionUpdateAuthority`/the guard's `solPayment` destination for a
+ * real public mintV2 call (lib/solanaPurchase.ts). Read live rather than
+ * hardcoded: unlike the EVM ADMIN_WALLET constant, there is no separate
+ * "Solana admin wallet" constant anywhere in this codebase (a Solana
+ * pubkey is a completely different address format), and guessing it
+ * would be exactly the kind of unverified assumption this codebase avoids
+ * elsewhere.
+ */
+export async function fetchCollectionUpdateAuthority(collectionMint: string): Promise<string> {
+  const umi = createReadOnlySolanaUmi();
+  const asset = await fetchDigitalAsset(umi, toPublicKey(collectionMint));
+  return asset.metadata.updateAuthority.toString();
+}
+
+export interface TrackMintProgress {
+  itemsAvailable: number;
+  itemsRedeemed: number;
+}
+
+/** Real on-chain mint progress for one track's Candy Machine — itemsRedeemed/itemsAvailable, same account create-track-candy-machine.ts itself creates. */
+export async function fetchTrackMintProgress(candyMachine: string): Promise<TrackMintProgress> {
+  const umi = createReadOnlySolanaUmi();
+  const account = await fetchCandyMachine(umi, toPublicKey(candyMachine));
+  return {
+    itemsAvailable: Number(account.data.itemsAvailable),
+    itemsRedeemed: Number(account.itemsRedeemed),
+  };
+}
+
+/**
+ * Real LIVE guard price in lamports — reads the same `solPayment` field
+ * `repriceCandyGuard` writes to, so the real order book stays consistent
+ * with a real reprice action instead of showing the track's static
+ * lib/albums.ts priceUsd forever regardless of what was actually repriced
+ * on-chain. Returns null if the guard has no solPayment configured (would
+ * mean minting is genuinely free/unguarded — not the case for any real
+ * track this app creates, but not assumed either).
+ */
+export async function fetchTrackGuardPriceLamports(candyGuard: string): Promise<number | null> {
+  const umi = createReadOnlySolanaUmi();
+  const guard = await fetchCandyGuard(umi, toPublicKey(candyGuard));
+  const sp = guard.guards.solPayment;
+  if (!isSome(sp)) return null;
+  return Number(sp.value.lamports.basisPoints);
 }
 
 /** Run exactly once, ever, per environment (devnet vs mainnet-beta are separate collections). */
