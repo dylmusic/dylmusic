@@ -178,7 +178,7 @@ export default function AdminPage() {
         buildDeployProxyTx({
           implementationAddress,
           name: "Dyl",
-          symbol: "DYL",
+          symbol: "Dyl",
           admin: address as Address,
           initialMintPriceWei: DEFAULT_MINT_PRICE_WEI,
           initialMetadataBaseURI: metadataBaseURI(target.key),

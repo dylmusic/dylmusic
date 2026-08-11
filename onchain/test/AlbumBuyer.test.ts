@@ -16,7 +16,7 @@ describe("AlbumBuyer", () => {
     const Collection = await ethers.getContractFactory("DylCollection");
     collection = await upgrades.deployProxy(
       Collection,
-      ["Dyl", "DYL", admin.address, PRICE, "https://dylmusic.vercel.app/api/metadata/robinhood/"],
+      ["Dyl", "Dyl", admin.address, PRICE, "https://dylmusic.vercel.app/api/metadata/robinhood/"],
       { kind: "uups", initializer: "initialize" }
     );
     await collection.waitForDeployment();

@@ -103,7 +103,7 @@ async function main() {
     collectionMint: collectionMint.publicKey,
     collectionUpdateAuthority: admin,
     itemsAvailable: 12n,
-    symbol: "DYL",
+    symbol: "Dyl",
     sellerFeeBasisPoints: percentAmount(6.9),
     maxEditionSupply: 0n,
     isMutable: true,

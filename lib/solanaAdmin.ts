@@ -89,7 +89,7 @@ export async function deployTrackAndMintAdmin(
     collectionMint,
     collectionUpdateAuthority: admin,
     itemsAvailable: BigInt(params.editions),
-    symbol: "DYL",
+    symbol: "Dyl",
     sellerFeeBasisPoints: percentAmount(6.9),
     maxEditionSupply: BigInt(0),
     isMutable: true,

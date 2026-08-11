@@ -49,7 +49,7 @@ async function runOne(target: ChainTarget) {
   const Collection = await ethers.getContractFactory("DylCollection");
   const proxy = await upgrades.deployProxy(
     Collection,
-    ["Dyl", "DYL", admin.address, PRICE, `https://dylmusic.vercel.app/api/metadata/${target.chainSlug}/`],
+    ["Dyl", "Dyl", admin.address, PRICE, `https://dylmusic.vercel.app/api/metadata/${target.chainSlug}/`],
     { kind: "uups", initializer: "initialize" }
   );
   await proxy.waitForDeployment();

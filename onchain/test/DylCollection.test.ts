@@ -3,7 +3,7 @@ import { ethers, upgrades } from "hardhat";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 const NAME = "Dyl";
-const SYMBOL = "DYL";
+const SYMBOL = "Dyl";
 const PRICE = ethers.parseEther("0.0003");
 const BASE_URI = "https://dylmusic.vercel.app/api/metadata/robinhood/";
 

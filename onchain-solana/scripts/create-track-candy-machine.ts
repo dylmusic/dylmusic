@@ -85,7 +85,7 @@ async function main() {
       collectionMint,
       collectionUpdateAuthority: admin,
       itemsAvailable: BigInt(editions),
-      symbol: "DYL",
+      symbol: "Dyl",
       sellerFeeBasisPoints: percentAmount(6.9),
       maxEditionSupply: BigInt(0),
       isMutable: true,
