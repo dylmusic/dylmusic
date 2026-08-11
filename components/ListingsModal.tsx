@@ -11,12 +11,20 @@ export interface EditionRow {
 export default function ListingsModal({
   track,
   editions,
+  busy,
+  error,
   onSetPrice,
   onCancelListing,
   onClose,
 }: {
   track: Track;
   editions: EditionRow[];
+  // Real list/cancel state (lib/useTrackCommerce.ts's sellBusy/sellError)
+  // — only ever populated once the gate below is removed and
+  // onSetPrice/onCancelListing actually run; harmless/unused while
+  // "Not live yet" still fires first, same as BuyConfirmModal's `error`.
+  busy?: boolean;
+  error?: string | null;
   onSetPrice: (editionNumber: number, price: number) => void;
   onCancelListing: (editionNumber: number) => void;
   onClose: () => void;
@@ -60,6 +68,8 @@ export default function ListingsModal({
           </button>
         </div>
 
+        {error && <div className="buy-confirm-error">{error}</div>}
+
         {editions.length === 0 ? (
           <div className="modal-empty">
             You don&apos;t own an edition of this track on this chain yet — buy
@@ -78,9 +88,10 @@ export default function ListingsModal({
                     </span>
                     <button
                       className="btn-ghost"
+                      disabled={busy}
                       onClick={() => onCancelListing(row.editionNumber)}
                     >
-                      Cancel
+                      {busy ? "…" : "Cancel"}
                     </button>
                   </>
                 ) : (
@@ -97,12 +108,13 @@ export default function ListingsModal({
                     </span>
                     <button
                       className="btn-sell"
+                      disabled={busy}
                       onClick={() => {
                         const p = parseFloat(draftFor(row));
                         if (!isNaN(p) && p > 0) setNotLive(true);
                       }}
                     >
-                      List
+                      {busy ? "…" : "List"}
                     </button>
                   </>
                 )}

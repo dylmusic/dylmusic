@@ -24,9 +24,12 @@ import { useSolanaWallet } from "./solana";
 import { viemWalletClientToEthersSigner } from "./ethersSigner";
 import { wagmiConfig } from "./web3";
 import { CONTRACT_TARGETS } from "./admin";
-import { fetchRealEvmListings, buildRealOrderBook, fetchRealMintRow, type RealListing } from "./realOrderBook";
+import { fetchRealEvmListings, buildRealOrderBook, fetchRealMintRow, fetchRealOwnedTokenIds, type RealListing } from "./realOrderBook";
 import { fulfillMintPurchase, fulfillResalePurchase, fulfillOpenSeaPurchase } from "./nftPurchase";
-import { getOpenSeaSdk, isOpenSeaListable } from "./openSeaListing";
+import { getOpenSeaSdk, isOpenSeaListable, createOpenSeaListings } from "./openSeaListing";
+import { createSiteListings, cancelSiteListing, type StoredListing } from "./siteListing";
+import { getTokenUsdPrice } from "./tokenUsdPrice";
+import { encodeTokenId, decodeTokenId } from "./tokenIdScheme";
 
 function isNativePayTokenLegacy(payToken: DylToken, nativeToken: DylToken): boolean {
   return payToken.chainId === nativeToken.chainId && payToken.address === nativeToken.address;
@@ -131,6 +134,34 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deployed, chain, tracks, walletClient, tick]);
 
+  const [realOwnedEditions, setRealOwnedEditions] = useState<Record<string, number[]>>({});
+
+  // Real on-chain ownership (ERC721AQueryableUpgradeable's tokensOfOwner)
+  // replaces lib/holdings.ts's simulated per-wallet ledger once deployed.
+  useEffect(() => {
+    if (!deployed || !walletAddress) {
+      setRealOwnedEditions({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const tokenIds = await fetchRealOwnedTokenIds(chain, walletAddress);
+      if (cancelled) return;
+      const byTrack: Record<string, number[]> = {};
+      for (const t of tracks) byTrack[t.id] = [];
+      for (const tokenId of tokenIds) {
+        const { trackId, editionNumber } = decodeTokenId(tokenId);
+        const track = tracks.find((t) => t.index === trackId);
+        if (track) byTrack[track.id].push(editionNumber);
+      }
+      if (!cancelled) setRealOwnedEditions(byTrack);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deployed, chain, tracks, walletAddress, tick]);
+
   const simulatedMinted = useMemo(() => {
     const m: Record<string, number> = {};
     for (const t of tracks) m[t.id] = baselineMinted(t, chain) + localMintedCount(chain, t.id);
@@ -138,7 +169,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tracks, chain, tick]);
 
-  const ownedEditions = useMemo(() => {
+  const simulatedOwnedEditions = useMemo(() => {
     if (!walletAddress) return {};
     const h: Record<string, number[]> = {};
     for (const t of tracks) h[t.id] = getOwnedEditions(chain, walletAddress, t.id);
@@ -163,6 +194,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
 
   const minted = deployed ? realMinted : simulatedMinted;
   const books = deployed ? realBooks : simulatedBooks;
+  const ownedEditions = deployed ? realOwnedEditions : simulatedOwnedEditions;
 
   function refresh() {
     setTick((n) => n + 1);
@@ -348,7 +380,79 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     refresh();
   }
 
-  function setEditionPrice(t: Track, editionNumber: number, price: number) {
+  const [sellBusy, setSellBusy] = useState(false);
+  const [sellError, setSellError] = useState<string | null>(null);
+
+  // Real "List for sale" — signs our own site's 0%-fee Seaport order AND
+  // (per Dylan's confirmed scope) an OpenSea listing too, dual-listed same
+  // as admin's own #1-10 editions. The OpenSea half is best-effort: a
+  // missing NEXT_PUBLIC_OPENSEA_API_KEY or an unindexed brand-new
+  // collection shouldn't fail a listing that otherwise succeeded on our
+  // own site, so its own error is caught and swallowed (logged only).
+  async function setEditionPriceReal(t: Track, editionNumber: number, price: number) {
+    const target = CONTRACT_TARGETS.find((c) => c.key === chain);
+    if (!walletAddress || !target?.address || !target.chainId) return;
+    setSellBusy(true);
+    setSellError(null);
+    try {
+      const nativeToken = getNativeTokenForChain(chain);
+      const nativeUsd = await getTokenUsdPrice(nativeToken);
+      if (!nativeUsd) throw new Error(`Could not price ${nativeToken.symbol} right now — try again shortly.`);
+      const priceWei = BigInt(Math.round((price / nativeUsd) * 1e18));
+      const tokenId = encodeTokenId(t.index, editionNumber);
+
+      const freshClient = await ensureEvmChain(target.chainId);
+      const signer = await viemWalletClientToEthersSigner(freshClient);
+
+      const siteOrders = await createSiteListings(signer, [
+        { collectionAddress: target.address, tokenId, priceWei, sellerAddress: walletAddress },
+      ]);
+      const listingsRes = await fetch("/api/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          wallet: walletAddress,
+          listings: [
+            {
+              chainId: target.chainId,
+              collectionAddress: target.address,
+              tokenId,
+              priceWei: priceWei.toString(),
+              sellerAddress: walletAddress,
+              parameters: siteOrders[0].parameters,
+              signature: siteOrders[0].signature,
+              createdAt: Date.now(),
+            },
+          ],
+        }),
+      });
+      const listingsData = await listingsRes.json().catch(() => null);
+      if (!listingsRes.ok || !listingsData?.ok) {
+        throw new Error(`Listed on-chain but failed to save to the server (status ${listingsRes.status}) — try again.`);
+      }
+
+      if (isOpenSeaListable(chain)) {
+        try {
+          const sdk = getOpenSeaSdk(signer, chain);
+          await createOpenSeaListings(sdk, [
+            { collectionAddress: target.address, tokenId, priceWei, sellerAddress: walletAddress },
+          ]);
+        } catch (openSeaErr) {
+          console.error("OpenSea dual-listing failed (site listing still succeeded):", openSeaErr);
+        }
+      }
+
+      recordActivity({ type: "sell", chain, wallet: walletAddress, trackTitle: t.title, editionNumber, priceUsd: price });
+      refresh();
+    } catch (err) {
+      setSellError(err instanceof Error ? err.message : "Listing failed — see console.");
+      console.error("setEditionPriceReal failed", err);
+    } finally {
+      setSellBusy(false);
+    }
+  }
+
+  function setEditionPriceSimulated(t: Track, editionNumber: number, price: number) {
     if (!walletAddress) return;
     setListingForEdition(chain, walletAddress, t.id, editionNumber, price);
     recordActivity({
@@ -362,10 +466,53 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     refresh();
   }
 
-  function cancelEditionListing(t: Track, editionNumber: number) {
+  function setEditionPrice(t: Track, editionNumber: number, price: number) {
+    if (deployed) void setEditionPriceReal(t, editionNumber, price);
+    else setEditionPriceSimulated(t, editionNumber, price);
+  }
+
+  // Cancels ONE listing for real — Seaport-js's per-order cancel
+  // (lib/siteListing.ts cancelSiteListing), not the admin-only bulk
+  // cancelAllListings, so this never touches any other listing the same
+  // wallet has. Known gap, documented on cancelSiteListing itself: an
+  // OpenSea-side dual-listing for the same edition isn't cancelled by
+  // this — it stays listed there until it naturally fails to fulfill or
+  // expires.
+  async function cancelEditionListingReal(t: Track, editionNumber: number) {
+    const target = CONTRACT_TARGETS.find((c) => c.key === chain);
+    if (!walletAddress || !target?.address || !target.chainId) return;
+    const tokenId = encodeTokenId(t.index, editionNumber);
+    const existing = realListings.find((l) => l.source === "site" && l.tokenId === tokenId);
+    if (!existing) return; // nothing of ours to cancel (already sold, or was never a site listing)
+    setSellBusy(true);
+    setSellError(null);
+    try {
+      const freshClient = await ensureEvmChain(target.chainId);
+      const signer = await viemWalletClientToEthersSigner(freshClient);
+      await cancelSiteListing(signer, (existing.raw as StoredListing).parameters);
+      await fetch("/api/listings", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chainId: target.chainId, tokenId, wallet: walletAddress }),
+      });
+      refresh();
+    } catch (err) {
+      setSellError(err instanceof Error ? err.message : "Cancel failed — see console.");
+      console.error("cancelEditionListingReal failed", err);
+    } finally {
+      setSellBusy(false);
+    }
+  }
+
+  function cancelEditionListingSimulated(t: Track, editionNumber: number) {
     if (!walletAddress) return;
     setListingForEdition(chain, walletAddress, t.id, editionNumber, null);
     refresh();
+  }
+
+  function cancelEditionListing(t: Track, editionNumber: number) {
+    if (deployed) void cancelEditionListingReal(t, editionNumber);
+    else cancelEditionListingSimulated(t, editionNumber);
   }
 
   return {
@@ -377,6 +524,8 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     pendingBuy,
     buyStep,
     buyError,
+    sellBusy,
+    sellError,
     realBooksLoading,
     deployed,
     realListings,

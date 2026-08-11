@@ -20,13 +20,18 @@ import type { StoredListing } from "@/lib/siteListing";
 // keep out obviously-wrong/spam submissions, same trust model already used
 // elsewhere in this app for self-reported data.
 //
-// DELETE is different: it's called by the BUYER right after a successful
-// purchase (not the seller), so it can't use the same "matches the wallet"
-// check — and unlike POST, a bad DELETE actually harms someone else (it
-// hides a real, still-fulfillable listing from the site's own UI). Guarded
-// instead with a real on-chain read: only removable once the token's
-// CURRENT owner no longer matches the stored listing's seller — i.e. proof
-// the sale genuinely happened, not just a guessed tokenId.
+// DELETE has two legitimate callers with different proof: the BUYER right
+// after a successful purchase (can't use POST's "matches the wallet" check
+// since the buyer isn't the seller), or the SELLER cancelling their own
+// still-unsold listing (lib/siteListing.ts cancelSiteListing — a real
+// on-chain Seaport cancel happens before this is ever called). Unlike
+// POST, a bad DELETE actually harms someone else (it hides a real,
+// still-fulfillable listing from the site's own UI), so it's not just a
+// self-reported wallet match: either (a) the submitted wallet matches the
+// listing's own seller (the seller has an unconditional right to hide
+// their own listing), or (b) a real on-chain read shows the token's
+// CURRENT owner no longer matches the stored listing's seller — proof a
+// sale genuinely happened, not just a guessed tokenId.
 
 export async function GET(req: NextRequest) {
   const chainId = Number(req.nextUrl.searchParams.get("chainId"));
@@ -59,6 +64,7 @@ export async function DELETE(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const chainId = Number(body?.chainId);
   const tokenId = Number(body?.tokenId);
+  const wallet = typeof body?.wallet === "string" ? body.wallet : "";
   if (!chainId || !Number.isFinite(tokenId)) {
     return NextResponse.json({ error: "Missing chainId or tokenId." }, { status: 400 });
   }
@@ -66,22 +72,27 @@ export async function DELETE(req: NextRequest) {
   if (!listing) {
     return NextResponse.json({ ok: true }); // already gone, nothing to do
   }
-  const client = serverPublicClientFor(chainId);
-  if (!client) {
-    return NextResponse.json({ error: `No public RPC configured for chain ${chainId}.` }, { status: 500 });
+
+  const isSellerCancelling = !!wallet && wallet.toLowerCase() === listing.sellerAddress.toLowerCase();
+  if (!isSellerCancelling) {
+    const client = serverPublicClientFor(chainId);
+    if (!client) {
+      return NextResponse.json({ error: `No public RPC configured for chain ${chainId}.` }, { status: 500 });
+    }
+    const currentOwner = (await client.readContract({
+      address: listing.collectionAddress as Address,
+      abi: DylCollectionAbi,
+      functionName: "ownerOf",
+      args: [BigInt(tokenId)],
+    })) as string;
+    if (currentOwner.toLowerCase() === listing.sellerAddress.toLowerCase()) {
+      return NextResponse.json(
+        { error: "Token still owned by the listing's seller — this listing hasn't actually sold, refusing to remove it." },
+        { status: 409 }
+      );
+    }
   }
-  const currentOwner = (await client.readContract({
-    address: listing.collectionAddress as Address,
-    abi: DylCollectionAbi,
-    functionName: "ownerOf",
-    args: [BigInt(tokenId)],
-  })) as string;
-  if (currentOwner.toLowerCase() === listing.sellerAddress.toLowerCase()) {
-    return NextResponse.json(
-      { error: "Token still owned by the listing's seller — this listing hasn't actually sold, refusing to remove it." },
-      { status: 409 }
-    );
-  }
+
   const ok = await removeSiteListing(chainId, tokenId);
   return NextResponse.json({ ok });
 }

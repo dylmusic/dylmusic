@@ -99,3 +99,28 @@ export async function cancelAllListings(signer: JsonRpcSigner): Promise<void> {
   const tx = await seaport.bulkCancelOrders(offerer).transact();
   await tx.wait();
 }
+
+/**
+ * Cancels ONE specific listing (Seaport-js's real per-order `cancel`,
+ * verified in node_modules/@opensea/seaport-js/lib/seaport.js:334) — unlike
+ * cancelAllListings' bulk incrementCounter, this leaves every OTHER
+ * listing from the same wallet untouched. This is what a regular user's
+ * own "Cancel" button (components/ListingsModal.tsx) needs — bulk-cancel
+ * would also wipe out any other unrelated editions they have listed.
+ *
+ * Known real gap, not solved here: this only cancels our own site's
+ * Seaport order. A dual-listed OpenSea order for the same edition
+ * (lib/openSeaListing.ts createOpenSeaListings) is a SEPARATE signed
+ * order with its own hash — cancelling this one does not cancel that one.
+ * OpenSea's SDK doesn't currently expose a ready cancel-by-order-hash
+ * method to call here (checked — see the "Real buy/sell" CLAUDE.md
+ * section), so the OpenSea half stays listed until fulfillment fails
+ * there (Seaport's own ownership check makes a second sale impossible,
+ * just not instantly reflected on opensea.io) or its 6-month cap lapses.
+ */
+export async function cancelSiteListing(signer: JsonRpcSigner, orderParameters: StoredListing["parameters"]): Promise<void> {
+  const seaport = new Seaport(signer as unknown as ConstructorParameters<typeof Seaport>[0]);
+  const offerer = await signer.getAddress();
+  const tx = await seaport.cancelOrders([orderParameters], offerer).transact();
+  await tx.wait();
+}

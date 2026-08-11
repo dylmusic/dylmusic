@@ -1840,10 +1840,48 @@ pattern already in this file).
   installed SDK types) after each part, same discipline as
   `lib/nftPurchase.ts`'s own existing verification note.
 
-**Parts 3 (real sell, dual-listed on OpenSea, per-order cancel, real
-`tokensOfOwner` ownership) and 4 (the entire Solana Magic Eden buy/sell
-layer) are scoped in the plan file but not yet built** — pick up there,
-don't re-derive.
+**Part 3 — real EVM sell, dual-listed on OpenSea (`lib/useTrackCommerce.ts`,
+`lib/siteListing.ts`, `components/ListingsModal.tsx`):**
+- `lib/siteListing.ts` gained `cancelSiteListing` — Seaport-js's real
+  per-order `cancel` (verified in `node_modules/@opensea/seaport-js/lib/seaport.js:334`),
+  distinct from the existing admin-only bulk `cancelAllListings`
+  (`incrementCounter`, invalidates EVERY order from that wallet). A
+  regular user cancelling ONE listing must not wipe out any other
+  editions they have listed — this is the mechanism that makes that safe.
+  **Known, documented gap**: this only cancels our own site's order. A
+  dual-listed OpenSea order for the same edition is a separate signed
+  order with its own hash; OpenSea's SDK has no ready cancel-by-hash
+  method (checked, not present), so the OpenSea half stays listed until
+  it fails to fulfill (Seaport's own ownership check makes a double-sale
+  impossible either way — just not instantly reflected on opensea.io) or
+  its 6-month cap lapses.
+- `lib/realOrderBook.ts` gained `fetchRealOwnedTokenIds` — real
+  `tokensOfOwner` (same call `/admin`'s "Reprice & Relist" already uses),
+  replacing `lib/holdings.ts`'s simulated ledger for a deployed chain.
+- `useTrackCommerce`'s `setEditionPrice`/`cancelEditionListing` now branch
+  real vs. simulated same as `confirmPendingBuy`. Real listing: signs
+  `createSiteListings` AND (best-effort — a missing OpenSea API key or an
+  unindexed brand-new collection shouldn't fail a listing that otherwise
+  succeeded) `createOpenSeaListings` for the one edition, POSTs to
+  `/api/listings` (opened to any wallet in Part 1). Real cancel: signs
+  `cancelSiteListing` against the exact stored order parameters (read
+  from `realListings`, already in memory from the order-book fetch), then
+  `DELETE`s the cache entry.
+- `/api/listings`'s `DELETE` extended to accept a `wallet` field — a
+  seller cancelling their own still-unsold listing can't prove "the token
+  changed hands" (it hasn't), so DELETE now allows removal either via that
+  on-chain proof (buyer path, Part 1) OR when the submitted wallet matches
+  the listing's own seller (cancel path) — a seller always has the right
+  to hide their own listing.
+- `ListingsModal.tsx`/`BuyConfirmModal.tsx` both gained matching
+  `error`/`busy` props for real list/cancel feedback — same "built,
+  currently unreachable since the gate fires first" status as Part 2's
+  buy-side error display.
+- **Not run against a live wallet** — same gap as everywhere else in this
+  section; verified via a clean `npm run build` after this part too.
+
+**Part 4 (the entire Solana Magic Eden buy/sell layer) is scoped in the
+plan file but not yet built** — pick up there, don't re-derive.
 
 ---
 

@@ -161,6 +161,26 @@ export async function fetchRealEvmListings(
   return [...site, ...openSea];
 }
 
+/**
+ * Real on-chain ownership — ERC721AQueryableUpgradeable's `tokensOfOwner`,
+ * the same call `app/admin/page.tsx`'s "Reprice & Relist" already uses to
+ * find which #1-10 editions the admin wallet still holds. Replaces
+ * `lib/holdings.ts`'s simulated per-wallet localStorage ledger once a
+ * chain is deployed — real ownership, not a browser-local record.
+ */
+export async function fetchRealOwnedTokenIds(chainKey: ChainKey, owner: string): Promise<number[]> {
+  const t = target(chainKey);
+  if (!t) return [];
+  const client = publicClientFor(t.chainId);
+  const ids = (await client.readContract({
+    address: t.address as Address,
+    abi: DylCollectionAbi,
+    functionName: "tokensOfOwner",
+    args: [owner as Address],
+  })) as bigint[];
+  return ids.map((id) => Number(id));
+}
+
 export interface RealMintRow {
   priceWei: bigint;
   priceUsd: number;

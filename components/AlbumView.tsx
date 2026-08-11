@@ -265,6 +265,8 @@ export default function AlbumView({
         <ListingsModal
           track={modalTrack}
           editions={modalEditions}
+          busy={commerce.sellBusy}
+          error={commerce.sellError}
           onSetPrice={(editionNumber, price) => commerce.setEditionPrice(modalTrack, editionNumber, price)}
           onCancelListing={(editionNumber) => commerce.cancelEditionListing(modalTrack, editionNumber)}
           onClose={() => setModalTrackId(null)}
