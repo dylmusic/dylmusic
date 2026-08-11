@@ -2001,8 +2001,60 @@ everywhere automatically the moment a sale happens, on any platform. What
 was actually missing was "can someone buy or sell through OUR OWN site
 no matter where the listing lives," which — as of the two rounds of work
 above — covers OpenSea (both directions) and Magic Eden (now both
-directions too). See below for what else was evaluated as a realistic
-next addition.
+directions too).
+
+**Real research into 3 additional marketplaces, verdicts (not guessed —
+see the session that did this for full sourcing):**
+- **Blur (EVM) — not realistic.** No public API/SDK has ever shipped
+  (they announced intent to build one in 2022, never delivered). Only
+  path in would be reverse-engineering their contracts directly.
+- **LooksRare (EVM) — not realistic.** `@looksrare/sdk-v2` hasn't been
+  published in over a year, mainnet API access needs manual Discord
+  approval (not self-serve), and the marketplace itself has near-zero
+  remaining trading volume.
+- **Tensor (Solana) — realistic, but gated.** Real, current SDK
+  (`@tensor-foundation/marketplace`, updated mid-2025) with working
+  fetch/buy/list example code — the strongest candidate of the three. The
+  catch: their API key isn't instant self-serve, it's an application form
+  with no published turnaround. Also a real architecture wrinkle: their
+  SDK is built on Solana's newer "web3.js 2.0" conventions, which don't
+  interoperate with either existing Solana signing pattern in this
+  codebase (Umi for Metaplex/Candy Machine, plain web3.js v1 for Magic
+  Eden) — adding Tensor means a third distinct signing pattern, not just
+  reusing what's there. **Not built** — same "gate behind a real key"
+  treatment as OpenSea/Magic Eden if Dylan gets a key and wants it built.
+- **Real, important nuance that makes both "not realistic" verdicts less
+  costly than they sound**: OpenSea Pro and Blur BOTH already aggregate
+  OpenSea's own native listings (Blur's own docs: some collections have
+  20%+ of Blur-visible listings sourced directly from OpenSea) — so the
+  real OpenSea listings this app already creates are indirectly buyable
+  through Blur and OpenSea Pro too, with zero extra work. Same story on
+  Solana: **Tensor aggregates Magic Eden's listings** (along with ~9
+  other Solana marketplaces) — so real Magic Eden listings this app
+  creates are already indirectly visible/buyable through Tensor too,
+  without needing Tensor's own API at all. The actively-integrated pair
+  (OpenSea + Magic Eden) already has more real reach than it looks like
+  in isolation.
+
+**How to add another marketplace later** (Tensor once a key exists, or
+anything else) — the pattern is already established and repeatable, not
+something to redesign from scratch:
+1. A small dedicated `lib/<marketplace>Listing.ts` — fetch live listings
+   for the collection (public read, if available) + a fulfill/buy
+   function + a create-listing function, same shape as
+   `lib/openSeaListing.ts`/`lib/magicEdenListing.ts`. Verify every
+   endpoint/param against the vendor's real docs or installed SDK source
+   first — never guess one, this codebase's standing discipline.
+2. Add the new source to `OrderBookEntry.source`'s union
+   (`lib/orderbook.ts`) and normalize its listings into the same
+   `RealListing[]`/`RealSolanaListing[]` shape inside
+   `lib/realOrderBook.ts`/`lib/realSolanaOrderBook.ts` — these already
+   merge multiple sources into one array (`[...site, ...openSea]`),
+   appending a third is additive, not a restructure.
+3. Add one branch in `useTrackCommerce.ts`'s `confirmPendingBuy` (`entry.source
+   === "<marketplace>"`) and, for sell, one branch in
+   `setEditionPriceReal`/`cancelEditionListingReal` (or their Solana
+   equivalents) — same shape every existing source already follows.
 
 ---
 
