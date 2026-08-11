@@ -1443,6 +1443,22 @@ upgrade below) Ethereum mainnet. This is a genuine, working utility
 independent of NFT buying — swapping your own tokens is not "buying a Dyl
 NFT," so it was fine to make real from the start.
 
+**Standing rule for every future swap sync (2026-08-11):** dylmusic's
+`/swap` is meant to **mirror** HOODPrinter's PRINT Swap exactly, not
+improve on it. When asked to sync/update it with PRINT Swap's latest
+changes, port PRINT Swap's actual current behavior 1:1 — including any
+bug or quirk it has — rather than building a "better" version, even when
+one is obviously possible along the way. (This came up for real: round 3
+below correctly ported PRINT Swap's Transactions feed, but then also
+fixed a real bug found in PRINT Swap's own hardcoded single-chain
+explorer link instead of copying it — Dylan's correction: "I never told
+you to improve it.") If a real issue is spotted in PRINT Swap while
+syncing, flag it to Dylan as its own separate note instead of silently
+fixing it in the port — he decides per-issue whether it's worth fixing in
+HOODPrinter too, not a default. (The already-shipped per-chain
+explorer-link fix below was deliberately left in place per Dylan's own
+"for now, do nothing" — this rule is forward-looking, not retroactive.)
+
 ---
 
 ## Swap upgrade + the "pay for NFT with any token" engine (2026-07-28)
