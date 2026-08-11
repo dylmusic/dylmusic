@@ -27,7 +27,7 @@ import { createSiteListings, cancelAllListings } from "@/lib/siteListing";
 import { createOpenSeaListings, getOpenSeaSdk, isOpenSeaListable } from "@/lib/openSeaListing";
 import { DylCollectionAbi } from "@/lib/contractDeploy";
 import { useSolanaWallet, getConnection } from "@/lib/solana";
-import { createSolanaAdminUmi, deploySolanaCollection, deployTrackAndMintAdmin, filterOwnedMints } from "@/lib/solanaAdmin";
+import { createSolanaAdminUmi, deploySolanaCollection, deployTrackAndMintAdmin, filterOwnedMints, repriceCandyGuard } from "@/lib/solanaAdmin";
 import { listEditionsOnMagicEden, repriceEditionsOnMagicEden } from "@/lib/magicEdenListing";
 import type { SolanaMintRecord } from "@/lib/solanaMintsStore";
 import type { Address } from "viem";
@@ -778,6 +778,7 @@ export default function AdminPage() {
           tokenId: e.tokenId,
           mint: e.mint,
           candyMachine: result.candyMachine,
+          candyGuard: result.candyGuard,
         }));
         allMinted.push(...trackMints);
 
@@ -939,6 +940,61 @@ export default function AdminPage() {
               ? `Repriced ${owned.length} edition(s) to the current USD peg. ${failures} Magic Eden call(s) failed — see console.`
               : `Repriced ${owned.length} edition(s) to the current USD peg on Magic Eden.`,
         },
+      }));
+    } catch (err) {
+      setPhase((p) => ({ ...p, solana: { step: "error", label: describeError(err) } }));
+    }
+  }
+
+  // Re-pegs each track's PUBLIC Solana mint price (Candy Guard solPayment,
+  // editions #11+) to the current $0.99 USD target at the live SOL rate —
+  // the Solana counterpart to handleRepriceMintPrice on the EVM chains
+  // above. Distinct from handleSolanaReprice just above, which reprices
+  // already-minted #1-10 editions' SECONDARY Magic Eden listings, not the
+  // ongoing public mint price. One Phantom prompt per track that has a
+  // recorded candyGuard (tracks minted before this feature shipped have no
+  // candyGuard on their records and are skipped, same "can't target what
+  // wasn't recorded" limit noted on SolanaMintRecord.candyGuard).
+  async function handleSolanaRepriceMintPrice() {
+    const provider = solWallet.getProvider();
+    if (!provider || !solWallet.address) return;
+    setPhase((p) => ({ ...p, solana: { step: "reprice-mint-price", label: "Starting…" } }));
+    try {
+      const nativeToken = getNativeTokenForChain("solana");
+      const solUsd = await getTokenUsdPrice(nativeToken);
+      if (!solUsd) throw new Error("Could not price SOL right now — try again shortly.");
+
+      const res = await fetch("/api/solana-mints");
+      const { mints } = (await res.json()) as { mints: SolanaMintRecord[] };
+      const guardByTrack = new Map<number, string>();
+      for (const m of mints) {
+        if (m.candyGuard && !guardByTrack.has(m.trackId)) guardByTrack.set(m.trackId, m.candyGuard);
+      }
+      if (guardByTrack.size === 0) {
+        setPhase((p) => ({
+          ...p,
+          solana: { step: "done", label: "No tracks with a recorded Candy Guard to reprice yet." },
+        }));
+        return;
+      }
+
+      const umi = createSolanaAdminUmi(provider);
+      const tracks = ALBUMS.flatMap((a) => a.tracks).filter((t) => guardByTrack.has(t.index));
+      let done = 0;
+      for (const track of tracks) {
+        const candyGuard = guardByTrack.get(track.index)!;
+        const newPriceLamports = Math.round((track.priceUsd / solUsd) * 1_000_000_000);
+        setPhase((p) => ({
+          ...p,
+          solana: { step: "reprice-mint-price", label: `Repricing "${track.title}" (${done + 1}/${tracks.length})…` },
+        }));
+        await repriceCandyGuard(umi, { candyGuard, newPriceLamports, destination: solWallet.address });
+        done++;
+      }
+
+      setPhase((p) => ({
+        ...p,
+        solana: { step: "done", label: `Re-pegged ${done} track(s) to $${PUBLIC_MINT_USD} at the current SOL rate.` },
       }));
     } catch (err) {
       setPhase((p) => ({ ...p, solana: { step: "error", label: describeError(err) } }));
@@ -1163,6 +1219,14 @@ export default function AdminPage() {
                           onClick={handleSolanaReprice}
                         >
                           Reprice &amp; Relist
+                        </button>
+                        <button
+                          className="admin-contract-btn"
+                          disabled={busy(c.key) || !c.address || !solWallet.address}
+                          title={`Re-pegs the ONGOING public mint price (editions #11+) for every recorded track to $${PUBLIC_MINT_USD} at the current SOL rate via each track's own Candy Guard — the Solana counterpart to "Reprice Mint Price" on the EVM chains. One Phantom prompt per track. Distinct from "Reprice & Relist" above, which only touches already-minted #1-10 editions' Magic Eden listings, not the public mint price.`}
+                          onClick={handleSolanaRepriceMintPrice}
+                        >
+                          Reprice Mint Price
                         </button>
                       </div>
                     ) : (

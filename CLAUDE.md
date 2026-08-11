@@ -423,41 +423,72 @@ AlbumBuyer fix. Found and fixed one real, contained one:
   contained fix like `EDITIONS_PER_TRACK` was. Flagged as open findings
   below instead of silently converted.
 
-**Other open findings from this audit, not yet acted on — need a real
-scope decision, not just "flip a constant," before touching them:**
-- **Solana has no way to reprice a track's public mint after its Candy
-  Machine/Guard is created.** The EVM side's `setMintPrice` is callable
-  any time; Solana's `solPayment` guard amount is set once in
-  `onchain-solana/scripts/create-track-candy-machine.ts` and there is no
-  `updateCandyGuard` (or equivalent) call anywhere in `lib/solanaAdmin.ts`
-  or wired into `/admin` — as the SOL/USD rate moves, a track's Solana
-  mint price can't be re-pegged the way its EVM price can via "Reprice
-  Mint Price," short of abandoning that track's Candy Machine and creating
-  a new one (a real, disruptive redo, not a repricing). Real gap, real
-  scope (mpl-candy-machine's `updateCandyGuard` instruction + a new
-  `/admin` action) — not built.
-- **Two off-chain "knobs" require a code change + redeploy, not an admin
-  action**: `APP_FEE_BPS` (`lib/dylSwap.ts`, the 0.85% swap fee, currently
-  a hardcoded `"85"`) and `ADMIN_WALLET` (`lib/admin.ts`, gates who can
-  see `/admin` at all). Neither is wired to anything live-editable (Redis,
-  same as chat/board/streams) the way every other piece of shared state in
-  this app already is. Lower urgency than the two above — these change
-  rarely — but the same category of "can't be changed without touching
-  code" this whole audit is about. `ADMIN_WALLET` specifically is NOT tied
-  to on-chain contract ownership — whoever's connected wallet actually
-  deploys becomes the real on-chain `owner()` (transferable any time via
-  standard `Ownable.transferOwnership`), so rotating this constant doesn't
-  by itself affect who controls deployed contracts, only who the site's UI
-  shows the admin panel to and who collects the swap fee.
-- **The album/track catalog itself (`lib/albums.ts`) is a static TS
-  array** — adding a new track or album requires editing this file and
-  redeploying the whole site, unlike every other piece of admin-managed
-  state in this app (chat, board, streams, the contract addresses
-  themselves). This is the biggest of the four findings and a genuinely
-  different kind of change (moving the catalog to Redis or another
-  datastore, admin-editable) — flagged, not attempted, pending Dylan's
-  call on whether it's worth the redesign given how rarely new
-  albums/tracks actually ship.
+**Solana mint-price repricing — built same day, once Dylan clarified he
+only cares about ON-CHAIN unchangeability** (he was fine with the two
+off-chain/front-end findings below staying as code, and separately asked
+directly: "once we mint crypto rich album, we cant change the mint price
+to stay around $0.99? it has to be set in SOL until it mints out?"). Answer
+confirmed by reading the actual installed `@metaplex-foundation/
+mpl-candy-machine` package rather than assumed: **no, it does not have to
+stay fixed** — Candy Guard has a real `updateCandyGuard` instruction, gated
+only by the guard's own `authority` signer (Dylan's wallet, since it's the
+one that creates every guard), with no "nothing sold yet" restriction of
+any kind. Past mints keep whatever they paid; every mint after the update
+tx confirms uses the new price — same shape as EVM's `setMintPrice`. The
+gap was purely that nothing in this codebase ever called that instruction.
+Built:
+- **`lib/solanaAdmin.ts` `repriceCandyGuard(umi, {candyGuard,
+  newPriceLamports, destination})`** — fetches the guard's current config
+  (`fetchCandyGuard`) and overrides only `solPayment`, spreading every
+  other guard/group through unchanged (Metaplex's `updateCandyGuard`
+  replaces the ENTIRE stored config, not a partial patch — blindly
+  re-declaring a fresh guard set would silently drop any other guard type
+  in use).
+- **`lib/solanaMintsStore.ts`**: `SolanaMintRecord` gained an optional
+  `candyGuard` field (mirrors the existing `candyMachine` field, one value
+  shared by every edition under a trackId) so a later reprice can find the
+  right guard without re-deriving it. `handleSolanaMintAndList` now
+  records it at mint time. Records saved before this field existed have no
+  `candyGuard` and simply can't be targeted until re-minted.
+- **`/admin`**: new "Reprice Mint Price" button on the Solana row —
+  groups recorded mints by trackId, re-pegs each track's guard to
+  `$PUBLIC_MINT_USD` at the live SOL rate, one Phantom prompt per track.
+  Explicitly distinct from the existing "Reprice & Relist" button, which
+  only touches already-minted #1-10 editions' SECONDARY Magic Eden
+  listings — this one changes what the NEXT public mint costs.
+- **Verification**: `updateCandyGuard`/`fetchCandyGuard`/the
+  `CandyGuardDataArgs{guards,groups}` shape were all confirmed by reading
+  the installed package's own `.d.ts` files directly (not guessed), and a
+  full `npm run build` typechecks clean end-to-end against those real
+  types. **Not run against a real or local Solana validator** — this
+  environment has the Solana CLI installed but no cached local validator
+  with the mainnet Candy Machine/Guard programs already cloned in (the
+  original such setup from the earlier dry-run work wasn't saved as a
+  reusable script), and standing one up plus a full
+  collection→track→guard→reprice cycle was out of scope for this pass.
+  Same category of gap already accepted throughout this file for
+  Solana work with no funded wallet in-session — dry-run this for real
+  (devnet or a fresh local validator) before relying on it against a real
+  deployed track.
+
+**Two off-chain "knobs" — confirmed out of scope.** Dylan clarified
+directly: "I only care about unchangeable onchain stuff of course. we'll
+always have to update the site. this isn't a system to deploy the full
+albums from the front end." So these two are working as intended, not
+findings — recorded here only so a future session doesn't re-flag them:
+- `APP_FEE_BPS` (`lib/dylSwap.ts`, the 0.85% swap fee) and `ADMIN_WALLET`
+  (`lib/admin.ts`, gates who can see `/admin`) are hardcoded TS constants,
+  changeable only via a code edit + redeploy. `ADMIN_WALLET` specifically
+  is NOT tied to on-chain contract ownership either way — whoever's
+  connected wallet actually deploys becomes the real on-chain `owner()`
+  (transferable any time via standard `Ownable.transferOwnership`), so
+  this constant only controls who the site's UI shows the admin panel to
+  and who collects the swap fee, never who controls the deployed
+  contracts.
+- The album/track catalog itself (`lib/albums.ts`) is a static TS array —
+  adding a new track or album requires editing this file and redeploying.
+  Confirmed intentional, not a gap: this was never meant to be a
+  front-end content-management system for full album drops.
 
 ---
 

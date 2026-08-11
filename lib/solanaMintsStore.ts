@@ -16,6 +16,14 @@ export interface SolanaMintRecord {
   tokenId: number;
   mint: string;
   candyMachine: string;
+  // The Candy Guard PDA gating this track's PUBLIC mint (editions #11+) —
+  // same for every edition record under a given trackId, since one Candy
+  // Guard covers the whole track. Needed to reprice the guard's solPayment
+  // amount later (lib/solanaAdmin.ts repriceCandyGuard) without having to
+  // re-derive it. Optional because records saved before this field existed
+  // won't have it — repricing simply can't target those tracks until
+  // they're re-minted or backfilled.
+  candyGuard?: string;
   // The price this edition is CURRENTLY listed for on Magic Eden, in SOL —
   // needed because sell_change_price/sell_cancel both require the existing
   // on-chain listing price as an input, not just the new one. Updated every

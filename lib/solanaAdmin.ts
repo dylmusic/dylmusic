@@ -9,6 +9,8 @@ import {
   wrap,
   mintFromCandyMachineV2,
   findCandyGuardPda,
+  fetchCandyGuard,
+  updateCandyGuard,
 } from "@metaplex-foundation/mpl-candy-machine";
 import { setComputeUnitLimit } from "@metaplex-foundation/mpl-toolbox";
 import { Connection, PublicKey } from "@solana/web3.js";
@@ -156,6 +158,45 @@ export async function deployTrackAndMintAdmin(
     candyGuard: candyGuardPda[0].toString(),
     editions,
   };
+}
+
+/**
+ * Re-pegs a single track's PUBLIC Solana mint price (the Candy Guard's
+ * solPayment amount, editions #11+) — the Solana equivalent of
+ * buildSetMintPriceTx/setMintPrice on the EVM side (lib/contractDeploy.ts).
+ * Not the same thing as Magic Eden secondary-listing repricing
+ * (repriceEditionsOnMagicEden in lib/magicEdenListing.ts, which changes
+ * what an already-minted edition is FOR SALE at) — this changes what the
+ * NEXT public mint costs.
+ *
+ * Real, callable at any time by the guard's own authority, not gated on
+ * "nothing sold yet" — Metaplex's updateCandyGuard instruction just
+ * overwrites the guard's stored config; any mint that already happened
+ * keeps whatever it actually paid, every mint after this tx confirms
+ * uses the new price. Fetches the guard's current config first and only
+ * overrides `solPayment` (spreading every other guard/group through
+ * unchanged) rather than blindly re-declaring a fresh guard set, since
+ * updateCandyGuard replaces the ENTIRE stored config, not a partial patch
+ * — silently dropping some future, currently-unused guard type here would
+ * be a real, hard-to-notice regression.
+ */
+export async function repriceCandyGuard(
+  umi: Umi,
+  params: { candyGuard: string; newPriceLamports: number; destination: string }
+): Promise<void> {
+  const candyGuardPk = toPublicKey(params.candyGuard);
+  const current = await fetchCandyGuard(umi, candyGuardPk);
+  await updateCandyGuard(umi, {
+    candyGuard: candyGuardPk,
+    guards: {
+      ...current.guards,
+      solPayment: some({
+        lamports: sol(params.newPriceLamports / 1_000_000_000),
+        destination: toPublicKey(params.destination),
+      }),
+    },
+    groups: current.groups,
+  }).sendAndConfirm(umi);
 }
 
 /**
