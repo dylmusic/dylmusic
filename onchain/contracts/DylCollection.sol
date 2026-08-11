@@ -12,9 +12,30 @@ import {ERC2981Upgradeable} from "@openzeppelin/contracts-upgradeable/token/comm
 /// "CONTRACT REQUIREMENT"). New albums mint into this SAME deployed
 /// contract forever via a new trackId, never a new deployment.
 contract DylCollection is ERC721AQueryableUpgradeable, OwnableUpgradeable, ERC2981Upgradeable, UUPSUpgradeable {
+    // Left as a true constant on purpose, not admin-settable — changing it
+    // after any track has minted would collide new tokenIds with an
+    // existing track's already-minted range (see _tokenId below), and it's
+    // mirrored byte-for-byte off-chain in lib/tokenIdScheme.ts and the
+    // Solana admin scripts (lib/solanaAdmin.ts, onchain-solana/scripts) for
+    // the SAME numbering across every chain — a mutable value here with no
+    // matching update path on those other two would silently desync them.
     uint256 public constant TOKEN_ID_STRIDE = 1000;
-    uint256 public constant EDITIONS_PER_TRACK = 100;
+
+    // Left as a true constant, same reasoning as ADMIN_RESERVED_EDITIONS
+    // below would need if made mutable — the site's own admin panel
+    // (lib/editionPricing.ts) hardcodes a 10-step $10-$100 price ladder for
+    // exactly ADMIN_RESERVED_EDITIONS editions, and Solana's own admin
+    // scripts mirror this same "10" independently — an on-chain-only
+    // setter here would silently desync from both without also rebuilding
+    // that ladder and updating the Solana side to match.
     uint256 public constant ADMIN_RESERVED_EDITIONS = 10;
+
+    // Admin-settable (unlike the two constants above) — this cap has no
+    // cross-chain/off-chain mirror to keep in sync (Solana's own per-track
+    // edition count is already set independently, per-track, via its own
+    // --editions CLI flag), so it's safe to let the admin tune it per-chain
+    // with a single tx instead of a full contract upgrade.
+    uint256 public editionsPerTrack;
 
     uint256 public mintPriceWei;
     string public metadataBaseURI;
@@ -26,6 +47,7 @@ contract DylCollection is ERC721AQueryableUpgradeable, OwnableUpgradeable, ERC29
 
     event MintPriceUpdated(uint256 newPriceWei);
     event MetadataBaseURIUpdated(string newBaseURI);
+    event EditionsPerTrackUpdated(uint256 newEditionsPerTrack);
     event TrackMinted(uint256 indexed trackId, address indexed to, uint256 firstEdition, uint256 lastEdition);
 
     error InvalidQuantity();
@@ -56,6 +78,7 @@ contract DylCollection is ERC721AQueryableUpgradeable, OwnableUpgradeable, ERC29
         _setDefaultRoyalty(admin_, 690); // 6.9%, admin-changeable via setRoyalty
         mintPriceWei = initialMintPriceWei_;
         metadataBaseURI = initialMetadataBaseURI_;
+        editionsPerTrack = 100; // admin-changeable via setEditionsPerTrack
     }
 
     // Disables ERC721A's normal sequential/consecutive minting entirely —
@@ -88,7 +111,7 @@ contract DylCollection is ERC721AQueryableUpgradeable, OwnableUpgradeable, ERC29
     function mint(uint256 trackId, uint256 quantity, address to) external payable {
         if (quantity == 0) revert InvalidQuantity();
         if (msg.value != mintPriceWei * quantity) revert IncorrectPayment();
-        _doMint(trackId, quantity, to, EDITIONS_PER_TRACK);
+        _doMint(trackId, quantity, to, editionsPerTrack);
     }
 
     /// Owner-only. Mints editions #1-10 (0-based indices 0-9) to an
@@ -125,6 +148,11 @@ contract DylCollection is ERC721AQueryableUpgradeable, OwnableUpgradeable, ERC29
     function setMetadataBaseURI(string calldata newBaseURI) external onlyOwner {
         metadataBaseURI = newBaseURI;
         emit MetadataBaseURIUpdated(newBaseURI);
+    }
+
+    function setEditionsPerTrack(uint256 newEditionsPerTrack) external onlyOwner {
+        editionsPerTrack = newEditionsPerTrack;
+        emit EditionsPerTrackUpdated(newEditionsPerTrack);
     }
 
     function setRoyalty(address receiver, uint96 feeNumeratorBps) external onlyOwner {

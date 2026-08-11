@@ -4132,6 +4132,31 @@ input {
   cursor: not-allowed;
 }
 
+.admin-contract-input {
+  font-size: 12px;
+  font-family: inherit;
+  color: #cfd9d2;
+  background: rgba(0, 0, 0, 0.35);
+  width: 130px;
+  padding: 8px 10px;
+  /* inset bevel — inputs get the inverse of .admin-contract-btn's raised look, same convention as every other Win95-styled input on this site */
+  border-top: 2px solid rgba(0, 0, 0, 0.4);
+  border-left: 2px solid rgba(0, 0, 0, 0.4);
+  border-right: 2px solid rgba(255, 255, 255, 0.18);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.18);
+}
+
+.admin-contract-input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.admin-contract-input::-webkit-outer-spin-button,
+.admin-contract-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 /* ---------- Win95 window chrome ---------- */
 
 .win95-window {

@@ -129,6 +129,22 @@ export function buildSetMintPriceTx(proxyAddress: Address, newPriceWei: bigint):
   return { to: proxyAddress, data, value: ZERO };
 }
 
+/**
+ * Editions-per-track cap — admin-settable storage (2026-08-11), unlike
+ * TOKEN_ID_STRIDE/ADMIN_RESERVED_EDITIONS which stay real Solidity
+ * constants (see the comments on those in DylCollection.sol for why —
+ * cross-chain/pricing-ladder coupling those two have that this one doesn't).
+ * A single tx, no contract upgrade required.
+ */
+export function buildSetEditionsPerTrackTx(proxyAddress: Address, newEditionsPerTrack: bigint): RawTx {
+  const data = encodeFunctionData({
+    abi: DylCollectionAbi,
+    functionName: "setEditionsPerTrack",
+    args: [newEditionsPerTrack],
+  });
+  return { to: proxyAddress, data, value: ZERO };
+}
+
 export function buildSetMetadataBaseURITx(proxyAddress: Address, newBaseURI: string): RawTx {
   const data = encodeFunctionData({
     abi: DylCollectionAbi,

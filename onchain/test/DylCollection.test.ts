@@ -134,6 +134,23 @@ describe("DylCollection", () => {
       expect(await proxy.contractURI()).to.equal("https://example.com/meta/collection");
     });
 
+    it("setEditionsPerTrack is owner-only and changes the per-track cap", async () => {
+      await expect(proxy.connect(other).setEditionsPerTrack(5)).to.be.revertedWithCustomError(
+        proxy,
+        "OwnableUnauthorizedAccount"
+      );
+      await proxy.connect(admin).setEditionsPerTrack(5);
+      expect(await proxy.editionsPerTrack()).to.equal(5);
+
+      // a track that already had 4 admin-minted editions can only mint 1 more now
+      await proxy.connect(admin).adminMint(50, 4, admin.address);
+      await proxy.connect(buyer).mint(50, 1, buyer.address, { value: PRICE });
+      expect(await proxy.nextEditionIndex(50)).to.equal(5);
+      await expect(
+        proxy.connect(buyer).mint(50, 1, buyer.address, { value: PRICE })
+      ).to.be.revertedWithCustomError(proxy, "TrackSoldOut");
+    });
+
     it("setRoyalty is owner-only and updates royaltyInfo", async () => {
       await proxy.connect(admin).setRoyalty(other.address, 500);
       const [receiver, amount] = await proxy.royaltyInfo(1, ethers.parseEther("1"));

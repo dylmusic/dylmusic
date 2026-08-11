@@ -14,6 +14,7 @@ import {
   buildDeployAlbumBuyerProxyTx,
   buildUpgradeAlbumBuyerTx,
   buildSetMintPriceTx,
+  buildSetEditionsPerTrackTx,
 } from "@/lib/contractDeploy";
 import { wagmiConfig } from "@/lib/web3";
 import { ALBUMS, type ChainKey } from "@/lib/albums";
@@ -80,7 +81,8 @@ type DeployPhase =
         | "deploy"
         | "list"
         | "reprice"
-        | "reprice-mint-price";
+        | "reprice-mint-price"
+        | "set-editions-per-track";
       label: string;
     }
   | { step: "done"; label: string }
@@ -99,6 +101,7 @@ export default function AdminPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [targets, setTargets] = useState<ContractTarget[]>(CONTRACT_TARGETS);
   const [phase, setPhase] = useState<Record<string, DeployPhase | undefined>>({});
+  const [editionsPerTrackInput, setEditionsPerTrackInput] = useState<Record<string, string>>({});
 
   async function loadChat() {
     try {
@@ -652,6 +655,32 @@ export default function AdminPage() {
     }
   }
 
+  // Editions-per-track cap is admin-settable storage now (2026-08-11) —
+  // unlike setMintPrice's live USD re-peg, there's no "correct" derived
+  // value here, it's a business decision, so this reads a plain admin-typed
+  // number instead. See DylCollection.sol for why this one is safe to make
+  // mutable while TOKEN_ID_STRIDE/ADMIN_RESERVED_EDITIONS are not.
+  async function handleSetEditionsPerTrack(target: ContractTarget) {
+    if (!target.address || !target.chainId) return;
+    const raw = editionsPerTrackInput[target.key];
+    const newCap = raw ? Number(raw) : NaN;
+    if (!Number.isInteger(newCap) || newCap <= 0) {
+      setPhase((p) => ({ ...p, [target.key]: { step: "error", label: "Enter a positive whole number first." } }));
+      return;
+    }
+    setPhase((p) => ({ ...p, [target.key]: { step: "set-editions-per-track", label: `Setting editions/track to ${newCap}…` } }));
+    try {
+      await ensureChain(target);
+      await sendAndWait(buildSetEditionsPerTrackTx(target.address as Address, BigInt(newCap)), target.chainId!);
+      setPhase((p) => ({
+        ...p,
+        [target.key]: { step: "done", label: `Editions per track set to ${newCap}.` },
+      }));
+    } catch (err) {
+      setPhase((p) => ({ ...p, [target.key]: { step: "error", label: describeError(err) } }));
+    }
+  }
+
   // ---- Solana: same three admin actions as the EVM chains, real per-chain
   // shape differences (see the comments inside lib/solanaAdmin.ts and
   // lib/magicEdenListing.ts) — one Candy Machine per track instead of one
@@ -1090,6 +1119,24 @@ export default function AdminPage() {
                           onClick={() => handleRepriceMintPrice(c)}
                         >
                           Reprice Mint Price
+                        </button>
+                        <input
+                          className="admin-contract-input"
+                          type="number"
+                          min={1}
+                          step={1}
+                          placeholder="New editions/track"
+                          disabled={busy(c.key) || !c.address}
+                          value={editionsPerTrackInput[c.key] ?? ""}
+                          onChange={(e) => setEditionsPerTrackInput((prev) => ({ ...prev, [c.key]: e.target.value }))}
+                        />
+                        <button
+                          className="admin-contract-btn"
+                          disabled={busy(c.key) || !c.address || !editionsPerTrackInput[c.key]}
+                          title="Changes the per-track edition cap (starts at 100) — a single tx, no upgrade needed, unlike TOKEN_ID_STRIDE/ADMIN_RESERVED_EDITIONS which stay fixed constants (see DylCollection.sol for why)."
+                          onClick={() => handleSetEditionsPerTrack(c)}
+                        >
+                          Set Editions/Track
                         </button>
                       </div>
                     ) : isSolana ? (

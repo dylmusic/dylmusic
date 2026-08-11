@@ -388,6 +388,77 @@ fully permissionless, only the upgrade path is owner-gated via
   which is still the right thing to call regardless of it now being a
   proxy address rather than a plain contract address.
 
+**Follow-up audit, same day — "audit the project for other mistakes like
+this"**: went looking for other places something was hardcoded when it
+could safely be made admin-changeable instead, same spirit as the
+AlbumBuyer fix. Found and fixed one real, contained one:
+- **`DylCollection.sol`'s `EDITIONS_PER_TRACK` (the 100-per-track cap) was
+  a `constant`** — every other tunable already had a one-tx admin setter
+  (`mintPriceWei`/`setMintPrice`, `metadataBaseURI`/`setMetadataBaseURI`,
+  royalty/`setRoyalty`), but changing the edition cap would have needed a
+  full contract upgrade. Converted to real storage
+  (`uint256 public editionsPerTrack`, initialized to 100) with a new
+  `setEditionsPerTrack` owner-only setter + `EditionsPerTrackUpdated`
+  event — wired all the way through: `lib/contractDeploy.ts`
+  `buildSetEditionsPerTrackTx`, a new `/admin` input + "Set Editions/Track"
+  button per EVM chain row, a new passing test (raising then hitting the
+  new lower cap correctly reverts `TrackSoldOut`), all 30 onchain tests
+  passing, `npm run build` clean.
+- **Deliberately did NOT convert the other two constants on the same
+  contract** — `TOKEN_ID_STRIDE` and `ADMIN_RESERVED_EDITIONS` stayed
+  `constant`, with a comment explaining why on each: `TOKEN_ID_STRIDE`
+  changing after any track has minted would collide new tokenIds with an
+  existing track's already-minted range, and it's mirrored byte-for-byte
+  off-chain in `lib/tokenIdScheme.ts` and the Solana admin scripts for the
+  same numbering on every chain — a mutable on-chain value with no
+  matching update path on those other two would silently desync them.
+  `ADMIN_RESERVED_EDITIONS` is coupled to `lib/editionPricing.ts`'s
+  hardcoded 10-step $10-$100 price ladder (see "Deployment minting
+  strategy" below) and to Solana's own independently-hardcoded copy of the
+  same number (`lib/solanaAdmin.ts`, `onchain-solana/scripts/
+  create-track-candy-machine.ts`) — making only the EVM contract's copy
+  mutable would create a misleading "editable" knob that doesn't actually
+  control the full picture unless the pricing ladder and Solana side are
+  rebuilt to match dynamically too, which is real, separate scope, not a
+  contained fix like `EDITIONS_PER_TRACK` was. Flagged as open findings
+  below instead of silently converted.
+
+**Other open findings from this audit, not yet acted on — need a real
+scope decision, not just "flip a constant," before touching them:**
+- **Solana has no way to reprice a track's public mint after its Candy
+  Machine/Guard is created.** The EVM side's `setMintPrice` is callable
+  any time; Solana's `solPayment` guard amount is set once in
+  `onchain-solana/scripts/create-track-candy-machine.ts` and there is no
+  `updateCandyGuard` (or equivalent) call anywhere in `lib/solanaAdmin.ts`
+  or wired into `/admin` — as the SOL/USD rate moves, a track's Solana
+  mint price can't be re-pegged the way its EVM price can via "Reprice
+  Mint Price," short of abandoning that track's Candy Machine and creating
+  a new one (a real, disruptive redo, not a repricing). Real gap, real
+  scope (mpl-candy-machine's `updateCandyGuard` instruction + a new
+  `/admin` action) — not built.
+- **Two off-chain "knobs" require a code change + redeploy, not an admin
+  action**: `APP_FEE_BPS` (`lib/dylSwap.ts`, the 0.85% swap fee, currently
+  a hardcoded `"85"`) and `ADMIN_WALLET` (`lib/admin.ts`, gates who can
+  see `/admin` at all). Neither is wired to anything live-editable (Redis,
+  same as chat/board/streams) the way every other piece of shared state in
+  this app already is. Lower urgency than the two above — these change
+  rarely — but the same category of "can't be changed without touching
+  code" this whole audit is about. `ADMIN_WALLET` specifically is NOT tied
+  to on-chain contract ownership — whoever's connected wallet actually
+  deploys becomes the real on-chain `owner()` (transferable any time via
+  standard `Ownable.transferOwnership`), so rotating this constant doesn't
+  by itself affect who controls deployed contracts, only who the site's UI
+  shows the admin panel to and who collects the swap fee.
+- **The album/track catalog itself (`lib/albums.ts`) is a static TS
+  array** — adding a new track or album requires editing this file and
+  redeploying the whole site, unlike every other piece of admin-managed
+  state in this app (chat, board, streams, the contract addresses
+  themselves). This is the biggest of the four findings and a genuinely
+  different kind of change (moving the catalog to Redis or another
+  datastore, admin-editable) — flagged, not attempted, pending Dylan's
+  call on whether it's worth the redesign given how rarely new
+  albums/tracks actually ship.
+
 ---
 
 **Explicitly NOT done, on purpose — scope boundary agreed with Dylan
