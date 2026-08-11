@@ -1732,8 +1732,16 @@ var follows whichever chain is selected site-wide.
 ## Deploy
 
 **Deploys via the Vercel CLI (`npx vercel --prod --yes`), not git push** —
-this repo has **no git remote configured** (`.vercel/project.json` links it
-to the `dylmusic` Vercel project directly). Always run a real build
+`.vercel/project.json` links this repo to the `dylmusic` Vercel project
+directly. **Correction (2026-08-11): this repo DOES have a git remote now**
+(`origin` → `github.com/dylmusic/dylmusic.git`, standing rule: commit +
+push every change here too, same as every other repo — see
+`always-push-to-github` memory) — the earlier "no git remote configured"
+claim is stale, it must have been added since. Not confirmed whether
+Vercel's GitHub integration is connected to auto-deploy from pushes to
+this remote or whether it's push-only/unconnected to the Vercel project —
+until that's confirmed, keep deploying via the Vercel CLI explicitly
+rather than assuming a push alone ships it. Always run a real build
 (`export PATH="/usr/local/opt/node@20/bin:$PATH"; npm run build`) and check
 exit code before deploying. Node 20 required (repo default may be older).
 
