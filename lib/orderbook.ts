@@ -11,6 +11,17 @@ export interface OrderBookEntry {
   seller?: string;
   // present only for the "mint" entry
   remaining?: number;
+  // Real-listing metadata (lib/realOrderBook.ts / lib/realSolanaOrderBook.ts)
+  // — absent for simulated entries (every chain, until it's actually
+  // deployed). Additive only, so every existing consumer of this type that
+  // only reads the fields above keeps working untouched.
+  source?: "site" | "opensea" | "magiceden";
+  chainId?: number;
+  collectionAddress?: string;
+  tokenId?: number;
+  sellerAddress?: string;
+  /** The exact object the matching fulfill call needs for this source — a StoredListing, an OpenSea Listing, or a Magic Eden listing record. */
+  raw?: unknown;
 }
 
 // While the track hasn't sold out, minting a fresh edition at face value is

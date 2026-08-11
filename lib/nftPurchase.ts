@@ -1,12 +1,14 @@
 import type { WalletClient, Address } from "viem";
 import { createPublicClient, http } from "viem";
 import { Seaport } from "@opensea/seaport-js";
+import type { Listing } from "@opensea/sdk";
 import { ChainKey } from "./albums";
 import { EVM_RPC_URLS, EVM_CHAINS } from "./dylSwap";
 import { CONTRACT_TARGETS } from "./admin";
 import { DylCollectionAbi, buildMintTx, buildAlbumBatchMintTx } from "./contractDeploy";
 import { encodeTokenId } from "./tokenIdScheme";
 import { viemWalletClientToEthersSigner } from "./ethersSigner";
+import { getOpenSeaSdk } from "./openSeaListing";
 import type { StoredListing } from "./siteListing";
 
 /**
@@ -182,4 +184,28 @@ export async function fulfillResalePurchase(params: FulfillResaleParams): Promis
   // (lib/siteListing.ts, lib/openSeaListing.ts) for this same package.
   const tx = (await useCase.executeAllActions()) as unknown as { hash: string };
   return { txHash: tx.hash };
+}
+
+export interface FulfillOpenSeaParams {
+  chain: ChainKey;
+  listing: Listing;
+  buyerAddress: Address;
+  walletClient: WalletClient;
+}
+
+/**
+ * Real resale purchase, OpenSea half — fulfills a listing that came from
+ * OpenSea's own live order book (lib/realOrderBook.ts's fetchRealEvmListings),
+ * which may or may not be one we created ourselves. `sdk.fulfillOrder`
+ * doesn't distinguish (verified against the installed SDK source): any
+ * valid `orderHash`/`protocolAddress` pair from their API works the same
+ * way, so the `Listing` object fetched straight from `getAllListings` is
+ * passed through unmodified — no reconstruction needed.
+ */
+export async function fulfillOpenSeaPurchase(params: FulfillOpenSeaParams): Promise<{ txHash: string }> {
+  if (!isEvmPurchaseChain(params.chain)) throw new Error(`Solana purchases aren't supported by this module yet (chain: ${params.chain}).`);
+  const signer = await viemWalletClientToEthersSigner(params.walletClient);
+  const sdk = getOpenSeaSdk(signer, params.chain);
+  const txHash = await sdk.fulfillOrder({ order: params.listing, accountAddress: params.buyerAddress });
+  return { txHash };
 }

@@ -53,6 +53,14 @@ export async function getSiteListingsForChain(chainId: number): Promise<StoredLi
     .filter((l): l is StoredListing => l !== null);
 }
 
+/** Removes one edition's stored listing after it's actually sold — without this, a fulfilled site listing would keep showing as available forever (nothing else ever hdel's this hash field). */
+export async function removeSiteListing(chainId: number, tokenId: number): Promise<boolean> {
+  const redis = getRedis();
+  if (!redis) return false;
+  await redis.hdel(listingsKey(chainId), String(tokenId));
+  return true;
+}
+
 export async function getSiteListing(chainId: number, tokenId: number): Promise<StoredListing | null> {
   const redis = getRedis();
   if (!redis) return null;

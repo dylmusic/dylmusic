@@ -1723,6 +1723,130 @@ of the single-track batch-mint work for free.
 
 ---
 
+## Real buy/sell, pulling in OpenSea + Magic Eden listings — started 2026-08-11
+
+Follow-up to the "Mint #1-10 & List" audit above: minting/listing was
+real, but nothing on the site could actually buy one — `fulfillResalePurchase`
+existed and was called from nowhere, no public page even read
+`/api/listings`. Dylan's direction: the site itself needs to be a real
+marketplace front end — pull in listings from wherever they exist (our
+own site, OpenSea, Magic Eden) and let a buyer purchase through dylmusic
+regardless of origin, "as cross compatible as possible... apply that
+logic everywhere possible." Confirmed scope: EVM **and** Solana, and a
+regular user's own "List for sale" dual-lists on OpenSea too (same
+pattern as admin's #1-10 editions). **The gate stays on** —
+`BuyConfirmModal.tsx`'s `setNotLive(true)` is untouched on purpose, per
+Dylan's own call ("keep the gate for now") — this builds the real thing
+end-to-end and ready, not live.
+
+Full plan at the time: `~/.claude/plans/idempotent-wandering-moth.md`
+(4 parts — EVM data layer, EVM buy, EVM sell, Solana). **Parts 1-2 shipped
+this session, Parts 3-4 (real sell + OpenSea dual-listing, and the whole
+Solana Magic Eden buy/sell layer) are scoped but not yet built** — see the
+plan file for exact detail before picking this back up.
+
+**Verified, not guessed, before writing any of this**: `sdk.api.getAllListings`/
+`sdk.fulfillOrder` (OpenSea, read from `node_modules/@opensea/sdk/src/`),
+Seaport-js's per-order `cancelOrders` (vs. the existing bulk
+`cancelAllListings`), and Magic Eden's real `GET /collections/{symbol}/listings`
+(public, no key) + `GET /instructions/buy_now` endpoints (confirmed
+directly against docs.magiceden.io, not assumed from the sell-side
+pattern already in this file).
+
+**Part 1 — real data layer (`lib/realOrderBook.ts`, new):**
+- `fetchRealEvmListings(chainKey, sdk)`: merges our own Redis-backed site
+  listings with a paginated sweep of OpenSea's live order book (anyone's
+  listing, not just admin's). OpenSea's collection **slug** isn't
+  knowable ahead of time — resolved lazily via `api.getNFT(address,
+  someRealTokenId)` → `.nft.collection` (same mechanism
+  `createOpenSeaListings` already used internally), bootstrapped from the
+  first known site listing, cached per session.
+- `fetchRealMintRow`/`buildRealOrderBook`: real on-chain
+  `nextEditionIndex`/`editionsPerTrack`/`mintPriceWei` reads replace the
+  simulated remaining-count math for a deployed chain.
+- `lib/orderbook.ts`'s `OrderBookEntry` gained optional real-listing
+  fields (`source`, `chainId`, `collectionAddress`, `tokenId`,
+  `sellerAddress`, `raw`) — additive only, every existing consumer
+  (`TrackRow.tsx`, `MiniPlayer.tsx`, `StartMenu.tsx`, `OrderBookModal.tsx`)
+  keeps compiling untouched.
+- `/api/listings` gained a real `DELETE` (removes a listing after it
+  actually sells) and opened `POST` to any wallet, not just admin
+  (checked for `sellerAddress === wallet` self-consistency — the real
+  security backstop stays Seaport itself refusing to let anyone fulfill a
+  sell order they don't own the token for).
+- **Real bug hit and fixed**: importing `lib/dylSwap.ts`'s
+  `EVM_CHAINS`/`EVM_RPC_URLS` into `app/api/listings/route.ts` (a Route
+  Handler, server runtime) broke the build outright —
+  `TypeError: az is not a function` during "Collecting page data." Root
+  cause: `wagmi/chains`' barrel drags in viem's full chain list including
+  a `tempo` chain definition whose own transitive dependency (`ox`'s
+  `VirtualMaster`) has a real "Critical dependency: the request of a
+  dependency is an expression" issue that client bundles tolerate but a
+  Node.js route-handler bundle does not. Fixed with a new
+  `lib/serverEvmClient.ts` — hand-written minimal `Chain` objects for the
+  3 EVM chains (a public client only needs `id`/`nativeCurrency` plus the
+  explicit `transport: http(rpcUrl)` already passed in), no package chain
+  list imported at all. Server routes needing an EVM read should use this,
+  never `lib/dylSwap.ts`'s exports.
+- **DELETE is guarded by a real on-chain read, not just a client claim**:
+  the buyer (not the seller) calls DELETE right after a purchase, so it
+  can't reuse POST's wallet-match check — a wrong/malicious DELETE would
+  actually harm someone else (hide a real, still-fulfillable listing).
+  Guarded instead by reading the token's current on-chain `ownerOf` and
+  only allowing removal once it no longer matches the stored listing's
+  seller — proof the sale genuinely happened, not a guessed tokenId.
+
+**Part 2 — real EVM buy (`lib/useTrackCommerce.ts`, `components/AlbumView.tsx`):**
+- The hook now calls its own `useAccount`/`useWalletClient`/`useSwitchChain`
+  (wagmi's provider already wraps the app) and, once a chain's collection
+  is deployed (`CONTRACT_TARGETS[chain].address` set), sources `books`/
+  `minted` from the real data layer above instead of `lib/holdings.ts`'s
+  localStorage simulation. Every chain today has no deployed contract, so
+  every existing consumer keeps behaving exactly as before.
+- `confirmPendingBuy` branches for real: `entry.type === "mint"` →
+  `fulfillMintPurchase`; resale + `source === "site"` →
+  `fulfillResalePurchase` then a best-effort `DELETE /api/listings`;
+  resale + `source === "opensea"` → new `fulfillOpenSeaPurchase`
+  (`lib/nftPurchase.ts` — thin wrapper around `sdk.fulfillOrder`, verified
+  it doesn't distinguish "our" listings from third-party ones). If
+  `payToken` isn't the chain's native currency, `lib/payWithAnyToken.ts`'s
+  already-built `runPayWithAnyToken` runs first — the other half of "buy
+  with any token" actually completing, not just simulated delay steps.
+  Same real `ensureEvmChain` (switch-then-fresh-`getWalletClient`, retried
+  on `ConnectorChainMismatchError`) pattern `/swap`'s own `SwapCard.tsx`
+  already uses.
+- **"Buy Album" (`AlbumView.tsx confirmBuyAlbum`) made real too, same
+  pass** — was still 100% simulated even after the single-track path went
+  real, which would've been an inconsistent half-real UI. Now calls
+  `fulfillAlbumMintPurchase` (AlbumBuyer) when deployed, reusing
+  `ensureEvmChain`/`getSolanaWalletForPay`/`evmAddress` newly exposed off
+  the hook so this chain-switching/wallet-adapting logic exists in
+  exactly one place, not duplicated between the hook and this component.
+- `BuyConfirmModal.tsx` gained an optional `error` prop/display
+  (`.buy-confirm-error`) for a real failed purchase — currently unreachable
+  since `setNotLive(true)` still fires first, but built so the feature is
+  genuinely complete and not silently swallowing an error the moment the
+  gate does come off.
+- **Known tradeoff, not fixed this pass**: `/music/[slug]`'s first-load
+  JS jumped substantially (the OpenSea/Seaport SDKs are heavy, and
+  `AlbumView.tsx` now pulls them in via `useTrackCommerce`/
+  `lib/realOrderBook.ts` even before any chain is deployed). Real
+  follow-up: dynamically `import()` the OpenSea-dependent pieces so they
+  only load once a chain actually has a deployed collection, instead of
+  on every album page view.
+- **Not run against a live wallet/deployed contract** — same gap already
+  true for every other real-but-unverified piece in this codebase.
+  Verified via a clean `npm run build` (full typecheck against the real
+  installed SDK types) after each part, same discipline as
+  `lib/nftPurchase.ts`'s own existing verification note.
+
+**Parts 3 (real sell, dual-listed on OpenSea, per-order cancel, real
+`tokensOfOwner` ownership) and 4 (the entire Solana Magic Eden buy/sell
+layer) are scoped in the plan file but not yet built** — pick up there,
+don't re-derive.
+
+---
+
 ## Reprice & Relist (EVM) + Solana wired into `/admin` — built 2026-07-29
 
 **Reprice & Relist**, next to "Mint #1-10 & List" on each EVM chain row —

@@ -1,6 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useAccount, useWalletClient, useSwitchChain, ConnectorChainMismatchError } from "wagmi";
+import { getWalletClient } from "wagmi/actions";
+import type { WalletClient, Address } from "viem";
+import type { Listing } from "@opensea/sdk";
 import { Track, ChainKey, baselineMinted } from "./albums";
 import {
   getOwnedEditions,
@@ -12,11 +16,19 @@ import {
 } from "./holdings";
 import { buildOrderBook, OrderBookEntry } from "./orderbook";
 import { recordActivity } from "./activity";
-import { getNativeTokenForChain } from "./dylTokens";
+import { getNativeTokenForChain, chainIdForKey } from "./dylTokens";
 import type { DylToken } from "./dylTokens";
-import type { PayStep } from "./payWithAnyToken";
+import { runPayWithAnyToken, isNativePayToken, type PayStep } from "./payWithAnyToken";
+import { adaptDylEvmWallet, adaptDylSolanaWallet } from "./dylSwap";
+import { useSolanaWallet } from "./solana";
+import { viemWalletClientToEthersSigner } from "./ethersSigner";
+import { wagmiConfig } from "./web3";
+import { CONTRACT_TARGETS } from "./admin";
+import { fetchRealEvmListings, buildRealOrderBook, fetchRealMintRow, type RealListing } from "./realOrderBook";
+import { fulfillMintPurchase, fulfillResalePurchase, fulfillOpenSeaPurchase } from "./nftPurchase";
+import { getOpenSeaSdk, isOpenSeaListable } from "./openSeaListing";
 
-function isNativePayToken(payToken: DylToken, nativeToken: DylToken): boolean {
+function isNativePayTokenLegacy(payToken: DylToken, nativeToken: DylToken): boolean {
   return payToken.chainId === nativeToken.chainId && payToken.address === nativeToken.address;
 }
 
@@ -31,27 +43,95 @@ export interface PendingBuy {
   quantity: number;
 }
 
+// A chain is "real" here once its collection contract is actually
+// deployed (lib/admin.ts CONTRACT_TARGETS) — every chain today, so every
+// call site below falls back to the exact simulated behavior that existed
+// before this real wiring, zero pre-launch regression. Solana isn't
+// wired for real buy/sell yet (see lib/realOrderBook.ts's EVM-only scope
+// note) — always simulated here regardless of deployment state until
+// that ships.
+function isRealDeployed(chain: ChainKey): boolean {
+  if (chain === "solana") return false;
+  return !!CONTRACT_TARGETS.find((t) => t.key === chain)?.address;
+}
+
 // Shared buy/sell/order-book logic — used anywhere a track needs full
 // commerce functionality (AlbumView, MiniPlayer, the Start Menu's random
 // picks) without re-deriving the same mint-vs-resale-floor math three times.
 //
-// Clicking Buy no longer purchases instantly — it opens a "Pay With"
-// confirmation (pendingBuy) defaulting to the chain's native currency, then
-// the "🚧 Not live yet" gate in BuyConfirmModal.tsx fires before anything
-// below here is ever reached (real contracts aren't deployed yet). This
-// cosmetic 1/2 -> 2/2 delay is what WOULD run if that gate weren't there —
-// kept simple/unreachable on purpose rather than wired to the real
-// lib/payWithAnyToken.ts engine, since nothing here can currently complete
-// with a real NFT anyway. `buyStep`'s shape already matches the real
-// engine's PayStep ({part,total,label}) so swapping this out later is just
-// replacing the body of confirmPendingBuy, not the type it exposes.
+// Real buy/sell (2026-08-11): once a chain's collection contract is
+// actually deployed, `books`/`minted` are sourced from real on-chain reads
+// + real merged listings (our own site's Redis-backed Seaport orders AND
+// OpenSea's own live order book — see lib/realOrderBook.ts), and
+// `confirmPendingBuy` executes a real transaction instead of writing to
+// localStorage. Every chain today has no deployed contract yet, so every
+// consumer of this hook keeps behaving exactly as before until that
+// changes — this is real, ready code, not yet reachable.
 export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress: string | null) {
+  const { address: evmAddress } = useAccount();
+  const { data: walletClient } = useWalletClient();
+  const { switchChainAsync } = useSwitchChain();
+  const sol = useSolanaWallet();
+
   const [tick, setTick] = useState(0);
   const [busyKey, setBusyKey] = useState<string | null>(null); // `${trackId}:${entryKey}`
   const [pendingBuy, setPendingBuy] = useState<PendingBuy | null>(null);
   const [buyStep, setBuyStep] = useState<PayStep>(null);
+  const [buyError, setBuyError] = useState<string | null>(null);
 
-  const minted = useMemo(() => {
+  const deployed = isRealDeployed(chain);
+
+  const [realListings, setRealListings] = useState<RealListing[]>([]);
+  const [realBooks, setRealBooks] = useState<Record<string, OrderBookEntry[]>>({});
+  const [realMinted, setRealMinted] = useState<Record<string, number>>({});
+  const [realBooksLoading, setRealBooksLoading] = useState(false);
+
+  // Real order-book fetch — one merged sweep for the whole track list, not
+  // per-track (fetchRealEvmListings is already collection-scoped). Refetches
+  // on `tick` (the same refresh() every mutating action below already
+  // calls) so a buy/sell is reflected without a full page reload.
+  useEffect(() => {
+    if (!deployed) return;
+    let cancelled = false;
+    setRealBooksLoading(true);
+    (async () => {
+      let sdk = null;
+      // A signer is required to construct OpenSeaSDK even for read-only
+      // calls (no signer-less constructor exists) — until a wallet is
+      // connected, real listings still work (our own site's), just without
+      // the OpenSea half merged in yet.
+      if (isOpenSeaListable(chain) && walletClient) {
+        try {
+          const signer = await viemWalletClientToEthersSigner(walletClient);
+          sdk = getOpenSeaSdk(signer, chain);
+        } catch {
+          sdk = null;
+        }
+      }
+      const listings = await fetchRealEvmListings(chain, sdk);
+      if (cancelled) return;
+      setRealListings(listings);
+
+      const nextBooks: Record<string, OrderBookEntry[]> = {};
+      const nextMinted: Record<string, number> = {};
+      for (const t of tracks) {
+        nextBooks[t.id] = await buildRealOrderBook(chain, t, listings);
+        const mintRow = await fetchRealMintRow(chain, t);
+        nextMinted[t.id] = mintRow ? t.editionCap - mintRow.remaining : 0;
+      }
+      if (!cancelled) {
+        setRealBooks(nextBooks);
+        setRealMinted(nextMinted);
+        setRealBooksLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deployed, chain, tracks, walletClient, tick]);
+
+  const simulatedMinted = useMemo(() => {
     const m: Record<string, number> = {};
     for (const t of tracks) m[t.id] = baselineMinted(t, chain) + localMintedCount(chain, t.id);
     return m;
@@ -74,15 +154,48 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tracks, chain, walletAddress, tick]);
 
-  const books = useMemo(() => {
+  const simulatedBooks = useMemo(() => {
     const b: Record<string, OrderBookEntry[]> = {};
     for (const t of tracks) b[t.id] = buildOrderBook(t, chain);
     return b;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tracks, chain, tick]);
 
+  const minted = deployed ? realMinted : simulatedMinted;
+  const books = deployed ? realBooks : simulatedBooks;
+
   function refresh() {
     setTick((n) => n + 1);
+  }
+
+  // ---- Real-execution helpers, shared with AlbumView.tsx's whole-album
+  // buy (a separate call site — batches across N tracks via AlbumBuyer,
+  // genuinely different semantics from a single mint/resale purchase, but
+  // needs the exact same chain-switching/wallet-adapting machinery). Same
+  // proven switchChainAsync -> retry-on-ConnectorChainMismatchError shape
+  // already used by /swap's own ensureEvmChain (components/SwapCard.tsx).
+
+  async function ensureEvmChain(chainId: number): Promise<WalletClient> {
+    await switchChainAsync({ chainId });
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await getWalletClient(wagmiConfig, { chainId });
+      } catch (e) {
+        if (attempt >= 5 || !(e instanceof ConnectorChainMismatchError)) throw e;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
+  }
+
+  function getSolanaWalletForPay() {
+    return {
+      address: sol.address,
+      adapt: () => {
+        const provider = sol.getProvider();
+        if (!sol.address || !provider) return null;
+        return adaptDylSolanaWallet(sol.address, (tx, opts) => provider.signAndSendTransaction(tx, opts));
+      },
+    };
   }
 
   // Mints up to `quantity` sequential fresh editions in one go (clamped to
@@ -90,7 +203,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
   // edition still gets its own recordMint/recordActivity call, same
   // granularity a real multi-mint transaction's individual Transfer events
   // would have; only the UI/confirmation step treats it as one action.
-  async function mintTrack(t: Track, quantity = 1) {
+  async function mintTrackSimulated(t: Track, quantity = 1) {
     if (!walletAddress) return;
     let current = baselineMinted(t, chain) + localMintedCount(chain, t.id);
     const n = Math.max(1, Math.floor(quantity));
@@ -108,7 +221,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     }
   }
 
-  async function buyResaleEntry(t: Track, entry: OrderBookEntry) {
+  async function buyResaleEntrySimulated(t: Track, entry: OrderBookEntry) {
     if (!walletAddress || entry.type !== "resale") return;
     buyListedEdition(chain, t.id, entry.seller!, walletAddress, entry.editionNumber!);
     recordActivity({
@@ -150,6 +263,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
 
   function cancelPendingBuy() {
     if (busyKey) return; // don't yank the modal mid-animation
+    setBuyError(null);
     setPendingBuy(null);
   }
 
@@ -158,18 +272,78 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     const { track: t, entry, quantity } = pendingBuy;
     const entryKey = entry.type === "mint" ? "mint" : `${entry.editionNumber}`;
     setBusyKey(`${t.id}:${entryKey}`);
-    if (!isNativePayToken(payToken, getNativeTokenForChain(chain))) {
-      setBuyStep({ part: 1, total: 2, label: `Swapping ${payToken.symbol} to ${getNativeTokenForChain(chain).symbol}` });
-      await delay(900);
-      setBuyStep({ part: 2, total: 2, label: "Confirm purchase" });
-      await delay(900);
-    } else {
-      await delay(450);
+    setBuyError(null);
+    try {
+      if (deployed) {
+        const chainId = chainIdForKey(chain);
+        if (!isNativePayToken(payToken, chain)) {
+          const result = await runPayWithAnyToken({
+            payToken,
+            targetChain: chain,
+            totalUsd: entry.priceUsd * quantity,
+            onStep: setBuyStep,
+            ensureEvmChain,
+            adaptEvm: adaptDylEvmWallet,
+            getSolanaWallet: getSolanaWalletForPay,
+            evmAddress: evmAddress ?? null,
+          });
+          if (!result.ok) throw new Error("Swap did not complete — try again.");
+        } else {
+          setBuyStep({ part: 1, total: 1, label: "Confirm purchase" });
+        }
+
+        const freshClient = await ensureEvmChain(chainId);
+        if (entry.type === "mint") {
+          await fulfillMintPurchase({
+            chain,
+            trackId: t.index,
+            quantity,
+            buyerAddress: walletAddress as Address,
+            walletClient: freshClient,
+          });
+        } else if (entry.source === "opensea" && entry.raw) {
+          await fulfillOpenSeaPurchase({
+            chain,
+            listing: entry.raw as Listing,
+            buyerAddress: walletAddress as Address,
+            walletClient: freshClient,
+          });
+        } else {
+          await fulfillResalePurchase({
+            chain,
+            trackId: t.index,
+            editionNumber: entry.editionNumber!,
+            buyerAddress: walletAddress as Address,
+            walletClient: freshClient,
+          });
+          if (entry.chainId && entry.tokenId !== undefined) {
+            await fetch("/api/listings", {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ chainId: entry.chainId, tokenId: entry.tokenId }),
+            }).catch(() => {}); // best-effort cache cleanup — the real sale already happened on-chain regardless
+          }
+        }
+      } else {
+        if (!isNativePayTokenLegacy(payToken, getNativeTokenForChain(chain))) {
+          setBuyStep({ part: 1, total: 2, label: `Swapping ${payToken.symbol} to ${getNativeTokenForChain(chain).symbol}` });
+          await delay(900);
+          setBuyStep({ part: 2, total: 2, label: "Confirm purchase" });
+          await delay(900);
+        } else {
+          await delay(450);
+        }
+        if (entry.type === "mint") await mintTrackSimulated(t, quantity);
+        else await buyResaleEntrySimulated(t, entry);
+      }
+    } catch (err) {
+      setBuyError(err instanceof Error ? err.message : "Purchase failed — see console.");
+      console.error("confirmPendingBuy failed", err);
+      return;
+    } finally {
+      setBusyKey(null);
+      setBuyStep(null);
     }
-    if (entry.type === "mint") await mintTrack(t, quantity);
-    else await buyResaleEntry(t, entry);
-    setBusyKey(null);
-    setBuyStep(null);
     setPendingBuy(null);
     refresh();
   }
@@ -202,6 +376,10 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     busyKey,
     pendingBuy,
     buyStep,
+    buyError,
+    realBooksLoading,
+    deployed,
+    realListings,
     defaultPayToken: getNativeTokenForChain(chain),
     requestBuyFloor,
     requestBuyFromBook,
@@ -210,5 +388,11 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     setEditionPrice,
     cancelEditionListing,
     refresh,
+    // Exposed so AlbumView.tsx's whole-album buy (a separate call site,
+    // genuinely different batching semantics) can reuse the exact same
+    // chain-switching/wallet-adapting machinery instead of duplicating it.
+    ensureEvmChain,
+    getSolanaWalletForPay,
+    evmAddress,
   };
 }

@@ -2,13 +2,18 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import type { Address } from "viem";
 import { Album, ChainKey, Track, baselineMinted } from "@/lib/albums";
 import { localMintedCount, recordMint } from "@/lib/holdings";
 import { recordActivity } from "@/lib/activity";
 import { useStreamCountsLoaded } from "@/lib/streams";
 import { useTrackCommerce } from "@/lib/useTrackCommerce";
 import type { DylToken } from "@/lib/dylTokens";
-import type { PayStep } from "@/lib/payWithAnyToken";
+import { chainIdForKey } from "@/lib/dylTokens";
+import { runPayWithAnyToken, isNativePayToken, type PayStep } from "@/lib/payWithAnyToken";
+import { adaptDylEvmWallet } from "@/lib/dylSwap";
+import { fulfillAlbumMintPurchase } from "@/lib/nftPurchase";
+import { CONTRACT_TARGETS } from "@/lib/admin";
 import TrackRow from "./TrackRow";
 import ListingsModal from "./ListingsModal";
 import OrderBookModal from "./OrderBookModal";
@@ -40,10 +45,12 @@ export default function AlbumView({
   const [bookTrackId, setBookTrackId] = useState<string | null>(null);
   const [albumBuyOpen, setAlbumBuyOpen] = useState(false);
   const [albumBuyStep, setAlbumBuyStep] = useState<PayStep>(null);
+  const [albumBuyError, setAlbumBuyError] = useState<string | null>(null);
 
   useStreamCountsLoaded();
   const commerce = useTrackCommerce(album.tracks, chain, walletAddress);
   const { minted, ownedEditions, listings, books } = commerce;
+  const albumContractTarget = CONTRACT_TARGETS.find((t) => t.key === chain);
 
   // Buyable = still has supply left, regardless of whether the wallet
   // already owns one — completing the album used to hard-disable this
@@ -80,31 +87,66 @@ export default function AlbumView({
   async function confirmBuyAlbum(payToken: DylToken) {
     if (!walletAddress) return;
     setSweepBusy(true);
-    const isNative =
-      payToken.chainId === commerce.defaultPayToken.chainId &&
-      payToken.address === commerce.defaultPayToken.address;
-    if (!isNative) {
-      setAlbumBuyStep({ part: 1, total: 2, label: `Swapping ${payToken.symbol} to ${commerce.defaultPayToken.symbol}` });
-      await delay(900);
-      setAlbumBuyStep({ part: 2, total: 2, label: "Confirm purchase" });
-      await delay(900);
-    } else {
-      await delay(450);
-    }
-    for (const t of sweepTracks) {
-      await delay(180);
-      const current = baselineMinted(t, chain) + localMintedCount(chain, t.id);
-      if (current < t.editionCap) {
-        recordMint(chain, walletAddress, t.id, current + 1);
-        recordActivity({
-          type: "buy",
+    setAlbumBuyError(null);
+    try {
+      if (commerce.deployed && albumContractTarget?.albumBuyerAddress) {
+        if (!isNativePayToken(payToken, chain)) {
+          const result = await runPayWithAnyToken({
+            payToken,
+            targetChain: chain,
+            totalUsd: sweepTotal,
+            onStep: setAlbumBuyStep,
+            ensureEvmChain: commerce.ensureEvmChain,
+            adaptEvm: adaptDylEvmWallet,
+            getSolanaWallet: commerce.getSolanaWalletForPay,
+            evmAddress: commerce.evmAddress ?? null,
+          });
+          if (!result.ok) throw new Error("Swap did not complete — try again.");
+        } else {
+          setAlbumBuyStep({ part: 1, total: 1, label: "Confirm purchase" });
+        }
+        const freshClient = await commerce.ensureEvmChain(chainIdForKey(chain));
+        await fulfillAlbumMintPurchase({
           chain,
-          wallet: walletAddress,
-          trackTitle: t.title,
-          editionNumber: current + 1,
-          priceUsd: t.priceUsd,
+          trackIds: sweepTracks.map((t) => t.index),
+          quantities: sweepTracks.map(() => 1),
+          buyerAddress: walletAddress as Address,
+          walletClient: freshClient,
         });
+      } else {
+        const isNative =
+          payToken.chainId === commerce.defaultPayToken.chainId &&
+          payToken.address === commerce.defaultPayToken.address;
+        if (!isNative) {
+          setAlbumBuyStep({ part: 1, total: 2, label: `Swapping ${payToken.symbol} to ${commerce.defaultPayToken.symbol}` });
+          await delay(900);
+          setAlbumBuyStep({ part: 2, total: 2, label: "Confirm purchase" });
+          await delay(900);
+        } else {
+          await delay(450);
+        }
+        for (const t of sweepTracks) {
+          await delay(180);
+          const current = baselineMinted(t, chain) + localMintedCount(chain, t.id);
+          if (current < t.editionCap) {
+            recordMint(chain, walletAddress, t.id, current + 1);
+            recordActivity({
+              type: "buy",
+              chain,
+              wallet: walletAddress,
+              trackTitle: t.title,
+              editionNumber: current + 1,
+              priceUsd: t.priceUsd,
+            });
+          }
+        }
       }
+    } catch (err) {
+      setAlbumBuyError(err instanceof Error ? err.message : "Purchase failed — see console.");
+      console.error("confirmBuyAlbum failed", err);
+      setSweepBusy(false);
+      setAlbumBuyStep(null);
+      return;
     }
     setSweepBusy(false);
     setAlbumBuyStep(null);
@@ -253,6 +295,7 @@ export default function AlbumView({
           defaultPayToken={commerce.defaultPayToken}
           buyStep={commerce.buyStep}
           busy={commerce.busyKey !== null}
+          error={commerce.buyError}
           onConfirm={commerce.confirmPendingBuy}
           onCancel={commerce.cancelPendingBuy}
         />
@@ -265,6 +308,7 @@ export default function AlbumView({
           defaultPayToken={commerce.defaultPayToken}
           buyStep={albumBuyStep}
           busy={sweepBusy}
+          error={albumBuyError}
           onConfirm={confirmBuyAlbum}
           onCancel={() => {
             if (!sweepBusy) setAlbumBuyOpen(false);

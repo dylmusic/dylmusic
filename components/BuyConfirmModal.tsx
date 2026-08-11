@@ -29,6 +29,7 @@ export default function BuyConfirmModal({
   defaultPayToken,
   buyStep,
   busy,
+  error,
   onConfirm,
   onCancel,
 }: {
@@ -48,6 +49,11 @@ export default function BuyConfirmModal({
   defaultPayToken: DylToken;
   buyStep: PayStep;
   busy: boolean;
+  // Real purchase failure (lib/useTrackCommerce.ts / AlbumView.tsx's
+  // confirmBuyAlbum) — only ever populated once the gate below is
+  // eventually removed and onConfirm actually runs; harmless/unused while
+  // "Not live yet" still fires first.
+  error?: string | null;
   onConfirm: (payToken: DylToken) => void;
   onCancel: () => void;
 }) {
@@ -154,6 +160,8 @@ export default function BuyConfirmModal({
                 </div>
               )}
             </div>
+
+            {error && <div className="buy-confirm-error">{error}</div>}
 
             {/* Temporarily gated for beta (see notLive above) — onConfirm
                 still receives the real simulated-purchase callback from

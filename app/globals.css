@@ -3715,6 +3715,15 @@ input {
   margin-bottom: 8px;
 }
 
+.buy-confirm-error {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #ff8a8a;
+  background: rgba(255, 80, 80, 0.1);
+  border: 1px solid rgba(255, 80, 80, 0.35);
+}
+
 .buy-confirm-cta {
   width: 100%;
   padding: 12px;
