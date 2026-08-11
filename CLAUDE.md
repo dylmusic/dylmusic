@@ -1681,8 +1681,41 @@ this round):
   tx — `quoteLastTxHash(result, fromToken.chainId)` on the normal path,
   `recovered.originTxHash` first on the Relay-recovery path), skipped
   entirely for the rare synthetic `relay-<id>` placeholder hash (no real
-  hash was ever recoverable). This is strictly better than what PRINT
-  Swap currently does, not just parity with it.
+  hash was ever recoverable). This was strictly better than what PRINT
+  Swap did at the time, not just parity with it.
+- **Follow-up sync (2026-08-11, same day) — HOODPrinter fixed the same
+  bug for real, and this repo mirrors that fix exactly**, per the new
+  standing rule right above this section. HOODPrinter's `becd350` gave
+  `CHAINS` the same real per-chain `explorer` field this repo already
+  had (independently, same sourcing), and fixed two things this repo's
+  own version hadn't needed yet, because dylmusic's single-leg
+  architecture doesn't have HOODPrinter's two-leg `relay-to-print`
+  case — but DOES have its own analogous edge, so both were ported:
+  - **`hashChainId`** — a tx row's `hash` doesn't always land on
+    `fromChainId`. HOODPrinter's version of this is its two-leg
+    `relay-to-print` combined row (leg 2's Robinhood-chain hash, shown
+    next to the origin token's `fromChainId` for the amount's
+    `ChainTag`). dylmusic has no such plan, but DOES have its own case:
+    `doSwap`'s Relay false-failure recovery falls back to
+    `recovered.destinationTxHash` when `originTxHash` is unavailable —
+    that hash landed on `toToken.chainId`, not `fromToken.chainId`.
+    `SwapTxRow` gained the same `hashChainId` field, set correctly for
+    that one branch (`hashChain = toToken.chainId`), defaulting to
+    `fromChainId` everywhere else; both the tx-row and (see below) the
+    banner's explorer link now read `tx.hashChainId ?? tx.fromChainId`
+    instead of assuming `fromChainId` always.
+  - **The top success banner** never had an explorer link at all in
+    this repo before this sync (only the Relay link) — HOODPrinter's
+    banner does, and its own version had the same hardcoded-Robinhood
+    bug this section already covers for the tx feed. Added a matching
+    `view on the explorer ↗` link (new `txHashChainId` state, set
+    alongside every `setTxHash` call) — kept the existing Relay link
+    alongside it rather than removing it, since that link predates and
+    is unrelated to this specific bug/fix; not something this sync
+    request was about.
+  - HOODPrinter's other two fixes in the same commit (a missing
+    `fromChainId`/`toChainId` on `print-to-curated` leg 2's row) are
+    specific to plans dylmusic doesn't have at all — nothing to port.
 - **Also not ported (still correctly excluded, same reasoning as round
   1/2)**: Resume-swap/pending-resume persistence and the balance-poll
   "waiting for bridge" counter — every swap on this page is architecturally

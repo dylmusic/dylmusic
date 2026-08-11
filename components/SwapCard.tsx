@@ -129,6 +129,17 @@ type SwapTxRow = {
   relayUrl?: string | null;
   fromChainId?: number;
   toChainId?: number;
+  // Which chain `hash` itself actually landed on — almost always equal to
+  // fromChainId (the normal path only ever accepts a hash that already
+  // matched fromToken.chainId, via quoteLastTxHash), EXCEPT the Relay
+  // false-failure recovery path in doSwap: when recovered.originTxHash is
+  // unavailable and it falls back to recovered.destinationTxHash, that
+  // hash landed on toChainId instead. Parity with HOODPrinter's own
+  // hashChainId field/reasoning (added there for a different case — its
+  // two-leg relay-to-print row — but the same underlying principle: don't
+  // assume a tx's own chain always matches fromChainId). Falls back to
+  // fromChainId at every read site when unset.
+  hashChainId?: number;
 };
 
 const TXS_STORAGE_KEY = "dyl_swap_txs";
@@ -199,6 +210,11 @@ export default function SwapCard() {
   const [legProgress, setLegProgress] = useState<SwapLegProgress | null>(null);
   const [txError, setTxError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
+  // Which chain `txHash` actually landed on — the success banner's explorer
+  // link needs this instead of assuming fromToken.chainId, since the Relay
+  // recovery path in doSwap can end up with a destination-chain hash (see
+  // SwapTxRow's hashChainId comment). Set alongside every setTxHash call.
+  const [txHashChainId, setTxHashChainId] = useState<number | null>(null);
   const [relayUrl, setRelayUrl] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [solBalance, setSolBalance] = useState<number | null>(null);
@@ -483,6 +499,7 @@ export default function SwapCard() {
     if (!quote) return;
     setTxError(null);
     setTxHash(null);
+    setTxHashChainId(null);
     setRelayUrl(null);
     setExecuting(true);
     // Always shows the branded "Waiting for Confirmation" overlay with a
@@ -509,6 +526,7 @@ export default function SwapCard() {
         wallet = adaptDylEvmWallet(client);
       }
       let hash: string | null = null;
+      let hashChain: number = fromToken.chainId; // correct default — the normal path below only ever accepts a hash already filtered to this chain
       let relayLinkUrl: string | null = relayTransactionUrl(quote);
       let outFormatted: string | null = null;
       try {
@@ -533,10 +551,21 @@ export default function SwapCard() {
         legLabel = "Checking for bridge…";
         const recovered = requestId ? await waitForRelaySuccess(requestId) : null;
         if (recovered?.status !== "success") throw execErr;
-        hash = recovered.originTxHash ?? recovered.destinationTxHash;
+        if (recovered.originTxHash) {
+          hash = recovered.originTxHash;
+          // hashChain already defaults to fromToken.chainId — correct here
+        } else {
+          // Falling back to the destination-chain hash — that tx landed on
+          // toToken.chainId, not fromToken.chainId, so the explorer link
+          // must follow it there (same class of bug HOODPrinter's own
+          // hashChainId field fixes for its two-leg relay-to-print row).
+          hash = recovered.destinationTxHash;
+          hashChain = toToken.chainId;
+        }
         outFormatted = recovered.outputAmountFormatted;
       }
       setTxHash(hash);
+      setTxHashChainId(hashChain);
       setRelayUrl(relayLinkUrl);
       setDone(true);
       addTx({
@@ -549,6 +578,7 @@ export default function SwapCard() {
         relayUrl: relayLinkUrl,
         fromChainId: fromToken.chainId,
         toChainId: toToken.chainId,
+        hashChainId: hashChain,
       });
       setAmount("");
       setQuote(null);
@@ -716,7 +746,14 @@ export default function SwapCard() {
 
         {txHash && (
           <div className="swap-route-note swap-route-success">
-            ✅ Swap sent
+            ✅ Swap sent —{" "}
+            <a
+              href={`${SWAP_CHAINS.find((c) => c.id === txHashChainId)?.explorer ?? SWAP_CHAINS[0].explorer}/tx/${txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              view on the explorer ↗
+            </a>
             {relayUrl && (
               <>
                 {" — "}
@@ -743,13 +780,17 @@ export default function SwapCard() {
         <div className="swap-txs">
           {txs.length === 0 && <div className="swap-tx-empty">No swaps yet — your recent swaps will land here.</div>}
           {txs.map((tx) => {
-            // The recorded hash is always the origin (fromChainId) tx —
+            // The recorded hash is usually the origin (fromChainId) tx —
             // doSwap reads it via quoteLastTxHash(result, fromToken.chainId)
             // on the normal path, or recovered.originTxHash first on the
-            // Relay-recovery path. A synthetic `relay-<id>` placeholder (no
-            // real hash was ever recoverable) has nothing to link to.
+            // Relay-recovery path. It can land on toChainId instead when
+            // recovery falls back to recovered.destinationTxHash — hashChainId
+            // (set by doSwap whenever that happens) is authoritative for
+            // which chain to link, falling back to fromChainId otherwise. A
+            // synthetic `relay-<id>` placeholder (no real hash was ever
+            // recoverable) has nothing to link to.
             const isRealHash = !tx.hash.startsWith("relay-");
-            const explorerChain = isRealHash ? SWAP_CHAINS.find((c) => c.id === tx.fromChainId) : undefined;
+            const explorerChain = isRealHash ? SWAP_CHAINS.find((c) => c.id === (tx.hashChainId ?? tx.fromChainId)) : undefined;
             return (
               <div key={tx.hash} className="swap-tx ok">
                 <div className="swap-tx-main">
