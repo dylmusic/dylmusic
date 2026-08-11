@@ -284,6 +284,35 @@ export function isSolanaChain(chainId: number): boolean {
   return chainId === SOLANA_CHAIN_ID;
 }
 
+/**
+ * Symbol -> chain id, for shareable swap links (?from=SYMBOL&to=SYMBOL,
+ * optional &fromChain=/&toChain= to disambiguate a symbol that exists on
+ * more than one chain, e.g. "eth"/"weth"/"usdc"/"usdt"). Accepts either a
+ * chain's display name ("Solana", case-insensitive) or its raw numeric id.
+ * Parity with HOODPrinter's own chainIdFromParam.
+ */
+export function chainIdFromParam(param: string): number | undefined {
+  const p = param.trim().toLowerCase();
+  const byName = SWAP_CHAINS.find((c) => c.name.toLowerCase() === p);
+  if (byName) return byName.id;
+  const asNum = Number(p);
+  return SWAP_CHAINS.some((c) => c.id === asNum) ? asNum : undefined;
+}
+
+/**
+ * Looks up a curated token by symbol (case-insensitive) for shareable swap
+ * links — e.g. /swap?to=usdg. `chainId`, when given, disambiguates a symbol
+ * that exists on more than one chain; without it, the first match in
+ * CURATED_TOKENS wins (Robinhood Chain for every symbol native to this
+ * site). Returns undefined for an unknown symbol rather than guessing.
+ * Parity with HOODPrinter's own findTokenBySymbol.
+ */
+export function findTokenBySymbol(symbol: string, chainId?: number): DylToken | undefined {
+  const s = symbol.trim().toLowerCase();
+  if (!s) return undefined;
+  return CURATED_TOKENS.find((t) => t.symbol.toLowerCase() === s && (chainId === undefined || t.chainId === chainId));
+}
+
 export function chainIdForKey(chain: ChainKey): number {
   if (chain === "base") return base.id;
   if (chain === "solana") return SOLANA_CHAIN_ID;
@@ -325,9 +354,18 @@ async function fetchRelayTokenLogo(chainId: number, address: string): Promise<st
 // HOODPrinter's own looksLikeAddress (was inlined in TokenPickerModal.tsx
 // there; exported from here so both /swap's picker and the NFT buy-confirm
 // picker can share one implementation).
-export function looksLikeAddress(chainId: number, q: string): boolean {
-  if (isSolanaChain(chainId)) return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(q);
+// Split into two standalone checks (not just the chain-aware wrapper below)
+// so shareable swap links (?to=0x.../?to=<base58 mint>) can auto-detect
+// which chain an address belongs to when the link doesn't say — parity
+// with HOODPrinter's own looksLikeEvmAddress/looksLikeSolanaAddress.
+export function looksLikeEvmAddress(q: string): boolean {
   return q.length >= 8 && /^0x/i.test(q);
+}
+export function looksLikeSolanaAddress(q: string): boolean {
+  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(q);
+}
+export function looksLikeAddress(chainId: number, q: string): boolean {
+  return isSolanaChain(chainId) ? looksLikeSolanaAddress(q) : looksLikeEvmAddress(q);
 }
 
 // Public read RPCs per EVM chain — read-only calls (symbol/name/decimals)

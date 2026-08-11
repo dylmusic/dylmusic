@@ -100,6 +100,28 @@ export async function getSwapQuote(params: {
   });
 }
 
+/**
+ * Same as getSwapQuote(chargeFee: true), but with a fallback: HOODPrinter
+ * hit a real live bug (FRONG<->ETH, 2026-08-08) where Relay's best route
+ * for some same-chain pairs uses a third-party aggregator whose calldata
+ * doesn't compose with Relay's own appFees insertion, so the fee-included
+ * quote fails simulation at every amount while the exact same quote with
+ * no fee succeeds fine. Not fixable on our end (no way to force a
+ * different aggregator for a same-chain quote here). Rather than blocking
+ * a swap that would otherwise work, retries once without our 0.85% cut —
+ * losing revenue on this specific edge case beats telling someone a real
+ * trade "isn't working."
+ */
+export async function getSwapQuoteFeeFallback(
+  params: Omit<Parameters<typeof getSwapQuote>[0], "chargeFee">
+): Promise<{ quote: Execute; feeApplied: boolean }> {
+  try {
+    return { quote: await getSwapQuote({ ...params, chargeFee: true }), feeApplied: true };
+  } catch {
+    return { quote: await getSwapQuote({ ...params, chargeFee: false }), feeApplied: false };
+  }
+}
+
 export type SwapLegProgress = { label: string; part: number; total: number };
 
 /**
@@ -128,12 +150,76 @@ export function quoteStepCount(quote: Execute): number {
   return quote.steps?.length ?? 1;
 }
 
+/** The requestId is already present on the quote's own steps as soon as getQuote() returns, before execute() ever runs — not something only the post-execute result object has. */
+export function relayRequestId(quote: Execute): string | null {
+  return quote.steps?.find((s) => s.requestId)?.requestId ?? null;
+}
+
 // Same URL pattern Relay's own SwapWidget links to on its success screen —
 // the requestId is already present on the quote's own steps as soon as
 // getQuote() returns, before execute() ever runs.
 export function relayTransactionUrl(quote: Execute): string | null {
-  const requestId = quote.steps?.find((s) => s.requestId)?.requestId;
+  const requestId = relayRequestId(quote);
   return requestId ? `https://relay.link/transaction/${requestId}` : null;
+}
+
+export type RelayRequestStatus = {
+  status: string; // "success" | "failure" | "refund" | "pending" | "depositing" | ...
+  originTxHash: string | null;
+  destinationTxHash: string | null;
+  outputAmountFormatted: string | null;
+};
+
+/**
+ * Looks up a request's real status by the id already known from its quote
+ * (relayRequestId, above) — this is Relay's own ground truth, independent
+ * of whether our own execute() call locally succeeded or threw. HOODPrinter
+ * hit this for real: a live SOL->CASHCAT swap threw a client-side error
+ * (execute() rejected) while the swap had genuinely completed on Relay's
+ * backend — a signed tx (or Relay's own confirmation of it) can land AFTER
+ * our own client-side wait gives up on it, same root cause as the Solana
+ * blockhash-expiry timeout below. Endpoint/shape verified live against a
+ * real successful request (api.relay.link/requests/v2?status=success),
+ * not guessed.
+ */
+export async function checkRelayRequestStatus(requestId: string): Promise<RelayRequestStatus | null> {
+  try {
+    const res = await fetch(`https://api.relay.link/requests/v2?id=${encodeURIComponent(requestId)}`);
+    const json = await res.json();
+    const req = json?.requests?.[0];
+    if (!req?.status) return null;
+    return {
+      status: req.status,
+      originTxHash: req.data?.inTxs?.[0]?.hash ?? null,
+      destinationTxHash: req.data?.outTxs?.[0]?.hash ?? null,
+      outputAmountFormatted: req.data?.metadata?.currencyOut?.amountFormatted ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Polls checkRelayRequestStatus until it resolves definitively (success or
+ * a terminal failure state) or the timeout elapses — used as a recovery
+ * check right after execute() throws, not as the primary wait. Returns
+ * null if still unresolved after the timeout, which the caller should
+ * treat the same as "couldn't confirm either way," not as a confirmed
+ * failure.
+ */
+export async function waitForRelaySuccess(
+  requestId: string,
+  opts: { intervalMs?: number; timeoutMs?: number } = {}
+): Promise<RelayRequestStatus | null> {
+  const interval = opts.intervalMs ?? 3000;
+  const timeout = opts.timeoutMs ?? 20000;
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    const status = await checkRelayRequestStatus(requestId);
+    if (status && status.status !== "pending" && status.status !== "depositing") return status;
+    await new Promise((r) => setTimeout(r, interval));
+  }
+  return null;
 }
 
 /** Pulls the last on-chain tx hash Relay actually sent for this quote, if the chain matches. */

@@ -1511,6 +1511,83 @@ Relay → our own final leg), just with an NFT purchase instead of a
   be dead code. It DOES exist for the NFT flow below, which genuinely has
   two real legs.
 
+## Swap parity, round 2 (2026-08-11) — HOODPrinter's 2026-07-29 hardening
+
+Dylan: "update the swap based on the new swap from the PRINT Swap
+deployment. Copy over the latest updates." The 2026-07-28 parity pass above
+covered HOODPrinter's cross-chain launch itself; several real-incident
+fixes HOODPrinter's own `/swap` picked up the day after (2026-07-29) had
+never made it back here. Ported the ones that actually apply to `/swap`'s
+architecture (single Relay leg, no second pool leg — same caveat as
+above, so HOODPrinter's Resume-swap/balance-poll machinery is still
+correctly excluded):
+
+- **Same-chain fee-fallback retry** (`getSwapQuoteFeeFallback` in
+  `lib/dylSwap.ts`) — HOODPrinter hit a real live bug (FRONG<->ETH,
+  2026-08-08): some same-chain pairs' best route uses a third-party
+  aggregator whose calldata doesn't compose with Relay's own `appFees`
+  insertion, so the fee-included quote fails simulation at every amount
+  while the identical fee-free quote succeeds. Not fixable on our end (no
+  way to force a different aggregator for a same-chain quote). Both the
+  live preview effect and `doSwap`'s execution now retry once fee-free
+  before giving up, rather than showing a real trade as broken.
+- **Relay false-failure recovery** — a real live SOL -> CASHCAT swap on
+  HOODPrinter threw a client-side error from `execute()` while Relay's own
+  backend had genuinely already completed the swap (a signed tx, or
+  Relay's own confirmation of it, can land AFTER our client-side wait
+  gives up — same root cause as the blockhash-timeout case below). New
+  `checkRelayRequestStatus`/`waitForRelaySuccess` (`lib/dylSwap.ts`) ask
+  Relay's own `api.relay.link/requests/v2?id=` status endpoint directly
+  (ground truth, independent of our local `execute()` outcome) using the
+  `requestId` already present on the quote before `execute()` ever runs
+  (`relayRequestId`). `doSwap` now wraps `executeSwap` in its own
+  try/catch and only re-throws the original error if Relay's own status
+  isn't an explicit `"success"` — a swap that really landed is no longer
+  shown as failed.
+- **Always-on ticking overlay, never Relay's raw text** — the "Waiting for
+  Confirmation" overlay used to only render when Relay silently split a
+  quote into more than one step; a genuine 1/1 swap fell back to a flat
+  "Swapping…" button with no live feedback. Now always renders, with a
+  live "(Ns)" counter (`startElapsedLabel`, `lib/dylSwap.ts`) starting the
+  instant `doSwap` begins — covers wallet-signing + Relay's own on-chain
+  confirm, not just a post-fact wait. The label itself is always ours
+  ("Confirm in wallet…", then "Checking for bridge…" during the recovery
+  poll above) — Relay's own internal step description is never shown
+  (this is exactly what leaked "Depositing funds to the relayer..." to
+  the screen on HOODPrinter before its own fix); `onProgress` only updates
+  the real step count (1/2 -> 2/2 for an ERC20 origin needing an approve
+  step), never the label text.
+- **Solana blockhash-timeout gets its own message** — `describeError`
+  (`SwapCard.tsx`) now recognizes `TransactionExpiredBlockheightExceededError`/
+  "block height exceeded" (Solana blockhashes are only valid ~60-90s) and
+  returns "network took too long to confirm... please try again" instead
+  of the raw exception text — a timing issue, not a routing bug, so "try
+  again" is the genuine fix, same copy HOODPrinter uses.
+- **Shareable pre-filled links** — `?to=usdg`, `?from=sol&to=usdc&toChain=solana`,
+  or a raw contract/mint address for anything not in the curated list
+  (`findTokenBySymbol`/`chainIdFromParam`/`looksLikeEvmAddress`/
+  `looksLikeSolanaAddress` added to `lib/dylTokens.ts`, same trust
+  boundary as the picker's own paste-a-CA box — symbols are restricted to
+  the curated list, addresses are the opt-in escape hatch). If only `to`
+  is given and resolves to a Solana token, `from` defaults to native SOL
+  instead of ETH. **Address bar stays in sync** as the picker changes
+  (`history.replaceState`, no reload/extra history entries) — prefers the
+  plain symbol for anything curated, falls back to the raw address
+  otherwise, only adds `&fromChain=`/`&toChain=` when a side isn't on
+  Robinhood Chain. Guarded by a `urlInitDoneRef` so the write-back effect
+  can't fire before the read effect has finished resolving whatever the
+  page actually loaded with (same guard HOODPrinter needed after hitting
+  this exact race).
+- **Not ported from that same HOODPrinter update**: the mobile
+  Transactions-row rework and the per-row chain-hover popup — `/swap` here
+  has no persisted transaction-history list at all (just a single
+  "✅ Swap sent" line for the current swap), so neither applies.
+
+Verified via `npm run build` (clean, `/swap` still prerenders `○ Static`)
+and a standalone `tsc --noEmit` pass on the touched files.
+
+---
+
 **The any-token-to-NFT engine — built, deliberately NOT wired to the live
 button yet.** `lib/payWithAnyToken.ts`'s `runPayWithAnyToken()` is the real
 implementation: prices the edition's USD total into exact `payToken` units
