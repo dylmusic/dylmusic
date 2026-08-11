@@ -342,8 +342,15 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
       return;
     }
     if (busyKey || pendingBuy) return;
+    // Solana mints are capped at 1 regardless of what the quantity stepper
+    // asks for — fulfillSolanaMintPurchase only ever mints one NFT per
+    // Candy Machine instruction (real Metaplex constraint, no batch-mint
+    // equivalent to ERC721A's ceiling here), and the priced-swap step above
+    // it in confirmPendingBuy now genuinely charges for `quantity` editions'
+    // worth of SOL — letting quantity exceed 1 here would swap for N
+    // editions' worth of SOL while only ever minting 1 NFT.
     const clamped =
-      entry.type === "mint" ? Math.min(Math.max(1, quantity), entry.remaining ?? 1) : 1;
+      entry.type === "mint" ? (chain === "solana" ? 1 : Math.min(Math.max(1, quantity), entry.remaining ?? 1)) : 1;
     setPendingBuy({ track: t, entry, quantity: clamped });
   }
 
@@ -361,20 +368,34 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     setBuyError(null);
     try {
       if (deployed && chain === "solana") {
-        // Solana branch is direct-SOL only for now — payToken is ignored
-        // here, unlike the EVM branch below which runs
-        // lib/payWithAnyToken.ts's runPayWithAnyToken first for a
-        // non-native payToken. Real, deliberate scope cut for this pass
-        // (see CLAUDE.md "Real buy/sell" Part 4), not an oversight — the
-        // BuyConfirmModal UI still offers the token picker regardless, so
-        // a non-SOL selection would currently be silently ignored rather
-        // than honored; worth fixing before this ever goes live.
+        // Now wired to lib/payWithAnyToken.ts the same way the EVM branch
+        // below already is — runPayWithAnyToken was always chain-agnostic
+        // (it already branches on targetIsSolana throughout: recipient
+        // address, native-balance reads, bridge-wait), so this was a
+        // wiring gap, not a missing engine. Any non-SOL payToken swaps to
+        // SOL first (same-chain 2-step, or cross-chain 3-step with a live
+        // bridge-wait counter); a SOL payToken skips straight to the mint,
+        // same as the EVM branch's native-pay-token case.
         const provider = sol.getProvider();
         if (!sol.address || !provider) throw new Error("Connect Phantom first.");
+        if (!isNativePayToken(payToken, "solana")) {
+          const result = await runPayWithAnyToken({
+            payToken,
+            targetChain: "solana",
+            totalUsd: entry.priceUsd * quantity,
+            onStep: setBuyStep,
+            ensureEvmChain,
+            adaptEvm: adaptDylEvmWallet,
+            getSolanaWallet: getSolanaWalletForPay,
+            evmAddress: evmAddress ?? null,
+          });
+          if (!result.ok) throw new Error("Swap did not complete — try again.");
+        } else {
+          setBuyStep({ part: 1, total: 1, label: "Confirm purchase" });
+        }
         if (entry.type === "mint") {
           const record = solanaMintRecords.find((r) => r.trackId === t.index);
           if (!record?.candyGuard) throw new Error("This track's Solana mint isn't set up yet.");
-          setBuyStep({ part: 1, total: 1, label: "Confirm purchase" });
           const result = await fulfillSolanaMintPurchase({ provider, candyMachine: record.candyMachine, candyGuard: record.candyGuard });
           // Record the fresh mint so it can be found/resold later (Magic
           // Eden has no concept of our own trackId/editionNumber numbering
@@ -400,7 +421,6 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
           }).catch(() => {});
         } else {
           const listing = entry.raw as RealSolanaListing;
-          setBuyStep({ part: 1, total: 1, label: "Confirm purchase" });
           await fulfillSolanaResalePurchase({
             provider,
             connection: getConnection(),

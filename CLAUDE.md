@@ -2139,21 +2139,34 @@ pattern already in this file).
 - `useTrackCommerce`'s Solana branch of `confirmPendingBuy` uses the
   connected Phantom wallet directly (`lib/solana.ts useSolanaWallet`), not
   wagmi.
-- **Real, deliberate scope cuts for this pass — not oversights, flagged in
-  the code itself:**
-  - **Direct-SOL only** — the Solana branch ignores `payToken` entirely;
-    `lib/payWithAnyToken.ts`'s `runPayWithAnyToken` (used for every EVM
-    purchase) isn't wired in here, so a non-SOL token picked in the UI
-    would currently be silently ignored rather than honored.
-  - **Real selling (list-your-own-edition) and real per-wallet ownership
-    tracking are NOT wired for Solana** — `commerce.ownedEditions`/
-    `setEditionPrice`/`cancelEditionListing` still use the simulated
-    `lib/holdings.ts` ledger for `chain === "solana"` regardless of
-    deployment state. A real public `mintV2` buy is NOT recorded into
-    `SolanaMintsStore` either (that store's `POST` is still admin-gated,
-    same as before this session — opening it to any wallet, plus a real
-    ownership check before accepting a write, is the next piece needed
-    before Solana resale-by-regular-users can work at all).
+- **Stale note, corrected 2026-08-11**: this section used to list two
+  "deliberate scope cuts" for the Solana branch — both are now fixed,
+  not scope cuts anymore:
+  - **Any-token pay is now wired for Solana** — Dylan, mid go-live-
+    readiness review, asked directly: "isnt that how the others work"
+    (i.e. the EVM branch's swap-then-buy pattern). Turned out
+    `runPayWithAnyToken` was ALREADY chain-agnostic the whole time — it
+    already branched on `targetIsSolana` throughout (recipient address,
+    native-balance reads, the bridge-wait counter) — this was purely a
+    wiring gap in `confirmPendingBuy`'s Solana branch, not a missing
+    engine. Now mirrors the EVM branch exactly: a non-SOL `payToken`
+    swaps to SOL first (same-chain 2-step, cross-chain 3-step with the
+    live bridge-wait counter), a SOL `payToken` skips straight to the
+    mint/resale call. **Found and fixed alongside this**: Solana mint
+    quantity is now hard-clamped to 1 in `requestBuyFromBook` (was
+    previously unclamped, silently ignored since quantity was unused on
+    Solana anyway) — `fulfillSolanaMintPurchase` only ever mints ONE NFT
+    per Candy Machine instruction (no ERC721A-style batch-mint
+    equivalent), so letting `quantity` exceed 1 would have charged for
+    N editions' worth of SOL via the swap step while only ever minting 1.
+  - **Real selling and real ownership tracking for Solana are ALSO
+    already wired**, contrary to what this note used to say —
+    `setEditionPriceSolanaReal`/`cancelEditionListingSolanaReal` (via
+    Magic Eden) and `realOwnedEditions` are real, live in
+    `confirmPendingBuy`'s `deployed && chain === "solana"` branches. This
+    old note was itself stale by the time it was re-read, not a new fix —
+    a reminder that this section decays fast and should be re-verified
+    against the actual code before being trusted, same as any memory file.
 - **Not run against a live wallet** — same gap as every other real
   Solana integration in this codebase; every endpoint/instruction/account
   shape was verified against docs.magiceden.io or the installed SDK
