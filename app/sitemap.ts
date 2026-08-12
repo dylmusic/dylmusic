@@ -17,6 +17,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE_URL}/about`, changeFrequency: "monthly", priority: 0.5 },
     { url: `${SITE_URL}/board`, changeFrequency: "daily", priority: 0.4 },
     { url: `${SITE_URL}/beats`, changeFrequency: "monthly", priority: 0.3 },
+    { url: `${SITE_URL}/memes`, changeFrequency: "monthly", priority: 0.5 },
   ];
 
   const albumPages: MetadataRoute.Sitemap = ALBUMS.map((album) => ({

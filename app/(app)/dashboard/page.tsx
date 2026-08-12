@@ -4,12 +4,12 @@ import MultichainOverview from "@/components/MultichainOverview";
 
 const TITLE = "Dashboard";
 const DESCRIPTION =
-  "Live stats for Dyl's Music NFTs — mint volume, editions minted per chain, streaming numbers, and NFT sales, updated in real time.";
+  "Live stats for the Dyl dApp — mint volume, editions minted per chain, streaming numbers, and NFT sales, updated in real time.";
 
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
-  keywords: ["Music NFTs", "Onchain Music", "NFT sales", "Crypto"],
+  keywords: ["Music NFTs", "Onchain Music", "NFT sales", "Crypto", "Dyl dApp", "Onchain Music dApp"],
   openGraph: { title: `${TITLE} | Dyl`, description: DESCRIPTION },
   twitter: { card: "summary_large_image", title: `${TITLE} | Dyl`, description: DESCRIPTION },
 };

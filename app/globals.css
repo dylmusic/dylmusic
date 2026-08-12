@@ -1500,6 +1500,75 @@ input {
   margin-bottom: 12px;
 }
 
+/* ---------- Memes page ---------- */
+.memes-wrap {
+  max-width: 1100px;
+}
+
+.memes-chain-select {
+  margin-bottom: 32px;
+}
+
+.memes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.memes-card {
+  margin: 0;
+  max-width: none;
+}
+
+.memes-card-body {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.memes-card-body img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.memes-caption-headline {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #e7ece8;
+}
+
+.memes-caption-subtext {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12px;
+  color: #8b978f;
+  margin-top: 3px;
+}
+
+.memes-download {
+  align-self: flex-start;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: #04140a;
+  background: var(--accent);
+  padding: 7px 16px;
+  text-decoration: none;
+}
+
+.memes-download:hover {
+  filter: brightness(1.1);
+}
+
+@media (max-width: 640px) {
+  .memes-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .music-card:not(:disabled) .music-card-cover {
   border-color: color-mix(in srgb, var(--accent) 18%, transparent);
 }

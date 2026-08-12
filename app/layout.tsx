@@ -55,6 +55,17 @@ const KEYWORDS = [
   "Solana music NFTs",
   "Base music NFTs",
   "Ethereum music NFTs",
+  // Added 2026-08-12 — Dylan's own supplied phrase list, "the most robust
+  // list of important phrases I've given you." Verbatim, not paraphrased.
+  "Onchain music is back",
+  "$0.99 Mints",
+  "Mint A Song For $0.99",
+  "$0.99 Music NFTs",
+  "Music NFTs are back",
+  "Dyl dApp",
+  "Dyl Music NFTs",
+  "Onchain Music dApp",
+  "Music NFT Streaming App",
 ];
 
 export const metadata: Metadata = {

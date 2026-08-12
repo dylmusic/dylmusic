@@ -99,6 +99,7 @@ export default function Landing({
             />
 
             <div className="landing-tagline">the OG crypto rapper</div>
+            <div className="landing-tagline">Onchain music is back.</div>
 
             <h1>Every mint starts at $0.99</h1>
 
