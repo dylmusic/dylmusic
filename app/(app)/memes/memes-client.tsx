@@ -11,13 +11,7 @@ export default function MemesPageClient() {
   return (
     <div className="dash-wrap memes-wrap">
       <div className="dash-page-head">
-        <div className="dash-eyebrow">Memes</div>
         <h1>Music NFTs Are Back.</h1>
-        <p className="swap-page-sub">
-          Free Dyl Music NFT memes, Windows 95 style — one colorway per chain. The Dyl dApp is the
-          onchain Music NFT Streaming App, and yes, it needed its own meme pack. Pick your chain,
-          right-click, save, post.
-        </p>
       </div>
 
       <div className="landing-chain-select memes-chain-select">
