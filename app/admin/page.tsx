@@ -21,7 +21,7 @@ import { ALBUMS, type ChainKey } from "@/lib/albums";
 import { getNativeTokenForChain } from "@/lib/dylTokens";
 import { getTokenUsdPrice } from "@/lib/tokenUsdPrice";
 import { priceUsdForEdition } from "@/lib/editionPricing";
-import { encodeTokenId, decodeTokenId } from "@/lib/tokenIdScheme";
+import { encodeTokenId } from "@/lib/tokenIdScheme";
 import { viemWalletClientToEthersSigner } from "@/lib/ethersSigner";
 import { createSiteListings, cancelAllListings } from "@/lib/siteListing";
 import { createOpenSeaListings, getOpenSeaSdk, isOpenSeaListable } from "@/lib/openSeaListing";
@@ -509,16 +509,31 @@ export default function AdminPage() {
       // reactive usePublicClient() hook value from render time can't be
       // trusted here either.
       const freshReadClient = getPublicClient(wagmiConfig, { chainId: target.chainId! });
-      const owned = (await freshReadClient!.readContract({
-        address: target.address as Address,
-        abi: DylCollectionAbi,
-        functionName: "tokensOfOwner",
-        args: [address as Address],
-      })) as bigint[];
-
-      const editions = owned
-        .map((id) => ({ tokenId: Number(id), ...decodeTokenId(Number(id)) }))
-        .filter((e) => e.editionNumber >= 1 && e.editionNumber <= 10);
+      // tokensOfOwner (ERC721AQueryable's enumeration helper) reverts with
+      // NotCompatibleWithSpotMints() on this contract — every mint here
+      // lands at a computed tokenId (trackId * STRIDE + edition), which
+      // ERC721A's own enumeration explicitly refuses to support once any
+      // non-sequential ("spot") mint has happened, which is every mint
+      // this contract ever does. Confirmed via a real deploy+mint+read on
+      // Robinhood Chain 2026-08-12, not assumed from the ABI. Fix: compute
+      // the #1-10 candidate tokenIds ourselves (same math the contract
+      // itself uses) and check ownerOf directly instead of enumerating.
+      const candidates = ALBUMS.flatMap((a) => a.tracks).flatMap((t) =>
+        Array.from({ length: 10 }, (_, i) => ({ tokenId: encodeTokenId(t.index, i + 1), trackId: t.index, editionNumber: i + 1 }))
+      );
+      const owners = await Promise.all(
+        candidates.map((c) =>
+          freshReadClient!
+            .readContract({
+              address: target.address as Address,
+              abi: DylCollectionAbi,
+              functionName: "ownerOf",
+              args: [BigInt(c.tokenId)],
+            })
+            .catch(() => null) as Promise<Address | null>
+        )
+      );
+      const editions = candidates.filter((_, i) => owners[i]?.toLowerCase() === (address as string).toLowerCase());
 
       if (editions.length === 0) {
         setPhase((p) => ({

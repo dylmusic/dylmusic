@@ -1,11 +1,11 @@
 import { createPublicClient, http, type Address } from "viem";
-import { ChainKey, Track } from "./albums";
+import { ALBUMS, ChainKey, Track } from "./albums";
 import { EVM_RPC_URLS, EVM_CHAINS } from "./dylSwap";
 import { CONTRACT_TARGETS } from "./admin";
 import { DylCollectionAbi } from "./contractDeploy";
 import { getNativeTokenForChain } from "./dylTokens";
 import { getTokenUsdPrice } from "./tokenUsdPrice";
-import { decodeTokenId } from "./tokenIdScheme";
+import { decodeTokenId, encodeTokenId } from "./tokenIdScheme";
 import type { StoredListing } from "./siteListing";
 import { isOpenSeaListable } from "./openSeaListing";
 import type { OrderBookEntry } from "./orderbook";
@@ -162,9 +162,17 @@ export async function fetchRealEvmListings(
 }
 
 /**
- * Real on-chain ownership — ERC721AQueryableUpgradeable's `tokensOfOwner`,
- * the same call `app/admin/page.tsx`'s "Reprice & Relist" already uses to
- * find which #1-10 editions the admin wallet still holds. Replaces
+ * Real on-chain ownership. NOT ERC721AQueryableUpgradeable's `tokensOfOwner`
+ * — confirmed via a real deploy+mint+read on Robinhood Chain (2026-08-12)
+ * that it reverts with `NotCompatibleWithSpotMints()` on this contract:
+ * every mint here lands at a computed tokenId (trackId * STRIDE + edition,
+ * see tokenIdScheme.ts), which ERC721A's own enumeration helper explicitly
+ * refuses to support once any non-sequential ("spot") mint has happened —
+ * which is every mint this contract ever does. Instead, for each known
+ * track, read how many editions have actually minted (`nextEditionIndex`)
+ * and check `ownerOf` directly against each computed tokenId in that
+ * range — the same math the contract itself uses, just walked from our
+ * side instead of asking the contract to enumerate. Replaces
  * `lib/holdings.ts`'s simulated per-wallet localStorage ledger once a
  * chain is deployed — real ownership, not a browser-local record.
  */
@@ -172,13 +180,36 @@ export async function fetchRealOwnedTokenIds(chainKey: ChainKey, owner: string):
   const t = target(chainKey);
   if (!t) return [];
   const client = publicClientFor(t.chainId);
-  const ids = (await client.readContract({
-    address: t.address as Address,
-    abi: DylCollectionAbi,
-    functionName: "tokensOfOwner",
-    args: [owner as Address],
-  })) as bigint[];
-  return ids.map((id) => Number(id));
+  const tracks = ALBUMS.flatMap((a) => a.tracks);
+  const owned: number[] = [];
+  await Promise.all(
+    tracks.map(async (track) => {
+      const minted = Number(
+        (await client.readContract({
+          address: t.address as Address,
+          abi: DylCollectionAbi,
+          functionName: "nextEditionIndex",
+          args: [BigInt(track.index)],
+        })) as bigint
+      );
+      if (minted === 0) return;
+      const tokenIds = Array.from({ length: minted }, (_, i) => encodeTokenId(track.index, i + 1));
+      const owners = await Promise.all(
+        tokenIds.map((tokenId) =>
+          client.readContract({
+            address: t.address as Address,
+            abi: DylCollectionAbi,
+            functionName: "ownerOf",
+            args: [BigInt(tokenId)],
+          }) as Promise<Address>
+        )
+      );
+      owners.forEach((o, i) => {
+        if (o.toLowerCase() === owner.toLowerCase()) owned.push(tokenIds[i]);
+      });
+    })
+  );
+  return owned;
 }
 
 export interface RealMintRow {
