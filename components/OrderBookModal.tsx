@@ -56,7 +56,7 @@ export default function OrderBookModal({
                   <span className="book-row-label">
                     {isMint ? (
                       <>
-                        Mint · new edition
+                        Mint
                         <span className="book-row-sub">{entry.remaining} remaining</span>
                       </>
                     ) : (

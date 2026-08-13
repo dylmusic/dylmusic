@@ -4166,6 +4166,32 @@ input {
   background: var(--accent);
 }
 
+/* Small rescue action on the waiting screen — if the wallet app's deep
+   link got dismissed or the OS didn't switch apps, this re-fires the
+   universal link so the user isn't stuck staring at a spinner with no
+   way back into their wallet (see lib/reopenWallet.ts). Deliberately
+   small/secondary — the primary flow needs no interaction. */
+.buy-confirm-reopen-wallet {
+  margin-top: 18px;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+  border-right: 1px solid rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+  color: #9aa79f;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.buy-confirm-reopen-wallet:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #eef2ee;
+}
+
 /* /swap's own step-progress overlay — same visual language as
    .buy-confirm-waiting (full takeover of the card while a step is in
    flight), but /swap's card isn't a modal, so it needs its own absolutely

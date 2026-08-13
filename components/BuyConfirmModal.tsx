@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useState } from "react";
 import { useAccount, useBalance } from "wagmi";
+import { reopenWalletUrl } from "@/lib/reopenWallet";
 import type { Track } from "@/lib/albums";
 import type { OrderBookEntry } from "@/lib/orderbook";
 import { CURATED_TOKENS, PINNED_TOKENS, SWAP_CHAINS, SOLANA_CHAIN_ID } from "@/lib/dylTokens";
@@ -80,7 +81,8 @@ export default function BuyConfirmModal({
   // isn't covered (no EVM balance to read for it), only the EVM-native
   // case this bug actually hit.
   const isEvmNativePay = isNative && payToken.chainId !== SOLANA_CHAIN_ID;
-  const { address: evmAddress } = useAccount();
+  const { address: evmAddress, connector } = useAccount();
+  const reopenUrl = reopenWalletUrl(connector?.id);
   const { data: balanceData } = useBalance({
     address: evmAddress,
     chainId: payToken.chainId,
@@ -133,6 +135,16 @@ export default function BuyConfirmModal({
                 </Fragment>
               ))}
             </div>
+            {reopenUrl && (
+              <button
+                className="buy-confirm-reopen-wallet"
+                onClick={() => {
+                  window.location.href = reopenUrl;
+                }}
+              >
+                Open Wallet
+              </button>
+            )}
           </div>
         ) : (
           <div className="buy-confirm-body">
