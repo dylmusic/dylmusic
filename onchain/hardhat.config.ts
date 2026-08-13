@@ -53,6 +53,36 @@ const config: HardhatUserConfig = {
       chainId: 46630,
       accounts: throwawayKey ? [throwawayKey] : [],
     },
+    // Real Robinhood Chain mainnet — only ever used for `hardhat verify`
+    // (reads already-deployed bytecode to diff against a local compile, no
+    // tx sent), never for a real deploy. Real deploys go through the
+    // admin panel's own viem-built txs (lib/contractDeploy.ts) signed by
+    // the admin's own wallet, not Hardhat — so `accounts` is deliberately
+    // empty here, this network is read-only tooling.
+    robinhood: {
+      url: "https://rpc.mainnet.chain.robinhood.com",
+      chainId: 4663,
+    },
+  },
+  // Blockscout implements the Etherscan-compatible verification API
+  // (confirmed live: /api?module=contract&action=getabi returns a real
+  // ABI) — no real API key needed, Blockscout accepts any non-empty
+  // string here per @nomicfoundation/hardhat-verify's own docs for
+  // Etherscan-compatible explorers.
+  etherscan: {
+    apiKey: {
+      robinhood: "not-needed-for-blockscout",
+    },
+    customChains: [
+      {
+        network: "robinhood",
+        chainId: 4663,
+        urls: {
+          apiURL: "https://robinhoodchain.blockscout.com/api",
+          browserURL: "https://robinhoodchain.blockscout.com",
+        },
+      },
+    ],
   },
 };
 
