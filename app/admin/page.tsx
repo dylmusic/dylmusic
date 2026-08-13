@@ -21,6 +21,7 @@ import {
   buildUpgradeBurnClaimRedeemerTx,
   buildSetClaimSignerTx,
   buildRedeemerPauseTx,
+  buildWithdrawTx,
 } from "@/lib/contractDeploy";
 import { wagmiConfig } from "@/lib/web3";
 import { ALBUMS, type ChainKey } from "@/lib/albums";
@@ -96,7 +97,8 @@ type DeployPhase =
         | "list"
         | "reprice"
         | "reprice-mint-price"
-        | "set-editions-per-track";
+        | "set-editions-per-track"
+        | "withdraw";
       label: string;
     }
   | { step: "done"; label: string }
@@ -116,6 +118,12 @@ export default function AdminPage() {
   const [targets, setTargets] = useState<ContractTarget[]>(CONTRACT_TARGETS);
   const [phase, setPhase] = useState<Record<string, DeployPhase | undefined>>({});
   const [editionsPerTrackInput, setEditionsPerTrackInput] = useState<Record<string, string>>({});
+  // Destination address for pulling accumulated mint ETH out of the
+  // collection contract's own balance — withdraw() has always existed
+  // on-chain (DylCollection.sol, owner-only) but never had an admin-panel
+  // button wired to it (Dylan: "you never gave me the withdrawal button").
+  const [withdrawToInput, setWithdrawToInput] = useState<Record<string, string>>({});
+  const [contractEthBalance, setContractEthBalance] = useState<Record<string, bigint>>({});
   // The dedicated burn-claim signing key's PUBLIC address only — generate
   // the keypair separately (never in the browser), save the PRIVATE half
   // to Vercel as BURN_CLAIM_SIGNER_PRIVATE_KEY (server-only), paste the
@@ -136,6 +144,37 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (allowed) loadChat();
+  }, [allowed]);
+
+  // Live "how much is actually sitting there to withdraw" — mint ETH just
+  // accumulates in each collection contract's own balance (see
+  // DylCollection.sol's `mint()`, no auto-forwarding anywhere), so this is
+  // the real number the Withdraw button below is about to move, not an
+  // estimate.
+  async function loadContractBalances() {
+    const results = await Promise.all(
+      targets
+        .filter((t) => t.address && t.chainId)
+        .map(async (t) => {
+          try {
+            const client = getPublicClient(wagmiConfig, { chainId: t.chainId! });
+            const bal = await client!.getBalance({ address: t.address as Address });
+            return [t.key, bal] as const;
+          } catch {
+            return null;
+          }
+        })
+    );
+    setContractEthBalance((prev) => {
+      const next = { ...prev };
+      for (const r of results) if (r) next[r[0]] = r[1];
+      return next;
+    });
+  }
+
+  useEffect(() => {
+    if (allowed) void loadContractBalances();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowed]);
 
   async function handleDelete(id: string) {
@@ -873,6 +912,28 @@ export default function AdminPage() {
     }
   }
 
+  // Pulls the collection contract's ENTIRE current ETH balance out in one
+  // call (withdraw() has no partial-amount param — see DylCollection.sol).
+  // Defaults the destination to the connected admin wallet itself if the
+  // input's left blank, rather than forcing a paste for the common case.
+  async function handleWithdraw(target: ContractTarget) {
+    if (!target.address || !target.chainId || !address) return;
+    const to = (withdrawToInput[target.key]?.trim() || address) as Address;
+    if (!to.startsWith("0x") || to.length !== 42) {
+      setPhase((p) => ({ ...p, [target.key]: { step: "error", label: "That doesn't look like a valid 0x… address." } }));
+      return;
+    }
+    setPhase((p) => ({ ...p, [target.key]: { step: "withdraw", label: `Withdrawing to ${truncate(to)}…` } }));
+    try {
+      await ensureChain(target);
+      await sendAndWait(buildWithdrawTx(target.address as Address, to), target.chainId!);
+      setPhase((p) => ({ ...p, [target.key]: { step: "done", label: `Withdrawn to ${truncate(to)}.` } }));
+      void loadContractBalances();
+    } catch (err) {
+      setPhase((p) => ({ ...p, [target.key]: { step: "error", label: describeError(err) } }));
+    }
+  }
+
   // ---- Solana: same three admin actions as the EVM chains, real per-chain
   // shape differences (see the comments inside lib/solanaAdmin.ts and
   // lib/magicEdenListing.ts) — one Candy Machine per track instead of one
@@ -1428,6 +1489,27 @@ export default function AdminPage() {
                           onClick={() => handleSetEditionsPerTrack(c)}
                         >
                           Set Editions/Track
+                        </button>
+                        <span className="admin-contract-optional-tag" title="Live balance sitting in the collection contract right now">
+                          {contractEthBalance[c.key] !== undefined
+                            ? `${(Number(contractEthBalance[c.key]) / 1e18).toFixed(4)} ${getNativeTokenForChain(c.key as ChainKey).symbol} to withdraw`
+                            : "…"}
+                        </span>
+                        <input
+                          className="admin-contract-input"
+                          type="text"
+                          placeholder={`Withdraw to (blank = ${address ? truncate(address) : "your wallet"})`}
+                          disabled={busy(c.key) || !c.address}
+                          value={withdrawToInput[c.key] ?? ""}
+                          onChange={(e) => setWithdrawToInput((prev) => ({ ...prev, [c.key]: e.target.value }))}
+                        />
+                        <button
+                          className="admin-contract-btn"
+                          disabled={busy(c.key) || !c.address}
+                          title="Pulls the collection contract's ENTIRE current ETH balance out to the address above (or your own connected wallet if left blank) — owner-only, no partial-amount option on-chain."
+                          onClick={() => handleWithdraw(c)}
+                        >
+                          Withdraw ETH
                         </button>
                         <input
                           className="admin-contract-input"
