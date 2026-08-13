@@ -11,6 +11,7 @@ import { fetchMintTier } from "@/lib/solanaCollectionCheck";
 import { CARD_TIER_MINTS, VIP_MINTS_ESTIMATE, dylMintsForBalance } from "@/lib/burnCredits";
 import { recordBurnCredit, recordDylThresholdCredit, getLedger, burnLedgerConfigured } from "@/lib/burnLedgerStore";
 import { LEGACY_ASSETS } from "@/lib/legacyCollections";
+import { checkRateLimit, clientIp } from "@/lib/rateLimit";
 
 const TIERED_ETH_CONTRACT = LEGACY_ASSETS.find((a) => a.name === "Old Dyl NFT collection")!.address;
 const TEZOS_CONTRACT = LEGACY_ASSETS.find((a) => a.chain === "tezos" && a.kind === "nft")!.address;
@@ -40,6 +41,14 @@ const DYL_BY_CHAIN: Record<"ethereum" | "base" | "polygon", string> = {
 export async function POST(req: NextRequest) {
   if (!burnLedgerConfigured()) {
     return NextResponse.json({ error: "Burn ledger isn't set up yet." }, { status: 503 });
+  }
+  // Every kind here does real, expensive external work per call — one
+  // Solana kind alone can fire up to 1000 sequential RPC calls (see
+  // lib/burnVerify.ts's verifySolanaDylBurnedAmount). Nothing else stops a
+  // scripted loop from hammering this repeatedly, so throttle by IP.
+  const allowed = await checkRateLimit(`dylmusic:rl:burnverify:${clientIp(req)}`, 20, 60);
+  if (!allowed) {
+    return NextResponse.json({ error: "Too many requests — try again in a minute." }, { status: 429 });
   }
   const body = await req.json().catch(() => null);
   const wallet = typeof body?.wallet === "string" ? body.wallet.trim() : "";

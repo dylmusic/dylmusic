@@ -2,12 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { postMessage, readMessages, deleteMessage, setMessagePinned, chatConfigured } from "@/lib/chatStore";
 import { isAdminWallet } from "@/lib/admin";
 
+// Polled every 5-8s by GlobalChatWidget (mounted on every page) and the
+// /chat page itself — every open tab/visitor was hitting this fresh with
+// zero caching. A short edge cache doesn't change the client's own poll
+// interval or add perceptible staleness (s-maxage stays under the
+// tightest real poll interval, 5s) — it just collapses however many
+// concurrent pollers there are into ~1 real read per window, the same
+// pattern already proven for hoodprinter's /api/stats.
 export async function GET() {
   if (!chatConfigured()) {
     return NextResponse.json({ configured: false, messages: [] });
   }
   const messages = await readMessages(100);
-  return NextResponse.json({ configured: true, messages });
+  return NextResponse.json(
+    { configured: true, messages },
+    { headers: { "Cache-Control": "public, s-maxage=3, stale-while-revalidate=15" } }
+  );
 }
 
 export async function POST(req: NextRequest) {

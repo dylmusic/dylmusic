@@ -39,7 +39,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing chainId." }, { status: 400 });
   }
   const listings = await getSiteListingsForChain(chainId);
-  return NextResponse.json({ listings });
+  // Short edge cache only — a stale listing here can never cause a bad
+  // purchase (Seaport itself refuses to fulfill an already-sold/cancelled
+  // order, per the design note above), it just collapses repeat reads from
+  // concurrent visitors browsing the same track list within a few seconds.
+  return NextResponse.json({ listings }, { headers: { "Cache-Control": "public, s-maxage=5, stale-while-revalidate=30" } });
 }
 
 export async function POST(req: NextRequest) {

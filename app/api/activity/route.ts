@@ -7,7 +7,10 @@ export async function GET(req: NextRequest) {
   }
   const limit = Number(req.nextUrl.searchParams.get("limit") ?? "100");
   const activity = await readRealActivity(Math.min(Math.max(limit, 1), 500));
-  return NextResponse.json({ configured: true, activity });
+  return NextResponse.json(
+    { configured: true, activity },
+    { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=60" } }
+  );
 }
 
 // Self-reported by the client right after a real on-chain buy/sell

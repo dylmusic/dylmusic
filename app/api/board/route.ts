@@ -10,12 +10,17 @@ import {
 } from "@/lib/boardStore";
 import { isAdminWallet } from "@/lib/admin";
 
+// Polled every 8s by BulletinBoard — same edge-cache-collapses-concurrent-
+// polls reasoning as /api/chat.
 export async function GET() {
   if (!boardConfigured()) {
     return NextResponse.json({ configured: false, notes: [] });
   }
   const notes = await readNotes(300);
-  return NextResponse.json({ configured: true, notes });
+  return NextResponse.json(
+    { configured: true, notes },
+    { headers: { "Cache-Control": "public, s-maxage=5, stale-while-revalidate=30" } }
+  );
 }
 
 export async function POST(req: NextRequest) {

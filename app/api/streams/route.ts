@@ -6,7 +6,10 @@ export async function GET() {
     return NextResponse.json({ configured: false, counts: {} });
   }
   const counts = await readStreamCounts();
-  return NextResponse.json({ configured: true, counts });
+  return NextResponse.json(
+    { configured: true, counts },
+    { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=60" } }
+  );
 }
 
 export async function POST(req: NextRequest) {

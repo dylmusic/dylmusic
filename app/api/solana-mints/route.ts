@@ -46,7 +46,7 @@ async function walletHoldsMint(wallet: string, mint: string): Promise<boolean> {
 
 export async function GET() {
   const mints = await getAllSolanaMints();
-  return NextResponse.json({ mints });
+  return NextResponse.json({ mints }, { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=60" } });
 }
 
 export async function POST(req: NextRequest) {
