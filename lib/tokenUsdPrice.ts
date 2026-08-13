@@ -40,16 +40,28 @@ export async function getTokenUsdPrice(token: DylToken): Promise<number | null> 
   try {
     const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${queryAddress}`);
     const json = await res.json();
+    const qLower = queryAddress.toLowerCase();
+    // The queried token isn't always the pair's baseToken — on Robinhood
+    // Chain, WETH is consistently the QUOTE side of every real pair
+    // (meme tokens are base), so a base-only match always came back empty
+    // and getTokenUsdPrice("ETH") failed 100% of the time, not just
+    // flakily. Match either side and derive price accordingly.
     const pairs = (json?.pairs || []).filter(
-      (p: { chainId?: string; baseToken?: { address?: string } }) =>
-        p.chainId === slug && p.baseToken?.address?.toLowerCase() === queryAddress.toLowerCase()
+      (p: { chainId?: string; baseToken?: { address?: string }; quoteToken?: { address?: string } }) =>
+        p.chainId === slug &&
+        (p.baseToken?.address?.toLowerCase() === qLower || p.quoteToken?.address?.toLowerCase() === qLower)
     );
     if (!pairs.length) return null;
     const best = pairs.sort(
       (a: { liquidity?: { usd?: number } }, b: { liquidity?: { usd?: number } }) =>
         (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0)
     )[0];
-    const price = Number(best.priceUsd);
+    const isBase = best.baseToken?.address?.toLowerCase() === qLower;
+    // priceUsd/priceNative are always expressed in terms of the base token
+    // (priceUsd = base's USD price, priceNative = base per 1 quote unit).
+    // When the queried token is the quote side, back out its USD price:
+    // quoteUsd = base'sUsdPrice / (base per quote).
+    const price = isBase ? Number(best.priceUsd) : Number(best.priceUsd) / Number(best.priceNative || 0);
     return Number.isFinite(price) && price > 0 ? price : null;
   } catch {
     return null;
