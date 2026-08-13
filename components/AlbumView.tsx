@@ -60,7 +60,11 @@ export default function AlbumView({
   // indicate that [complete], but allow them to buy it again - duh." The
   // ★ Collected badge below still shows the complete state; the button
   // itself is only ever disabled by a REAL sellout (every track at cap).
-  const sweepTracks = album.tracks.filter((t) => minted[t.id] < t.editionCap);
+  // `minted[t.id]` is undefined until the real fetch resolves — treating
+  // that as 0 (not sold at all yet) instead of excluding the track keeps
+  // "Buy Album" clickable immediately rather than reading as sold out
+  // while data loads (same fix as useTrackCommerce's `books` fallback).
+  const sweepTracks = album.tracks.filter((t) => (minted[t.id] ?? 0) < t.editionCap);
   const sweepTotal = sweepTracks.reduce((sum, t) => sum + t.priceUsd, 0);
 
   const totalMinted = album.tracks.reduce((sum, t) => sum + minted[t.id], 0);
@@ -268,7 +272,6 @@ export default function AlbumView({
             ownedEditions={ownedEditions[t.id] ?? []}
             listings={listings[t.id] ?? {}}
             book={books[t.id] ?? []}
-            loading={commerce.deployed && commerce.realBooksLoading}
             walletConnected={!!walletAddress}
             busy={commerce.busyKey?.startsWith(`${t.id}:`) ?? false}
             isPlaying={playingTrackId === t.id && isPlaying}

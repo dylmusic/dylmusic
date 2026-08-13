@@ -251,7 +251,27 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
   // only chain that's ever real+nonempty today, and any future chain
   // reads real zero from the moment it's added, before it's deployed).
   const minted = deployed ? realMinted : {};
-  const books = deployed ? realBooks : {};
+  // Real order-book data (realBooks) starts empty and can take a real
+  // network round trip to arrive — the old behavior gated every buy
+  // button on a "Loading…" state until it did, and that fetch was
+  // sometimes slow/flaky enough that buttons sat disabled far too long
+  // (Dylan, 2026-08-13: "the loading display is broken and
+  // unacceptable"). Every track here is genuinely mintable, so any track
+  // without a loaded real entry yet falls back to a plain default mint
+  // entry at its listed price instead of leaving the button disabled —
+  // the button is clickable immediately, and confirmPendingBuy always
+  // re-reads the contract's own live mintPriceWei at send time regardless
+  // of what's shown here, so a real sellout still just fails the tx
+  // cleanly rather than silently misleading anyone with a stale price.
+  const books = useMemo(() => {
+    if (!deployed) return {};
+    const merged: Record<string, OrderBookEntry[]> = {};
+    for (const t of tracks) {
+      const real = realBooks[t.id];
+      merged[t.id] = real && real.length > 0 ? real : [{ type: "mint", priceUsd: t.priceUsd, remaining: t.editionCap }];
+    }
+    return merged;
+  }, [deployed, realBooks, tracks]);
   const ownedEditions = deployed ? realOwnedEditions : {};
   const listings = deployed && chain !== "solana" ? realListingsByWallet : {};
 

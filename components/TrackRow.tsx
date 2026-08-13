@@ -10,7 +10,6 @@ export default function TrackRow({
   ownedEditions,
   listings,
   book,
-  loading,
   walletConnected,
   busy,
   isPlaying,
@@ -25,12 +24,11 @@ export default function TrackRow({
   minted: number;
   ownedEditions: number[];
   listings: Record<number, number>;
+  // useTrackCommerce's `books` always has a synthesized default mint entry
+  // for a deployed chain, so this is only ever empty for the simulated
+  // (not-yet-deployed) path — see its own comment for why "Sold Out"
+  // below is safe to key off just `!floor` now.
   book: OrderBookEntry[];
-  // Real on-chain data is fetched async and starts as an empty book —
-  // indistinguishable from a genuine sellout without this flag. Caused a
-  // real incident: every track showed "Sold Out" while data was still
-  // loading, with nothing telling the difference.
-  loading?: boolean;
   walletConnected: boolean;
   busy: boolean;
   isPlaying: boolean;
@@ -96,11 +94,7 @@ export default function TrackRow({
           {formatStreams(getStreamCount(track))}
         </span>
 
-        {loading ? (
-          <button className="btn-buy" disabled>
-            Loading…
-          </button>
-        ) : !floor ? (
+        {!floor ? (
           <button className="btn-buy" disabled>
             Sold Out
           </button>
