@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Album } from "@/lib/albums";
-import { fetchRealPlatformOverview, usdToEth, historicalVolumeUsd, type PlatformOverview } from "@/lib/platformStats";
+import { fetchRealPlatformOverview, fetchRealHoldersCount, usdToEth, historicalVolumeUsd, type PlatformOverview } from "@/lib/platformStats";
 import { streamsSeries, fetchRealSalesStats, EMPTY_SALES_STATS, type RealSalesStats } from "@/lib/dashboardStats";
 import { formatStreams, useStreamCountsLoaded } from "@/lib/streams";
 import StreamsChart from "./StreamsChart";
@@ -14,6 +14,7 @@ const EMPTY_OVERVIEW: PlatformOverview = { perChain: [], totalMinted: 0, totalCa
 export default function MultichainOverview({ album }: { album: Album }) {
   const [overview, setOverview] = useState<PlatformOverview>(EMPTY_OVERVIEW);
   const [sales, setSales] = useState<RealSalesStats>(EMPTY_SALES_STATS);
+  const [holders, setHolders] = useState(0);
   const [volumeView, setVolumeView] = useState<"total" | "v2">("total");
   const [burnedView, setBurnedView] = useState<"nfts" | "coin">("nfts");
   // Tooltip visibility is click-driven (not just CSS :hover/:focus) because
@@ -37,6 +38,9 @@ export default function MultichainOverview({ album }: { album: Album }) {
     });
     fetchRealSalesStats().then((s) => {
       if (!cancelled) setSales(s);
+    });
+    fetchRealHoldersCount().then((h) => {
+      if (!cancelled) setHolders(h);
     });
     return () => {
       cancelled = true;
@@ -116,26 +120,19 @@ export default function MultichainOverview({ album }: { album: Album }) {
         </button>
         <div className="dash-quick-tile">
           <span className="dash-quick-num">{overview.totalMinted.toLocaleString()}</span>
-          <span className="dash-quick-label">editions minted</span>
+          <span className="dash-quick-label">songs minted</span>
         </div>
         <div className="dash-quick-tile">
           <span className="dash-quick-num">{formatStreams(streams.total)}</span>
           <span className="dash-quick-label">total streams</span>
         </div>
-        {/* Real zero either way, not a placeholder — burning isn't wired up
-            on-chain yet (see /burn), so there's genuinely nothing to count
-            for NFTs or $Dyl coin. Same "show the true zero" call already
-            made for RWA Pools. Click toggles which one is shown, same
-            pattern as the Total/V2 Volume tile above. */}
-        <button
-          className="dash-quick-tile dash-quick-tile-click"
-          onClick={() => setBurnedView((v) => (v === "nfts" ? "coin" : "nfts"))}
-        >
-          <span className="dash-quick-num">0</span>
-          <span className="dash-quick-label">
-            {burnedView === "nfts" ? "NFTs burned" : "$Dyl Coin burned"}
-          </span>
-        </button>
+        {/* Real distinct-holder count (Blockscout's own holders_count for
+            the Robinhood Chain collection — see fetchRealHoldersCount) —
+            not a placeholder, same real-data rule as every other tile here. */}
+        <div className="dash-quick-tile">
+          <span className="dash-quick-num">{holders.toLocaleString()}</span>
+          <span className="dash-quick-label">Holders</span>
+        </div>
         {/* Real zero, not a placeholder — same honesty rule as the tile
             above. Ownership is tracked per browser in localStorage (see
             lib/holdings.ts), there is no shared backend that knows what
@@ -146,6 +143,22 @@ export default function MultichainOverview({ album }: { album: Album }) {
           <span className="dash-quick-num">0</span>
           <span className="dash-quick-label">Full Albums Collected</span>
         </div>
+        {/* Real zero either way, not a placeholder — burning isn't wired up
+            on-chain yet (see /burn), so there's genuinely nothing to count
+            for NFTs or $Dyl coin. Same "show the true zero" call already
+            made for RWA Pools. Click toggles which one is shown, same
+            pattern as the Total/V2 Volume tile above. Moved to the end of
+            the row to make room for Holders above (Dylan: "move Dyl coin
+            burned down to the open spot"). */}
+        <button
+          className="dash-quick-tile dash-quick-tile-click"
+          onClick={() => setBurnedView((v) => (v === "nfts" ? "coin" : "nfts"))}
+        >
+          <span className="dash-quick-num">0</span>
+          <span className="dash-quick-label">
+            {burnedView === "nfts" ? "NFTs burned" : "$Dyl Coin burned"}
+          </span>
+        </button>
       </div>
 
       {/* ---------- Multichain / crypto (priority) ---------- */}

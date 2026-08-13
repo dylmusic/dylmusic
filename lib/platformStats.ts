@@ -2,6 +2,7 @@
 
 import { Album, CHAINS, ChainInfo } from "./albums";
 import { fetchRealChainMinted } from "./realOrderBook";
+import { CONTRACT_TARGETS } from "./admin";
 
 export interface SoldStat {
   minted: number;
@@ -41,6 +42,27 @@ export async function fetchRealPlatformOverview(album: Album): Promise<PlatformO
     totalCap,
     totalPct: totalCap === 0 ? 0 : (totalMinted / totalCap) * 100,
   };
+}
+
+/**
+ * Real distinct-holder count, straight from Blockscout's own token endpoint
+ * (`holders_count`) — Robinhood Chain only, the one chain with a real
+ * deployed collection today (same "Robinhood is the only chain that's ever
+ * real+nonempty" rule fetchRealPlatformOverview above already follows).
+ * Real zero on a fetch failure rather than throwing and blanking the whole
+ * dashboard — this is a "nice to have" stat, not load-bearing.
+ */
+export async function fetchRealHoldersCount(): Promise<number> {
+  const address = CONTRACT_TARGETS.find((t) => t.key === "robinhood")?.address;
+  if (!address) return 0;
+  try {
+    const res = await fetch(`https://robinhoodchain.blockscout.com/api/v2/tokens/${address}`);
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return Number(data?.holders_count) || 0;
+  } catch {
+    return 0;
+  }
 }
 
 // Rough, display-only conversion rates — not a live price feed. Good enough
