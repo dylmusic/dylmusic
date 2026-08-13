@@ -113,7 +113,22 @@ export default function MintSuccessModal({ info, onClose }: { info: MintSuccessI
   useConfettiBurst(canvasRef);
 
   useEffect(() => {
-    playSuccessChime();
+    let cancelled = false;
+    playSuccessChime().then((played) => {
+      if (played || cancelled) return;
+      // iOS can revoke an earlier audio unlock across the MetaMask
+      // app-switch, and a plain mount effect isn't a real user gesture —
+      // the modal's own first tap is, so retry there instead of staying
+      // silent for the rest of the session.
+      const retry = () => {
+        void playSuccessChime();
+        window.removeEventListener("pointerdown", retry);
+      };
+      window.addEventListener("pointerdown", retry, { once: true });
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const heading = info.trackCount

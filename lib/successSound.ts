@@ -29,10 +29,28 @@ export function unlockSuccessSound() {
   if (c && c.state === "suspended") void c.resume();
 }
 
-export function playSuccessChime() {
+/**
+ * Returns whether it actually played. On mobile Safari, backgrounding the
+ * tab to approve a transaction in MetaMask can re-suspend (or on iOS,
+ * fully revoke) an AudioContext that was successfully unlocked earlier —
+ * `resume()` is async and can also just never resolve without a fresh
+ * user gesture, so this is `await`ed and checked rather than fired and
+ * forgotten (the old version called `c.resume()` without awaiting it,
+ * then scheduled oscillators anyway — silent when resume hadn't actually
+ * finished). Callers that get `false` back should retry on the next real
+ * tap, which is guaranteed to be a valid gesture.
+ */
+export async function playSuccessChime(): Promise<boolean> {
   const c = getContext();
-  if (!c) return;
-  if (c.state === "suspended") void c.resume();
+  if (!c) return false;
+  if (c.state === "suspended") {
+    try {
+      await c.resume();
+    } catch {
+      // ignore — checked below via c.state
+    }
+  }
+  if (c.state !== "running") return false;
   const notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6 — classic rising "achievement" shape
   const start = c.currentTime;
   notes.forEach((freq, i) => {
@@ -49,4 +67,5 @@ export function playSuccessChime() {
     osc.start(t);
     osc.stop(t + 0.3);
   });
+  return true;
 }
