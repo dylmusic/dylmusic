@@ -22,6 +22,21 @@ const config: HardhatUserConfig = {
   networks: {
     hardhat: {
       chainId: 31337,
+      // Robinhood Chain (4663) isn't a chain EDR's simulator recognizes out
+      // of the box, so forking it fails with "No known hardfork for
+      // execution on historical block" unless told explicitly which
+      // hardfork rules to simulate. "merge" (aka Paris) matches what solc
+      // already targets for this whole contract family (see
+      // BurnClaimRedeemer.sol's comment on avoiding Cancun-only opcodes —
+      // the chain's real Cancun support isn't confirmed), so the fork
+      // simulates no newer than what the compiled bytecode itself assumes.
+      chains: {
+        4663: {
+          hardforkHistory: {
+            merge: 0,
+          },
+        },
+      },
     },
     sepolia: {
       url: process.env.SEPOLIA_RPC_URL ?? "https://ethereum-sepolia-rpc.publicnode.com",

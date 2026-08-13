@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useAccount } from "wagmi";
+import { useAccount, useSendTransaction, useSwitchChain, ConnectorChainMismatchError } from "wagmi";
+import { getWalletClient, getPublicClient } from "wagmi/actions";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { createPublicClient, http, getAddress, formatUnits, Chain } from "viem";
+import { createPublicClient, http, getAddress, formatUnits, parseUnits, type Chain, type Address } from "viem";
 import { mainnet, base, polygon } from "viem/chains";
 import { LEGACY_ASSETS, LegacyAsset, LegacyChain } from "@/lib/legacyCollections";
 import { CARD_TIER_MINTS, VIP_MINTS_ESTIMATE, dylMintsForBalance } from "@/lib/burnCredits";
-import { fetchTieredCollectionBreakdown, TierBreakdown } from "@/lib/tieredCollectionCheck";
+import { fetchTieredCollectionBreakdown, TierBreakdown, TieredItem } from "@/lib/tieredCollectionCheck";
+import { buildEvmNftBurnTx, buildEvmDylBurnTx } from "@/lib/burnActions";
+import { wagmiConfig } from "@/lib/web3";
 
 const ERC721_BALANCE_ABI = [
   { name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] },
@@ -40,6 +43,7 @@ const ERC20_ABI = [
 // per-token tier lookup via fetchTieredCollectionBreakdown() instead of a
 // plain count, since a plain balanceOf can't tell Standard from VIP.
 const TIERED_COLLECTION_NAME = "Old Dyl NFT collection";
+const TIERED_CONTRACT_ADDRESS = LEGACY_ASSETS.find((a) => a.name === TIERED_COLLECTION_NAME)!.address;
 const ETH_NFT_ASSETS = LEGACY_ASSETS.filter(
   (a) => a.chain === "ethereum" && a.kind === "nft" && a.name !== TIERED_COLLECTION_NAME
 );
@@ -72,11 +76,126 @@ export default function BurnWalletChecker({
 }) {
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
+  const { sendTransactionAsync } = useSendTransaction();
+  const { switchChainAsync } = useSwitchChain();
   const [checking, setChecking] = useState(false);
   const [open, setOpen] = useState(false);
   const [results, setResults] = useState<AssetResult[] | null>(null);
   const [dylResults, setDylResults] = useState<DylResult[] | null>(null);
   const [tierBreakdown, setTierBreakdown] = useState<TierBreakdown | null>(null);
+  const [burningKey, setBurningKey] = useState<string | null>(null);
+  const [burnedKeys, setBurnedKeys] = useState<Set<string>>(new Set());
+  const [burnError, setBurnError] = useState<string | null>(null);
+  // The REAL, server-verified credited total (lib/burnLedgerStore.ts) —
+  // distinct from `spendable` below, which is only an ESTIMATE of what
+  // burning current holdings would earn. Only this real ledger total is
+  // ever reported upward as spendable credit — an unburned holding is
+  // eligibility, not spendable currency, until a real burn is verified.
+  const [realLedgerSpendable, setRealLedgerSpendable] = useState(0);
+
+  async function refreshRealLedger() {
+    if (!address) return;
+    try {
+      const res = await fetch(`/api/burn/verify?wallet=${encodeURIComponent(address)}`, { cache: "no-store" });
+      const data = await res.json();
+      setRealLedgerSpendable(data?.ledger?.spendable ?? 0);
+    } catch {
+      // leave whatever was already shown — a transient fetch failure
+      // shouldn't zero out a real, previously-confirmed credit total
+    }
+  }
+
+  useEffect(() => {
+    if (address) refreshRealLedger();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address]);
+
+  async function ensureEvmChainLocal(chainId: number) {
+    await switchChainAsync({ chainId });
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await getWalletClient(wagmiConfig, { chainId });
+      } catch (e) {
+        if (attempt >= 5 || !(e instanceof ConnectorChainMismatchError)) throw e;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
+  }
+
+  async function burnTieredItem(item: TieredItem) {
+    if (!address) return;
+    const key = `tiered:${item.tokenId}`;
+    setBurningKey(key);
+    setBurnError(null);
+    try {
+      await ensureEvmChainLocal(mainnet.id);
+      const tx = buildEvmNftBurnTx(
+        getAddress(TIERED_CONTRACT_ADDRESS),
+        getAddress(address),
+        BigInt(item.tokenId)
+      );
+      const hash = await sendTransactionAsync({ to: tx.to, data: tx.data, value: tx.value, chainId: mainnet.id });
+      const publicClient = getPublicClient(wagmiConfig, { chainId: mainnet.id });
+      const receipt = await publicClient!.waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") throw new Error("Burn transaction reverted.");
+
+      const res = await fetch("/api/burn/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet: address, kind: "eth-tiered-nft", tokenId: item.tokenId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Verification failed after burn.");
+      setBurnedKeys((prev) => new Set(prev).add(key));
+      if (data.ledger) setRealLedgerSpendable(data.ledger.spendable);
+    } catch (e) {
+      setBurnError(e instanceof Error ? e.message : "Burn failed.");
+    } finally {
+      setBurningKey(null);
+    }
+  }
+
+  async function burnDylOnChain(chainKey: "ethereum" | "base" | "polygon") {
+    if (!address) return;
+    const asset = EVM_DYL_TOKENS.find((a) => a.chain === chainKey);
+    const balanceRow = dylResults?.find((r) => r.asset.chain === chainKey);
+    if (!asset || !balanceRow || balanceRow.balance <= 0) return;
+    const cfg = EVM_CHAIN_CONFIG[chainKey]!;
+    const key = `dyl:${chainKey}`;
+    setBurningKey(key);
+    setBurnError(null);
+    try {
+      await ensureEvmChainLocal(cfg.viemChain.id);
+      // Read decimals fresh rather than assuming 18 — same discipline
+      // every other real balance/transfer builder in this codebase uses.
+      const client = createPublicClient({ chain: cfg.viemChain, transport: http(cfg.rpcUrl) });
+      const decimals = (await client.readContract({
+        address: getAddress(asset.address),
+        abi: ERC20_ABI,
+        functionName: "decimals",
+      })) as number;
+      const amountWei = parseUnits(balanceRow.balance.toString(), decimals);
+      const tx = buildEvmDylBurnTx(getAddress(asset.address), amountWei);
+      const hash = await sendTransactionAsync({ to: tx.to, data: tx.data, value: tx.value, chainId: cfg.viemChain.id });
+      const publicClient = getPublicClient(wagmiConfig, { chainId: cfg.viemChain.id });
+      const receipt = await publicClient!.waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") throw new Error("Burn transaction reverted.");
+
+      const res = await fetch("/api/burn/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet: address, kind: "dyl", chain: chainKey }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Verification failed after burn.");
+      setBurnedKeys((prev) => new Set(prev).add(key));
+      if (data.ledger) setRealLedgerSpendable(data.ledger.spendable);
+    } catch (e) {
+      setBurnError(e instanceof Error ? e.message : "Burn failed.");
+    } finally {
+      setBurningKey(null);
+    }
+  }
 
   async function checkWallet() {
     if (!address) return;
@@ -170,9 +289,13 @@ export default function BurnWalletChecker({
   }, [results, dylResults, tierBreakdown]);
 
   useEffect(() => {
-    onSpendableChange?.(spendable);
+    // Report the REAL, server-verified ledger total, not the holdings
+    // estimate — `spendable` below is what burning current holdings WOULD
+    // earn, not currency you already have. Only a real verified burn ever
+    // becomes spendable (see lib/burnLedgerStore.ts).
+    onSpendableChange?.(realLedgerSpendable);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spendable]);
+  }, [realLedgerSpendable]);
 
   return (
     <div className="burn-checker">
@@ -340,6 +463,71 @@ export default function BurnWalletChecker({
               )}
             </div>
           </div>
+
+          {(tierBreakdown?.items?.length || dylResults?.some((r) => r.balance > 0)) && (
+            <div className="credits-panel">
+              <div className="credits-head">
+                <span className="credits-head-title">Burn for real credit</span>
+                <span className="credits-head-note">
+                  {realLedgerSpendable > 0
+                    ? `${realLedgerSpendable.toLocaleString()} real credit${realLedgerSpendable === 1 ? "" : "s"} confirmed so far.`
+                    : "Sends each item to the standard dead address, then verifies it server-side before crediting."}
+                </span>
+              </div>
+              <div className="credits-rows">
+                {tierBreakdown?.items.map((item) => {
+                  const key = `tiered:${item.tokenId}`;
+                  const done = burnedKeys.has(key);
+                  const amount =
+                    item.tier === "vip"
+                      ? VIP_MINTS_ESTIMATE
+                      : item.tier === "standard" || item.tier === "gold" || item.tier === "platinum"
+                        ? (CARD_TIER_MINTS[item.tier] ?? 0)
+                        : 0;
+                  return (
+                    <div className="credits-row" key={key}>
+                      <span className="credits-row-label">
+                        Token #{item.tokenId} ({item.tier}) — {amount} mints
+                      </span>
+                      <button
+                        className="btn-burn-hero burn-checker-btn"
+                        disabled={!!burningKey || done}
+                        onClick={() => burnTieredItem(item)}
+                      >
+                        {done ? "Burned ✓" : burningKey === key ? "Burning…" : "Burn"}
+                      </button>
+                    </div>
+                  );
+                })}
+                {dylResults
+                  ?.filter((r) => r.balance > 0 && (r.asset.chain === "ethereum" || r.asset.chain === "base" || r.asset.chain === "polygon"))
+                  .map((r) => {
+                    const chainKey = r.asset.chain as "ethereum" | "base" | "polygon";
+                    const key = `dyl:${chainKey}`;
+                    const done = burnedKeys.has(key);
+                    return (
+                      <div className="credits-row" key={key}>
+                        <span className="credits-row-label">
+                          {r.balance.toLocaleString(undefined, { maximumFractionDigits: 0 })} $DYL ({r.asset.chainLabel})
+                        </span>
+                        <button
+                          className="btn-burn-hero burn-checker-btn"
+                          disabled={!!burningKey || done}
+                          onClick={() => burnDylOnChain(chainKey)}
+                        >
+                          {done ? "Burned ✓" : burningKey === key ? "Burning…" : "Burn All"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                {burnError && (
+                  <div className="credits-row muted">
+                    <span className="credits-row-label">Burn failed: {burnError}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

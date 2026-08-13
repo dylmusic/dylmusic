@@ -117,6 +117,64 @@ describe("DylCollection", () => {
     });
   });
 
+  describe("claimMint / claimMinters (burn-and-mint)", () => {
+    it("setClaimMinter is owner-only", async () => {
+      await expect(proxy.connect(other).setClaimMinter(other.address, true)).to.be.revertedWithCustomError(
+        proxy,
+        "OwnableUnauthorizedAccount"
+      );
+    });
+
+    it("claimMint reverts for anyone not on the claimMinters allowlist", async () => {
+      await expect(proxy.connect(other).claimMint(1, 1, other.address)).to.be.revertedWithCustomError(
+        proxy,
+        "NotClaimMinter"
+      );
+      // even the admin/owner itself has no special claimMint power — must be explicitly allowlisted
+      await expect(proxy.connect(admin).claimMint(1, 1, admin.address)).to.be.revertedWithCustomError(
+        proxy,
+        "NotClaimMinter"
+      );
+    });
+
+    it("mints for free once allowlisted, from the SAME public ceiling as paid mint (not the smaller admin-reserved one)", async () => {
+      await proxy.connect(admin).setClaimMinter(other.address, true);
+      await proxy.connect(admin).adminMint(9, 10, admin.address); // fill editions 1-10 first, matching real ordering
+
+      await proxy.connect(other).claimMint(9, 1, buyer.address);
+      expect(await proxy.ownerOf(9 * 1000 + 11)).to.equal(buyer.address); // edition 11 (index 10), +1 offset
+      expect(await proxy.nextEditionIndex(9)).to.equal(11);
+
+      // draws down the real public pool the rest of the way — same 100-edition cap as public mint()
+      for (let i = 0; i < 89; i++) {
+        await proxy.connect(other).claimMint(9, 1, buyer.address);
+      }
+      expect(await proxy.nextEditionIndex(9)).to.equal(100);
+      await expect(proxy.connect(other).claimMint(9, 1, buyer.address)).to.be.revertedWithCustomError(
+        proxy,
+        "TrackSoldOut"
+      );
+    });
+
+    it("revoking claimMinters immediately blocks further claims", async () => {
+      await proxy.connect(admin).setClaimMinter(other.address, true);
+      await proxy.connect(other).claimMint(10, 1, buyer.address);
+      await proxy.connect(admin).setClaimMinter(other.address, false);
+      await expect(proxy.connect(other).claimMint(10, 1, buyer.address)).to.be.revertedWithCustomError(
+        proxy,
+        "NotClaimMinter"
+      );
+    });
+
+    it("reverts on zero quantity", async () => {
+      await proxy.connect(admin).setClaimMinter(other.address, true);
+      await expect(proxy.connect(other).claimMint(1, 0, buyer.address)).to.be.revertedWithCustomError(
+        proxy,
+        "InvalidQuantity"
+      );
+    });
+  });
+
   describe("admin setters", () => {
     it("setMintPrice is owner-only and updates the price", async () => {
       await expect(proxy.connect(other).setMintPrice(1)).to.be.revertedWithCustomError(

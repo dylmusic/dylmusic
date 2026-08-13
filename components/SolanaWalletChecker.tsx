@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useAccount } from "wagmi";
 import { useSolanaWallet } from "@/lib/solana";
-import { emptyTiers, SolanaCheckResult } from "@/lib/solanaCollectionCheck";
+import { emptyTiers, SolanaCheckResult, SolanaTieredItem } from "@/lib/solanaCollectionCheck";
 import { CARD_TIER_MINTS, dylMintsForBalance } from "@/lib/burnCredits";
+import { burnSolanaNft, burnSolanaDyl } from "@/lib/burnActions";
+import { DYL_SOL_MINT } from "@/lib/solanaCollectionCheck";
 
 export default function SolanaWalletChecker({
   onSpendableChange,
@@ -11,9 +14,81 @@ export default function SolanaWalletChecker({
   onSpendableChange?: (n: number) => void;
 }) {
   const { address, connect, hasPhantom } = useSolanaWallet();
+  // Claiming only ever happens on an EVM chain (see lib/burnClaimSigner.ts)
+  // — a Solana burn is verified against the Solana wallet below, but the
+  // EARNED CREDIT has to land in the ledger of the EVM wallet that will
+  // eventually submit the claim. Same wagmi connection BurnWalletChecker
+  // already establishes elsewhere on this page.
+  const { address: evmAddress } = useAccount();
   const [checking, setChecking] = useState(false);
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<SolanaCheckResult | null>(null);
+  const [burningKey, setBurningKey] = useState<string | null>(null);
+  const [burnedKeys, setBurnedKeys] = useState<Set<string>>(new Set());
+  const [burnError, setBurnError] = useState<string | null>(null);
+  const [realLedgerSpendable, setRealLedgerSpendable] = useState(0);
+
+  async function refreshRealLedger() {
+    if (!evmAddress) return;
+    try {
+      const res = await fetch(`/api/burn/verify?wallet=${encodeURIComponent(evmAddress)}`, { cache: "no-store" });
+      const data = await res.json();
+      setRealLedgerSpendable(data?.ledger?.spendable ?? 0);
+    } catch {
+      // leave whatever was already shown
+    }
+  }
+
+  useEffect(() => {
+    if (evmAddress) refreshRealLedger();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [evmAddress]);
+
+  async function burnCard(item: SolanaTieredItem) {
+    if (!address || !evmAddress) return;
+    const key = `card:${item.mint}`;
+    setBurningKey(key);
+    setBurnError(null);
+    try {
+      await burnSolanaNft(address, item.mint);
+      const res = await fetch("/api/burn/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet: evmAddress, originWallet: address, kind: "solana-card", mintAddress: item.mint }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Verification failed after burn.");
+      setBurnedKeys((prev) => new Set(prev).add(key));
+      if (data.ledger) setRealLedgerSpendable(data.ledger.spendable);
+    } catch (e) {
+      setBurnError(e instanceof Error ? e.message : "Burn failed.");
+    } finally {
+      setBurningKey(null);
+    }
+  }
+
+  async function burnDyl() {
+    if (!address || !evmAddress) return;
+    const key = "dyl";
+    setBurningKey(key);
+    setBurnError(null);
+    try {
+      await burnSolanaDyl(address, DYL_SOL_MINT);
+      const res = await fetch("/api/burn/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet: evmAddress, originWallet: address, kind: "solana-dyl" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Verification failed after burn.");
+      setBurnedKeys((prev) => new Set(prev).add(key));
+      if (data.ledger) setRealLedgerSpendable(data.ledger.spendable);
+    } catch (e) {
+      setBurnError(e instanceof Error ? e.message : "Burn failed.");
+    } finally {
+      setBurningKey(null);
+    }
+  }
 
   async function checkWallet() {
     if (!address) return;
@@ -27,7 +102,7 @@ export default function SolanaWalletChecker({
       const r: SolanaCheckResult = await res.json();
       setResult(r);
     } catch {
-      setResult({ dylBalance: 0, tiers: emptyTiers(), error: "Check failed" });
+      setResult({ dylBalance: 0, tiers: emptyTiers(), items: [], error: "Check failed" });
     }
     setChecking(false);
   }
@@ -51,9 +126,9 @@ export default function SolanaWalletChecker({
   }, [tiers, result]);
 
   useEffect(() => {
-    onSpendableChange?.(spendable);
+    onSpendableChange?.(realLedgerSpendable);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spendable]);
+  }, [realLedgerSpendable]);
 
   return (
     <div className="burn-checker">
@@ -179,6 +254,61 @@ export default function SolanaWalletChecker({
               )}
             </div>
           </div>
+
+          {(result.items.length > 0 || result.dylBalance > 0) && (
+            <div className="credits-panel">
+              <div className="credits-head">
+                <span className="credits-head-title">Burn for real credit</span>
+                <span className="credits-head-note">
+                  {!evmAddress
+                    ? "Connect an EVM wallet above (Buy/Claim happens on Robinhood Chain) — that's the wallet your credits go to."
+                    : realLedgerSpendable > 0
+                      ? `${realLedgerSpendable.toLocaleString()} real credit${realLedgerSpendable === 1 ? "" : "s"} confirmed so far.`
+                      : "A real protocol-level SPL burn, verified server-side before crediting."}
+                </span>
+              </div>
+              <div className="credits-rows">
+                {result.items.map((item) => {
+                  const key = `card:${item.mint}`;
+                  const done = burnedKeys.has(key);
+                  const amount = CARD_TIER_MINTS[item.tier] ?? 0;
+                  return (
+                    <div className="credits-row" key={key}>
+                      <span className="credits-row-label">
+                        {item.mint.slice(0, 4)}…{item.mint.slice(-4)} ({item.tier}) — {amount} mints
+                      </span>
+                      <button
+                        className="btn-burn-hero burn-checker-btn"
+                        disabled={!!burningKey || done || !evmAddress}
+                        onClick={() => burnCard(item)}
+                      >
+                        {done ? "Burned ✓" : burningKey === key ? "Burning…" : "Burn"}
+                      </button>
+                    </div>
+                  );
+                })}
+                {result.dylBalance > 0 && (
+                  <div className="credits-row">
+                    <span className="credits-row-label">
+                      {result.dylBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })} $DYL (Solana)
+                    </span>
+                    <button
+                      className="btn-burn-hero burn-checker-btn"
+                      disabled={!!burningKey || burnedKeys.has("dyl") || !evmAddress}
+                      onClick={burnDyl}
+                    >
+                      {burnedKeys.has("dyl") ? "Burned ✓" : burningKey === "dyl" ? "Burning…" : "Burn All"}
+                    </button>
+                  </div>
+                )}
+                {burnError && (
+                  <div className="credits-row muted">
+                    <span className="credits-row-label">Burn failed: {burnError}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

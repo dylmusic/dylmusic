@@ -26,7 +26,7 @@ export const DYL_SOL_MINT = "DTUW2CFo71KnTNSFYX95jQ8P8aJVQVr8MEF1AGMm5WGm";
 // the real, standard proof a token was minted by this candy machine
 // (Metaplex sets it via the mint's own `sign_metadata`, can't be forged by
 // a later holder), so that's what's checked now instead of the symbol.
-const CANDY_MACHINE_ID = "7JvmupdkaFekk2bqqesk4Y22ejQhmpC8Gx5AkB3usgPw";
+export const CANDY_MACHINE_ID = "7JvmupdkaFekk2bqqesk4Y22ejQhmpC8Gx5AkB3usgPw";
 
 export interface SolanaTierBreakdown {
   standard: number;
@@ -40,9 +40,16 @@ export interface SolanaTierBreakdown {
   total: number;
 }
 
+export interface SolanaTieredItem {
+  mint: string;
+  tier: "standard" | "gold" | "platinum";
+}
+
 export interface SolanaCheckResult {
   dylBalance: number;
   tiers: SolanaTierBreakdown;
+  /** Real per-mint list, priced tiers only (standard/gold/platinum) — the actual burn targets, not just a count. */
+  items: SolanaTieredItem[];
   error?: string;
 }
 
@@ -123,6 +130,35 @@ function tierFromName(name: string): keyof Omit<SolanaTierBreakdown, "unknown" |
   return null;
 }
 
+/**
+ * Single-mint tier lookup — used by lib/burnVerify.ts to price a burn
+ * AFTER the fact (the wallet no longer needs to hold the token, only the
+ * mint address matters). Reuses the exact same metadata-PDA parse and
+ * verified-creator check checkSolanaWallet already proved live, just for
+ * one mint instead of enumerating a wallet's full token-account list.
+ * Reads the metadata account as it exists NOW — correct as long as
+ * burning used a raw SPL `burn` instruction (per CLAUDE.md's design),
+ * which only zeroes the token account's balance and never touches/closes
+ * the mint's own metadata account, unlike Metaplex's `burn_nft` CPI.
+ */
+export async function fetchMintTier(
+  mintAddress: string
+): Promise<{ verifiedOurs: boolean; tier: keyof Omit<SolanaTierBreakdown, "unknown" | "total"> | null }> {
+  try {
+    const connection = new Connection(SOLANA_RPC_URL);
+    const pda = metadataPda(new PublicKey(mintAddress));
+    const acc = await connection.getAccountInfo(pda);
+    if (!acc) return { verifiedOurs: false, tier: null };
+    const parsed = parseMetadata(acc.data);
+    if (!parsed) return { verifiedOurs: false, tier: null };
+    const isOurs = parsed.creators.some((c) => c.address === CANDY_MACHINE_ID && c.verified);
+    if (!isOurs) return { verifiedOurs: false, tier: null };
+    return { verifiedOurs: true, tier: tierFromName(parsed.name) };
+  } catch {
+    return { verifiedOurs: false, tier: null };
+  }
+}
+
 export async function checkSolanaWallet(walletAddress: string): Promise<SolanaCheckResult> {
   const tiers = emptyTiers();
   let dylBalance = 0;
@@ -150,29 +186,39 @@ export async function checkSolanaWallet(walletAddress: string): Promise<SolanaCh
       if (nftMints.length >= 250) break;
     }
 
+    const items: SolanaTieredItem[] = [];
     if (nftMints.length > 0) {
       const pdas = nftMints.map(metadataPda);
       // getMultipleAccountsInfo batches internally in chunks of 100 —
-      // fine for our 250 cap.
+      // fine for our 250 cap. Sliced in lockstep with nftMints so each
+      // result can be matched back to its real mint address (needed to
+      // actually burn a specific card later, not just count it).
       for (let i = 0; i < pdas.length; i += 100) {
-        const chunk = pdas.slice(i, i + 100);
-        const infos = await connection.getMultipleAccountsInfo(chunk);
-        for (const acc of infos) {
-          if (!acc) continue;
+        const pdaChunk = pdas.slice(i, i + 100);
+        const mintChunk = nftMints.slice(i, i + 100);
+        const infos = await connection.getMultipleAccountsInfo(pdaChunk);
+        infos.forEach((acc, j) => {
+          if (!acc) return;
           const parsed = parseMetadata(acc.data);
-          if (!parsed) continue;
+          if (!parsed) return;
           const isOurs = parsed.creators.some((c) => c.address === CANDY_MACHINE_ID && c.verified);
-          if (!isOurs) continue;
+          if (!isOurs) return;
           tiers.total += 1;
           const tier = tierFromName(parsed.name);
-          if (tier) tiers[tier] += 1;
-          else tiers.unknown += 1;
-        }
+          if (tier) {
+            tiers[tier] += 1;
+            if (tier !== "diamond") items.push({ mint: mintChunk[j].toBase58(), tier }); // diamond unpriced, nothing to burn for credit yet
+          } else {
+            tiers.unknown += 1;
+          }
+        });
       }
     }
+
+    return { dylBalance, tiers, items, error };
   } catch (e) {
     error = e instanceof Error ? e.message : "Check failed";
   }
 
-  return { dylBalance, tiers, error };
+  return { dylBalance, tiers, items: [], error };
 }

@@ -11,7 +11,7 @@ import {ERC2981Upgradeable} from "@openzeppelin/contracts-upgradeable/token/comm
 /// ranges — never one contract per track/album (see dylmusic/CLAUDE.md,
 /// "CONTRACT REQUIREMENT"). New albums mint into this SAME deployed
 /// contract forever via a new trackId, never a new deployment.
-contract DylCollection is ERC721AQueryableUpgradeable, OwnableUpgradeable, ERC2981Upgradeable, UUPSUpgradeable {
+contract DylCollectionPreClaimSnapshot is ERC721AQueryableUpgradeable, OwnableUpgradeable, ERC2981Upgradeable, UUPSUpgradeable {
     // Left as a true constant on purpose, not admin-settable — changing it
     // after any track has minted would collide new tokenIds with an
     // existing track's already-minted range (see _tokenId below), and it's
@@ -45,21 +45,10 @@ contract DylCollection is ERC721AQueryableUpgradeable, OwnableUpgradeable, ERC29
     // separate "register a track" step.
     mapping(uint256 => uint256) public nextEditionIndex;
 
-    // Added in the burn-and-mint upgrade (see BurnClaimRedeemer.sol) — a
-    // narrow allowlist distinct from `onlyOwner`. Appended AFTER every
-    // pre-existing storage variable above (never inserted) so this upgrade
-    // can't collide with any already-live storage slot on the real deployed
-    // proxy. Deliberately its own mapping rather than reusing Ownable's
-    // owner slot: even if a granted claim-minter contract were ever
-    // compromised, the blast radius is "can call claimMint," never
-    // setMintPrice/withdraw/upgrade.
-    mapping(address => bool) public claimMinters;
-
     event MintPriceUpdated(uint256 newPriceWei);
     event MetadataBaseURIUpdated(string newBaseURI);
     event EditionsPerTrackUpdated(uint256 newEditionsPerTrack);
     event TrackMinted(uint256 indexed trackId, address indexed to, uint256 firstEdition, uint256 lastEdition);
-    event ClaimMinterUpdated(address indexed minter, bool allowed);
 
     error InvalidQuantity();
     error TrackSoldOut();
@@ -67,7 +56,6 @@ contract DylCollection is ERC721AQueryableUpgradeable, OwnableUpgradeable, ERC29
     error IncorrectPayment();
     error WithdrawFailed();
     error WithdrawToZeroAddress();
-    error NotClaimMinter();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -136,29 +124,6 @@ contract DylCollection is ERC721AQueryableUpgradeable, OwnableUpgradeable, ERC29
     function adminMint(uint256 trackId, uint256 quantity, address to) external onlyOwner {
         if (quantity == 0) revert InvalidQuantity();
         _doMint(trackId, quantity, to, ADMIN_RESERVED_EDITIONS);
-    }
-
-    /// Owner-only allowlist toggle for burn-and-mint claim redemption (see
-    /// BurnClaimRedeemer.sol). Granting this to a contract lets it mint —
-    /// nothing else; it can never touch price, withdrawal, metadata, or the
-    /// upgrade path, all of which stay `onlyOwner`-gated exactly as before.
-    function setClaimMinter(address minter, bool allowed) external onlyOwner {
-        claimMinters[minter] = allowed;
-        emit ClaimMinterUpdated(minter, allowed);
-    }
-
-    /// Free mint for an already-verified burn-and-mint claim. Callable only
-    /// by an allowlisted redeemer contract (never a raw EOA — the allowlist
-    /// is meant for one specific, audited BurnClaimRedeemer deployment at a
-    /// time). Draws from the SAME public ceiling as the paid `mint()` path
-    /// (`editionsPerTrack`, not the smaller admin-reserved allocation) —
-    /// claims compete for real remaining supply, matching the site's own
-    /// "you may or may not get the full album" framing rather than minting
-    /// from a separate unlimited pool.
-    function claimMint(uint256 trackId, uint256 quantity, address to) external {
-        if (!claimMinters[msg.sender]) revert NotClaimMinter();
-        if (quantity == 0) revert InvalidQuantity();
-        _doMint(trackId, quantity, to, editionsPerTrack);
     }
 
     function _doMint(uint256 trackId, uint256 quantity, address to, uint256 ceiling) private {

@@ -2,6 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { ALLOCATION_CHAINS, AllocationChain } from "@/lib/burnCredits";
+import { CHAINS } from "@/lib/albums";
+
+// Claiming is real, but only actually deployed on Robinhood Chain so far
+// (see the burn-and-mint plan's "enable Robinhood only for now" scope) —
+// same `live` flag lib/albums.ts's own chain picker already uses sitewide,
+// reused here rather than inventing a second one. Extending to another
+// chain later is just that chain's CHAINS entry flipping to `live: true`
+// once its own BurnClaimRedeemer + claimMinters grant exist — no change
+// needed here.
+function isLiveChain(chain: AllocationChain): boolean {
+  return CHAINS.find((c) => c.key === chain)?.live ?? false;
+}
 
 // The "split your credits across chains" planner — originally lived inside
 // the EVM checker only, using just that checker's own spendable total.
@@ -16,7 +28,14 @@ const CHAIN_LABEL: Record<AllocationChain, string> = {
   ethereum: "Ethereum",
 };
 
-export default function MintAllocator({ spendable }: { spendable: number }) {
+export default function MintAllocator({
+  spendable,
+  onAllocationChange,
+}: {
+  spendable: number;
+  /** Reports how many credits are currently planned for Robinhood Chain — the only chain burn-client.tsx's real "Mint" step can actually submit today. */
+  onAllocationChange?: (robinhoodCount: number) => void;
+}) {
   const [allocation, setAllocation] = useState<Record<AllocationChain, number> | null>(null);
 
   // The total can keep changing as more wallets get checked — a plan built
@@ -25,16 +44,25 @@ export default function MintAllocator({ spendable }: { spendable: number }) {
   // button rather than leaving a now-wrong split on screen.
   useEffect(() => {
     setAllocation(null);
+    onAllocationChange?.(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spendable]);
 
+  useEffect(() => {
+    onAllocationChange?.(allocation?.robinhood ?? 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allocation]);
+
+  // Only Robinhood Chain can actually claim today — the whole total goes
+  // there by default (was an even split across all 4 chains back when
+  // none of them could claim for real; now that claiming is real but
+  // scoped to one chain, defaulting anything to a not-yet-claimable chain
+  // would just strand it).
   function initAllocation() {
-    const base = Math.floor(spendable / ALLOCATION_CHAINS.length);
-    let remainder = spendable - base * ALLOCATION_CHAINS.length;
     const next = {} as Record<AllocationChain, number>;
-    for (const c of ALLOCATION_CHAINS) {
-      next[c] = base + (remainder > 0 ? 1 : 0);
-      if (remainder > 0) remainder -= 1;
-    }
+    for (const c of ALLOCATION_CHAINS) next[c] = 0;
+    const liveChain = ALLOCATION_CHAINS.find(isLiveChain);
+    if (liveChain) next[liveChain] = spendable;
     setAllocation(next);
   }
 
@@ -42,7 +70,7 @@ export default function MintAllocator({ spendable }: { spendable: number }) {
   const remaining = spendable - allocatedTotal;
 
   function adjust(chain: AllocationChain, delta: number) {
-    if (!allocation) return;
+    if (!allocation || !isLiveChain(chain)) return;
     const nextVal = allocation[chain] + delta;
     if (nextVal < 0) return;
     if (delta > 0 && remaining <= 0) return;
@@ -55,7 +83,7 @@ export default function MintAllocator({ spendable }: { spendable: number }) {
   // actually earned — the "left to place" indicator above already shows
   // the same ceiling, this just enforces it instead of only displaying it.
   function setExact(chain: AllocationChain, raw: string) {
-    if (!allocation) return;
+    if (!allocation || !isLiveChain(chain)) return;
     const parsed = raw.trim() === "" ? 0 : parseInt(raw, 10);
     if (Number.isNaN(parsed)) return;
     const maxForThis = allocation[chain] + remaining;
@@ -79,31 +107,38 @@ export default function MintAllocator({ spendable }: { spendable: number }) {
               {remaining === 0 ? "All allocated" : `${remaining} left to place`}
             </span>
           </div>
-          {ALLOCATION_CHAINS.map((c) => (
-            <div className="credits-alloc-row" key={c}>
-              <span className="credits-alloc-chain">{CHAIN_LABEL[c]}</span>
-              <div className="credits-alloc-stepper">
-                <button onClick={() => adjust(c, -1)} disabled={allocation[c] <= 0} aria-label={`Fewer on ${CHAIN_LABEL[c]}`}>
-                  −
-                </button>
-                <input
-                  className="credits-alloc-num"
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  max={allocation[c] + remaining}
-                  value={allocation[c]}
-                  onChange={(e) => setExact(c, e.target.value)}
-                  aria-label={`Editions on ${CHAIN_LABEL[c]}`}
-                />
-                <button onClick={() => adjust(c, 1)} disabled={remaining <= 0} aria-label={`More on ${CHAIN_LABEL[c]}`}>
-                  +
-                </button>
+          {ALLOCATION_CHAINS.map((c) => {
+            const live = isLiveChain(c);
+            return (
+              <div className="credits-alloc-row" key={c}>
+                <span className="credits-alloc-chain">
+                  {CHAIN_LABEL[c]}
+                  {!live && <span className="admin-contract-optional-tag">Coming soon</span>}
+                </span>
+                <div className="credits-alloc-stepper">
+                  <button onClick={() => adjust(c, -1)} disabled={!live || allocation[c] <= 0} aria-label={`Fewer on ${CHAIN_LABEL[c]}`}>
+                    −
+                  </button>
+                  <input
+                    className="credits-alloc-num"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={allocation[c] + remaining}
+                    value={allocation[c]}
+                    disabled={!live}
+                    onChange={(e) => setExact(c, e.target.value)}
+                    aria-label={`Editions on ${CHAIN_LABEL[c]}`}
+                  />
+                  <button onClick={() => adjust(c, 1)} disabled={!live || remaining <= 0} aria-label={`More on ${CHAIN_LABEL[c]}`}>
+                    +
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           <div className="credits-alloc-note">
-            Not submitted anywhere yet — this just plans it out. Real burning + minting isn&apos;t live.
+            Robinhood Chain claiming is real — the other chains are coming soon as their own collections deploy.
           </div>
         </div>
       )}

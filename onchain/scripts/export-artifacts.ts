@@ -6,6 +6,7 @@ const OUT_DIR = path.join(__dirname, "../../lib/contracts");
 const TARGETS: Array<[string, string]> = [
   ["contracts/DylCollection.sol/DylCollection.json", "DylCollection.json"],
   ["contracts/AlbumBuyer.sol/AlbumBuyer.json", "AlbumBuyer.json"],
+  ["contracts/BurnClaimRedeemer.sol/BurnClaimRedeemer.json", "BurnClaimRedeemer.json"],
   ["@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol/ERC1967Proxy.json", "ERC1967Proxy.json"],
 ];
 

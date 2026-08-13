@@ -15,6 +15,12 @@ import {
   buildUpgradeAlbumBuyerTx,
   buildSetMintPriceTx,
   buildSetEditionsPerTrackTx,
+  buildSetClaimMinterTx,
+  buildDeployBurnClaimRedeemerImplementationTx,
+  buildDeployBurnClaimRedeemerProxyTx,
+  buildUpgradeBurnClaimRedeemerTx,
+  buildSetClaimSignerTx,
+  buildRedeemerPauseTx,
 } from "@/lib/contractDeploy";
 import { wagmiConfig } from "@/lib/web3";
 import { ALBUMS, type ChainKey } from "@/lib/albums";
@@ -74,6 +80,14 @@ type DeployPhase =
         | "upgrade"
         | "albumBuyerNewImplementation"
         | "albumBuyerUpgrade"
+        | "burnRedeemerImplementation"
+        | "burnRedeemerProxy"
+        | "burnRedeemerGrant"
+        | "burnRedeemerNewImplementation"
+        | "burnRedeemerUpgrade"
+        | "set-claim-signer"
+        | "redeemer-pause"
+        | "redeemer-unpause"
         | "mint"
         | "cancel"
         | "list-site"
@@ -102,6 +116,12 @@ export default function AdminPage() {
   const [targets, setTargets] = useState<ContractTarget[]>(CONTRACT_TARGETS);
   const [phase, setPhase] = useState<Record<string, DeployPhase | undefined>>({});
   const [editionsPerTrackInput, setEditionsPerTrackInput] = useState<Record<string, string>>({});
+  // The dedicated burn-claim signing key's PUBLIC address only — generate
+  // the keypair separately (never in the browser), save the PRIVATE half
+  // to Vercel as BURN_CLAIM_SIGNER_PRIVATE_KEY (server-only), paste the
+  // public address here before deploying. Deliberately never the admin
+  // wallet — see BurnClaimRedeemer.sol's doc comment.
+  const [claimSignerInput, setClaimSignerInput] = useState<Record<string, string>>({});
 
   async function loadChat() {
     try {
@@ -278,6 +298,144 @@ export default function AdminPage() {
           label: `AlbumBuyer upgraded. New implementation ${truncate(newImplementationAddress)}.`,
         },
       }));
+    } catch (err) {
+      setPhase((p) => ({ ...p, [target.key]: { step: "error", label: describeError(err) } }));
+    }
+  }
+
+  // Deploys BurnClaimRedeemer (implementation + proxy) for this chain, then
+  // immediately grants it claimMinters permission on the ALREADY-deployed
+  // collection (target.address must exist first — this is the on-chain
+  // half of burn-and-mint, see CLAUDE.md / the burn-and-mint plan). Bundled
+  // into one flow (unlike AlbumBuyer, which needs no such grant — its
+  // batchMint just calls the normal public payable mint()) since a
+  // redeemer that can't yet call claimMint isn't actually usable.
+  async function handleDeployBurnClaimRedeemer(target: ContractTarget) {
+    if (!address || !target.address) return;
+    const claimSigner = claimSignerInput[target.key]?.trim();
+    if (!claimSigner || !claimSigner.startsWith("0x") || claimSigner.length !== 42) {
+      setPhase((p) => ({
+        ...p,
+        [target.key]: { step: "error", label: "Paste a real claim-signer PUBLIC address (0x…40 hex chars) first — see the note below." },
+      }));
+      return;
+    }
+    try {
+      await ensureChain(target);
+
+      setPhase((p) => ({
+        ...p,
+        [target.key]: { step: "burnRedeemerImplementation", label: "1/3 — Deploying BurnClaimRedeemer implementation…" },
+      }));
+      const implReceipt = await sendAndWait(buildDeployBurnClaimRedeemerImplementationTx(), target.chainId!);
+      const implementationAddress = implReceipt.contractAddress as Address;
+      if (!implementationAddress) throw new Error("No contractAddress in BurnClaimRedeemer implementation deploy receipt");
+
+      setPhase((p) => ({
+        ...p,
+        [target.key]: { step: "burnRedeemerProxy", label: "2/3 — Deploying BurnClaimRedeemer proxy…" },
+      }));
+      const proxyReceipt = await sendAndWait(
+        buildDeployBurnClaimRedeemerProxyTx({
+          implementationAddress,
+          admin: address as Address,
+          claimSigner: claimSigner as Address,
+        }),
+        target.chainId!
+      );
+      const redeemerAddress = proxyReceipt.contractAddress as Address;
+      if (!redeemerAddress) throw new Error("No contractAddress in BurnClaimRedeemer proxy deploy receipt");
+
+      setPhase((p) => ({
+        ...p,
+        [target.key]: { step: "burnRedeemerGrant", label: "3/3 — Granting claimMinters on the collection…" },
+      }));
+      await sendAndWait(buildSetClaimMinterTx(target.address as Address, redeemerAddress, true), target.chainId!);
+
+      setTargetField(target.key, {
+        burnClaimRedeemerAddress: redeemerAddress,
+        burnClaimRedeemerImplementationAddress: implementationAddress,
+        claimSignerAddress: claimSigner,
+      });
+      setPhase((p) => ({
+        ...p,
+        [target.key]: {
+          step: "done",
+          label: `Deployed & granted. Redeemer ${truncate(redeemerAddress)} — commit this into lib/admin.ts CONTRACT_TARGETS.`,
+        },
+      }));
+    } catch (err) {
+      setPhase((p) => ({ ...p, [target.key]: { step: "error", label: describeError(err) } }));
+    }
+  }
+
+  async function handleUpgradeBurnClaimRedeemer(target: ContractTarget) {
+    if (!target.burnClaimRedeemerAddress) return;
+    try {
+      await ensureChain(target);
+      setPhase((p) => ({
+        ...p,
+        [target.key]: { step: "burnRedeemerNewImplementation", label: "1/2 — Deploying new BurnClaimRedeemer implementation…" },
+      }));
+      const implReceipt = await sendAndWait(buildDeployBurnClaimRedeemerImplementationTx(), target.chainId!);
+      const newImplementationAddress = implReceipt.contractAddress as Address;
+      if (!newImplementationAddress) throw new Error("No contractAddress in BurnClaimRedeemer implementation deploy receipt");
+
+      setPhase((p) => ({
+        ...p,
+        [target.key]: { step: "burnRedeemerUpgrade", label: "2/2 — Calling upgradeToAndCall on BurnClaimRedeemer…" },
+      }));
+      await sendAndWait(
+        buildUpgradeBurnClaimRedeemerTx(target.burnClaimRedeemerAddress as Address, newImplementationAddress),
+        target.chainId!
+      );
+
+      setTargetField(target.key, { burnClaimRedeemerImplementationAddress: newImplementationAddress });
+      setPhase((p) => ({
+        ...p,
+        [target.key]: {
+          step: "done",
+          label: `BurnClaimRedeemer upgraded. New implementation ${truncate(newImplementationAddress)}.`,
+        },
+      }));
+    } catch (err) {
+      setPhase((p) => ({ ...p, [target.key]: { step: "error", label: describeError(err) } }));
+    }
+  }
+
+  // Rotates the on-chain claimSigner — use immediately if the dedicated
+  // signing key is ever suspected leaked. Takes effect instantly; every
+  // voucher signed with the OLD key stops verifying the moment this lands.
+  async function handleSetClaimSigner(target: ContractTarget) {
+    if (!target.burnClaimRedeemerAddress) return;
+    const newSigner = claimSignerInput[target.key]?.trim();
+    if (!newSigner || !newSigner.startsWith("0x") || newSigner.length !== 42) {
+      setPhase((p) => ({ ...p, [target.key]: { step: "error", label: "Paste the new claim-signer PUBLIC address first." } }));
+      return;
+    }
+    try {
+      await ensureChain(target);
+      setPhase((p) => ({ ...p, [target.key]: { step: "set-claim-signer", label: "Rotating claimSigner…" } }));
+      await sendAndWait(buildSetClaimSignerTx(target.burnClaimRedeemerAddress as Address, newSigner as Address), target.chainId!);
+      setTargetField(target.key, { claimSignerAddress: newSigner });
+      setPhase((p) => ({ ...p, [target.key]: { step: "done", label: `claimSigner rotated to ${truncate(newSigner)}.` } }));
+    } catch (err) {
+      setPhase((p) => ({ ...p, [target.key]: { step: "error", label: describeError(err) } }));
+    }
+  }
+
+  // Emergency kill switch — pausing blocks every claim() call immediately
+  // without touching the collection or its claimMinters grant at all.
+  async function handleRedeemerPause(target: ContractTarget, pause: boolean) {
+    if (!target.burnClaimRedeemerAddress) return;
+    try {
+      await ensureChain(target);
+      setPhase((p) => ({
+        ...p,
+        [target.key]: { step: pause ? "redeemer-pause" : "redeemer-unpause", label: pause ? "Pausing claims…" : "Unpausing claims…" },
+      }));
+      await sendAndWait(buildRedeemerPauseTx(target.burnClaimRedeemerAddress as Address, pause), target.chainId!);
+      setPhase((p) => ({ ...p, [target.key]: { step: "done", label: pause ? "Claims paused." : "Claims unpaused." } }));
     } catch (err) {
       setPhase((p) => ({ ...p, [target.key]: { step: "error", label: describeError(err) } }));
     }
@@ -1196,6 +1354,11 @@ export default function AdminPage() {
                       {c.albumBuyerAddress && (
                         <div className="admin-contract-addr">AlbumBuyer: {c.albumBuyerAddress}</div>
                       )}
+                      {c.burnClaimRedeemerAddress && (
+                        <div className="admin-contract-addr">
+                          BurnClaimRedeemer: {c.burnClaimRedeemerAddress} (claimSigner: {c.claimSignerAddress})
+                        </div>
+                      )}
                       {p && (
                         <div className={`admin-contract-addr${p.step === "error" ? " warn" : ""}`}>{p.label}</div>
                       )}
@@ -1265,6 +1428,53 @@ export default function AdminPage() {
                           onClick={() => handleSetEditionsPerTrack(c)}
                         >
                           Set Editions/Track
+                        </button>
+                        <input
+                          className="admin-contract-input"
+                          type="text"
+                          placeholder="Claim-signer public address (0x…)"
+                          disabled={busy(c.key) || !c.address}
+                          value={claimSignerInput[c.key] ?? ""}
+                          onChange={(e) => setClaimSignerInput((prev) => ({ ...prev, [c.key]: e.target.value }))}
+                        />
+                        <button
+                          className="admin-contract-btn"
+                          disabled={busy(c.key) || !c.address || !!c.burnClaimRedeemerAddress}
+                          title="Deploys BurnClaimRedeemer (the on-chain half of burn-and-mint) and grants it claimMint permission on this collection in one flow. Generate a DEDICATED keypair first (never the admin wallet) — save its private key to Vercel as BURN_CLAIM_SIGNER_PRIVATE_KEY, paste its public address in the box to the left."
+                          onClick={() => handleDeployBurnClaimRedeemer(c)}
+                        >
+                          Deploy Burn Redeemer
+                        </button>
+                        <button
+                          className="admin-contract-btn"
+                          disabled={busy(c.key) || !c.burnClaimRedeemerAddress}
+                          title="Deploys a new BurnClaimRedeemer implementation and calls upgradeToAndCall on the existing redeemer proxy — same UUPS pattern as the collection's own Upgrade button."
+                          onClick={() => handleUpgradeBurnClaimRedeemer(c)}
+                        >
+                          Upgrade Burn Redeemer
+                        </button>
+                        <button
+                          className="admin-contract-btn"
+                          disabled={busy(c.key) || !c.burnClaimRedeemerAddress || !claimSignerInput[c.key]}
+                          title="Rotates the on-chain claimSigner to the address in the box to the left — use immediately if the dedicated signing key is ever suspected leaked. Every voucher signed with the old key stops verifying instantly."
+                          onClick={() => handleSetClaimSigner(c)}
+                        >
+                          Rotate Claim Signer
+                        </button>
+                        <button
+                          className="admin-contract-btn"
+                          disabled={busy(c.key) || !c.burnClaimRedeemerAddress}
+                          title="Emergency kill switch — immediately blocks every claim() call without touching the collection or its claimMinters grant."
+                          onClick={() => handleRedeemerPause(c, true)}
+                        >
+                          Pause Claims
+                        </button>
+                        <button
+                          className="admin-contract-btn"
+                          disabled={busy(c.key) || !c.burnClaimRedeemerAddress}
+                          onClick={() => handleRedeemerPause(c, false)}
+                        >
+                          Unpause Claims
                         </button>
                       </div>
                     ) : isSolana ? (

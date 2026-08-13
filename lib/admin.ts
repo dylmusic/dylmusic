@@ -43,6 +43,21 @@ export interface ContractTarget {
   albumBuyerAddress?: string | null;
   /** EVM only — tracks the CURRENT implementation behind albumBuyerAddress's proxy, for upgrade bookkeeping. */
   albumBuyerImplementationAddress?: string | null;
+  /** EVM only — the deployed BurnClaimRedeemer wrapper for this chain (see onchain/contracts/BurnClaimRedeemer.sol) — the on-chain half of burn-and-mint. The ERC1967 PROXY address, UUPS-upgradeable like the other two. */
+  burnClaimRedeemerAddress?: string | null;
+  /** EVM only — tracks the CURRENT implementation behind burnClaimRedeemerAddress's proxy. */
+  burnClaimRedeemerImplementationAddress?: string | null;
+  /**
+   * EVM only — the PUBLIC address of the dedicated backend signing key that
+   * authorizes burn-claim vouchers (see lib/burnClaimSigner.ts — the
+   * matching PRIVATE key lives only in the server-only env var
+   * BURN_CLAIM_SIGNER_PRIVATE_KEY, never here). Deliberately never the same
+   * as ADMIN_WALLET — see BurnClaimRedeemer.sol's doc comment on why that
+   * separation matters. Shown here so /admin can visually confirm the
+   * on-chain `claimSigner` matches what the backend is actually signing
+   * with, without ever exposing the private key itself.
+   */
+  claimSignerAddress?: string | null;
   /** wagmi/viem chainId — required to know which network the admin panel should sign a deploy/upgrade tx on. Absent for solana/marketplace. */
   chainId?: number;
   reason: string;
@@ -59,6 +74,9 @@ export const CONTRACT_TARGETS: ContractTarget[] = [
     implementationAddress: null,
     albumBuyerAddress: "0xE345bab9c64371907376eEdb0445b24097a60889",
     albumBuyerImplementationAddress: null,
+    burnClaimRedeemerAddress: null,
+    burnClaimRedeemerImplementationAddress: null,
+    claimSignerAddress: null,
     chainId: 4663,
     reason: "Home chain — the flagship collection, deploy first.",
   },
