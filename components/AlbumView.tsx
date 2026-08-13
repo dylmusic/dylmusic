@@ -249,7 +249,7 @@ export default function AlbumView({
             </div>
             <div>
               <span className="stat-num">{totalEditionsOwned}</span>
-              <span className="stat-label">editions you own</span>
+              <span className="stat-label">songs you own</span>
             </div>
             <div>
               <span className="stat-num">{soldPct}%</span>

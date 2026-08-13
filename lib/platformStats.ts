@@ -77,21 +77,27 @@ interface BlockscoutInstancesPage {
 }
 
 /**
- * Real platform-wide audit: how many distinct wallets currently hold at
- * least one edition of EVERY track in the album — a genuine full-set
- * collector count, not a per-wallet "did I collect it" flag (Dylan: "a
- * platform wide audit of how many wallets hold full album sets").
+ * Real platform-wide audit: how many complete album sets have actually been
+ * collected, total — not distinct-collector headcount. A wallet holding 10
+ * editions of every track holds 10 complete sets, and counts as 10 here, not
+ * 1 — this is what "Full Albums Collected" reads as to a visitor, and
+ * matches how Dylan's own real holdings (10-13 editions of every track,
+ * verified live) should show up: 10, not 1. (Originally built as a distinct-
+ * wallet count per "how many wallets hold full album sets" — corrected once
+ * that undercounted Dylan's own real holdings on the live dashboard: a
+ * wallet with min(held per track) = 10 is 10 complete sets in one wallet,
+ * not "1 collector.")
  *
  * Walks Blockscout's paginated `/tokens/{address}/instances` endpoint
  * (same real, no-API-key, CORS-open source lib/tieredCollectionCheck.ts
  * already proved out) once for the whole collection — every instance
  * comes back with its CURRENT owner inline, so this is one paginated
- * sweep (real total here: ~204 instances, ~5 pages) rather than 200+
- * individual ownerOf() calls. Each instance's tokenId decodes to a
- * trackId via the same encoding scheme every mint/buy already uses
- * (lib/tokenIdScheme.ts) — group owners per track, then intersect every
- * track's owner set. A wallet only survives every intersection if it
- * owns at least one edition of all N tracks.
+ * sweep rather than individual ownerOf() calls. Each instance's tokenId
+ * decodes to a trackId via the same encoding scheme every mint/buy
+ * already uses (lib/tokenIdScheme.ts) — tally how many editions of each
+ * track every wallet holds, then for each wallet take the MINIMUM across
+ * every track (the number of complete sets that wallet can assemble) and
+ * sum that across all wallets.
  *
  * Real zero on any fetch failure, same "don't blank the dashboard over a
  * nice-to-have stat" rule as fetchRealHoldersCount above.
@@ -100,8 +106,8 @@ export async function fetchRealFullSetHolders(album: Album): Promise<number> {
   const address = CONTRACT_TARGETS.find((t) => t.key === "robinhood")?.address;
   if (!address || album.tracks.length === 0) return 0;
 
-  const ownersByTrack = new Map<number, Set<string>>();
-  for (const t of album.tracks) ownersByTrack.set(t.index, new Set());
+  const heldPerTrack = new Map<number, Map<string, number>>();
+  for (const t of album.tracks) heldPerTrack.set(t.index, new Map());
 
   try {
     let params: Record<string, string | number> | null = {};
@@ -119,7 +125,9 @@ export async function fetchRealFullSetHolders(album: Album): Promise<number> {
         const owner = item.owner?.hash?.toLowerCase();
         if (!owner) continue;
         const { trackId } = decodeTokenId(Number(item.id));
-        ownersByTrack.get(trackId)?.add(owner);
+        const perWallet = heldPerTrack.get(trackId);
+        if (!perWallet) continue;
+        perWallet.set(owner, (perWallet.get(owner) ?? 0) + 1);
       }
       if (!page.next_page_params) break;
       params = page.next_page_params;
@@ -128,14 +136,18 @@ export async function fetchRealFullSetHolders(album: Album): Promise<number> {
     return 0;
   }
 
-  const trackSets = Array.from(ownersByTrack.values());
-  if (trackSets.some((s) => s.size === 0)) return 0; // at least one track has zero holders — no set can be complete
-  let intersection = trackSets[0];
-  for (let i = 1; i < trackSets.length && intersection.size > 0; i++) {
-    const next = trackSets[i];
-    intersection = new Set(Array.from(intersection).filter((w) => next.has(w)));
+  const perTrackMaps = Array.from(heldPerTrack.values());
+  if (perTrackMaps.some((m) => m.size === 0)) return 0; // at least one track has zero holders — no set can be complete
+
+  const allWallets = new Set<string>();
+  for (const m of perTrackMaps) for (const w of m.keys()) allWallets.add(w);
+
+  let totalCompleteSets = 0;
+  for (const wallet of allWallets) {
+    const min = Math.min(...perTrackMaps.map((m) => m.get(wallet) ?? 0));
+    totalCompleteSets += min;
   }
-  return intersection.size;
+  return totalCompleteSets;
 }
 
 // Rough, display-only conversion rates — not a live price feed. Good enough

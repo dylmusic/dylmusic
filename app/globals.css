@@ -2278,7 +2278,11 @@ input {
 
 .dash-quick-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  /* Fixed 3 columns, not auto-fit — auto-fit's column count depends on
+     viewport width, which is exactly what left the 6th tile (NFTs Burned)
+     stranded alone on its own row at some widths. 6 tiles / 3 columns is a
+     clean 2 rows regardless of screen size. */
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
   margin-bottom: 36px;
 }
@@ -3204,6 +3208,10 @@ input {
   }
 
   .dash-stat-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dash-quick-row {
     grid-template-columns: repeat(2, 1fr);
   }
 

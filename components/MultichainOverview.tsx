@@ -23,7 +23,14 @@ export default function MultichainOverview({ album }: { album: Album }) {
   const [overview, setOverview] = useState<PlatformOverview>(
     () => readCachedJson<PlatformOverview>("platformOverview") ?? EMPTY_OVERVIEW
   );
-  const [sales, setSales] = useState<RealSalesStats>(EMPTY_SALES_STATS);
+  // Seeded from cache too — this is exactly what was causing the ETH
+  // volume tile to visibly "tick up" on every dashboard refresh: sales
+  // used to always start at EMPTY_SALES_STATS (totalVolumeUsd 0), so
+  // `totalVolumeUsd = historicalVolumeUsd() + sales.totalVolumeUsd`
+  // rendered the base historical figure first, then jumped once this
+  // real fetch resolved — not a double-count, just the same "0 before
+  // real data loads" flash already fixed elsewhere on this page.
+  const [sales, setSales] = useState<RealSalesStats>(() => readCachedJson<RealSalesStats>("salesStats") ?? EMPTY_SALES_STATS);
   // Seeded from the last real read this browser saw (see lib/localCache.ts)
   // so these tiles show a real last-known number instead of "0" on every
   // dashboard load while the real Blockscout reads below are still running.
@@ -53,6 +60,7 @@ export default function MultichainOverview({ album }: { album: Album }) {
     });
     fetchRealSalesStats().then((s) => {
       if (!cancelled) setSales(s);
+      writeCachedJson("salesStats", s);
     });
     fetchRealHoldersCount().then((h) => {
       if (!cancelled) setHolders(h);

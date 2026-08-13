@@ -204,6 +204,15 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
       setRealOwnedEditions({});
       return;
     }
+    // Same stale-while-revalidate seed as realMinted above — this drives
+    // the album page's "songs you own" count, which was flashing 0 (then
+    // popping to the real number) on every load while this real on-chain
+    // read ran. Per-wallet, not just per-chain, since this data is wallet-
+    // specific — never seed one wallet's cached ownership as another's.
+    const ownedCacheKey = `owned:${chain}:${walletAddress.toLowerCase()}`;
+    const cachedOwned = readCachedJson<Record<string, number[]>>(ownedCacheKey);
+    if (cachedOwned) setRealOwnedEditions(cachedOwned);
+
     let cancelled = false;
     (async () => {
       if (chain === "solana") {
@@ -215,7 +224,10 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
           const track = tracks.find((t) => t.index === r.trackId);
           if (track) byTrack[track.id].push(r.editionNumber);
         }
-        if (!cancelled) setRealOwnedEditions(byTrack);
+        if (!cancelled) {
+          setRealOwnedEditions(byTrack);
+          writeCachedJson(ownedCacheKey, byTrack);
+        }
         return;
       }
       const tokenIds = await fetchRealOwnedTokenIds(chain, walletAddress);
@@ -227,7 +239,10 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
         const track = tracks.find((t) => t.index === trackId);
         if (track) byTrack[track.id].push(editionNumber);
       }
-      if (!cancelled) setRealOwnedEditions(byTrack);
+      if (!cancelled) {
+        setRealOwnedEditions(byTrack);
+        writeCachedJson(ownedCacheKey, byTrack);
+      }
     })();
     return () => {
       cancelled = true;
