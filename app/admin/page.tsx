@@ -118,11 +118,6 @@ export default function AdminPage() {
   const [targets, setTargets] = useState<ContractTarget[]>(CONTRACT_TARGETS);
   const [phase, setPhase] = useState<Record<string, DeployPhase | undefined>>({});
   const [editionsPerTrackInput, setEditionsPerTrackInput] = useState<Record<string, string>>({});
-  // Destination address for pulling accumulated mint ETH out of the
-  // collection contract's own balance — withdraw() has always existed
-  // on-chain (DylCollection.sol, owner-only) but never had an admin-panel
-  // button wired to it (Dylan: "you never gave me the withdrawal button").
-  const [withdrawToInput, setWithdrawToInput] = useState<Record<string, string>>({});
   const [contractEthBalance, setContractEthBalance] = useState<Record<string, bigint>>({});
   // The dedicated burn-claim signing key's PUBLIC address only — generate
   // the keypair separately (never in the browser), save the PRIVATE half
@@ -914,15 +909,11 @@ export default function AdminPage() {
 
   // Pulls the collection contract's ENTIRE current ETH balance out in one
   // call (withdraw() has no partial-amount param — see DylCollection.sol).
-  // Defaults the destination to the connected admin wallet itself if the
-  // input's left blank, rather than forcing a paste for the common case.
+  // Always sends to ADMIN_WALLET — Dylan: "i dont wanna input it each
+  // time just put a withdrawal button." No destination input anymore.
   async function handleWithdraw(target: ContractTarget) {
-    if (!target.address || !target.chainId || !address) return;
-    const to = (withdrawToInput[target.key]?.trim() || address) as Address;
-    if (!to.startsWith("0x") || to.length !== 42) {
-      setPhase((p) => ({ ...p, [target.key]: { step: "error", label: "That doesn't look like a valid 0x… address." } }));
-      return;
-    }
+    if (!target.address || !target.chainId) return;
+    const to = ADMIN_WALLET as Address;
     setPhase((p) => ({ ...p, [target.key]: { step: "withdraw", label: `Withdrawing to ${truncate(to)}…` } }));
     try {
       await ensureChain(target);
@@ -1495,18 +1486,10 @@ export default function AdminPage() {
                             ? `${(Number(contractEthBalance[c.key]) / 1e18).toFixed(4)} ${getNativeTokenForChain(c.key as ChainKey).symbol} to withdraw`
                             : "…"}
                         </span>
-                        <input
-                          className="admin-contract-input"
-                          type="text"
-                          placeholder={`Withdraw to (blank = ${address ? truncate(address) : "your wallet"})`}
-                          disabled={busy(c.key) || !c.address}
-                          value={withdrawToInput[c.key] ?? ""}
-                          onChange={(e) => setWithdrawToInput((prev) => ({ ...prev, [c.key]: e.target.value }))}
-                        />
                         <button
                           className="admin-contract-btn"
                           disabled={busy(c.key) || !c.address}
-                          title="Pulls the collection contract's ENTIRE current ETH balance out to the address above (or your own connected wallet if left blank) — owner-only, no partial-amount option on-chain."
+                          title={`Pulls the collection contract's ENTIRE current ETH balance out to ${truncate(ADMIN_WALLET)} — owner-only, no partial-amount option on-chain.`}
                           onClick={() => handleWithdraw(c)}
                         >
                           Withdraw ETH
