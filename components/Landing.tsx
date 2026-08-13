@@ -130,7 +130,7 @@ export default function Landing({
 
             <div className="landing-cta-row">
               <button className="btn-connect" onClick={onConnect}>
-                Enter App
+                Mint NFTs
               </button>
               <button className="btn-play-shuffle" onClick={handleShufflePlay}>
                 <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
