@@ -440,19 +440,38 @@ export default function AdminPage() {
           ...p,
           [target.key]: { step: "list-opensea", label: `Posting ${editions.length} listings to OpenSea (1% fee, 6-month expiry)…` },
         }));
-        const sdk = getOpenSeaSdk(signer, chainKey);
-        const result = await createOpenSeaListings(
-          sdk,
-          editions.map((e) => ({
-            collectionAddress: target.address as string,
-            tokenId: e.tokenId,
-            priceWei: e.priceWei,
-            sellerAddress: address,
-          }))
-        );
-        openSeaFailures = result.failed.length;
-        if (openSeaFailures > 0) {
-          console.error(`OpenSea listing failures for ${target.chainName}:`, result.failed);
+        // Wrapped separately from the mint + site-listing steps above,
+        // which are already durable at this point: @opensea/sdk's own
+        // createBulkListings builds every listing's pricing/currency
+        // metadata in a single plain loop with NO per-item try/catch —
+        // `continueOnError` only covers the later order-submission step,
+        // so one bad currency lookup (seen live: a brand-new collection's
+        // `pricingCurrencies.listingCurrency` reporting 6 decimals instead
+        // of the correct 18 for native ETH, throwing "Too many decimal
+        // places: 18 > 6" via their own parseUnits) aborts the ENTIRE call
+        // with zero partial results. Without this try/catch, that SDK-level
+        // throw would propagate to the outer catch below and report the
+        // whole run as failed — hiding the fact that minting and our own
+        // 0%-fee site listings already genuinely succeeded. OpenSea listing
+        // is a bonus on top of the site listing, not a mint blocker.
+        try {
+          const sdk = getOpenSeaSdk(signer, chainKey);
+          const result = await createOpenSeaListings(
+            sdk,
+            editions.map((e) => ({
+              collectionAddress: target.address as string,
+              tokenId: e.tokenId,
+              priceWei: e.priceWei,
+              sellerAddress: address,
+            }))
+          );
+          openSeaFailures = result.failed.length;
+          if (openSeaFailures > 0) {
+            console.error(`OpenSea listing failures for ${target.chainName}:`, result.failed);
+          }
+        } catch (openSeaErr) {
+          openSeaFailures = editions.length;
+          console.error(`OpenSea listing call itself failed for ${target.chainName} (mint + site listings still succeeded):`, openSeaErr);
         }
       }
 
