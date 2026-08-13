@@ -211,6 +211,31 @@ export default function MiniPlayer({
             </span>
           </div>
         </div>
+
+        {/* Mobile-only compact buy button — the full Buy/Sell row below
+            (.mini-player-actions) is hidden on mobile entirely (too tall,
+            covers the page underneath), so mobile otherwise had no way to
+            buy from here at all. Buy-only on purpose (Dylan: "no need for
+            sell") — selling is already reachable from the Start menu's own
+            track list. Hidden on desktop via CSS since the full row already
+            covers this there. */}
+        {!floor ? (
+          <button className="mini-player-buy-compact" disabled>
+            Sold Out
+          </button>
+        ) : !walletAddress ? (
+          <button className="mini-player-buy-compact" onClick={onRequestConnect}>
+            Connect
+          </button>
+        ) : (
+          <button
+            className="mini-player-buy-compact"
+            onClick={() => commerce.requestBuyFloor(track, onRequestConnect)}
+            disabled={busy}
+          >
+            {busy ? "…" : `Buy $${floor.priceUsd.toFixed(2)}`}
+          </button>
+        )}
       </div>
 
       <div

@@ -2886,6 +2886,13 @@ input {
   justify-content: center;
 }
 
+/* Mobile-only compact buy button, shown in the collapsed top row (see the
+   640px breakpoint below) — hidden here since desktop already has the
+   full Buy/Sell row above. */
+.mini-player-buy-compact {
+  display: none;
+}
+
 .mini-player-seek {
   cursor: pointer;
   padding: 2px 0;
@@ -2970,8 +2977,9 @@ input {
   /* The full desktop MiniPlayer (seek bar + buy/sell) is too tall on a
      phone and ends up covering a big chunk of whatever page is behind it
      — collapse to a slim single-row bar (art/eq + title + transport +
-     close). Buy/Sell are still reachable from the Start menu's own track
-     list, which already has the same square Buy/Sell buttons. */
+     close + a compact buy-only button). Sell is still reachable from the
+     Start menu's own track list, which already has the same square Sell
+     button. */
   .mini-player {
     width: calc(100vw - 24px);
     right: 12px;
@@ -2985,7 +2993,31 @@ input {
   }
 
   .mini-player-title {
-    max-width: 140px;
+    max-width: 100px;
+  }
+
+  .mini-player-buy-compact {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-left: auto;
+    font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 9px;
+    border-radius: 0;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-top: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    border-left: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    border-right: 2px solid rgba(0, 0, 0, 0.4);
+    border-bottom: 2px solid rgba(0, 0, 0, 0.4);
+    color: var(--accent);
+    white-space: nowrap;
+  }
+
+  .mini-player-buy-compact:disabled {
+    opacity: 0.5;
   }
 
   .music-grid-wrap {
@@ -3088,7 +3120,7 @@ input {
   }
 
   .mini-player-title {
-    max-width: 140px;
+    max-width: 100px;
   }
 
   .sales-row {
