@@ -14,13 +14,18 @@ export async function GET(_req: NextRequest, { params }: { params: { chain: stri
     return NextResponse.json({ error: "unknown chain" }, { status: 404 });
   }
 
-  return NextResponse.json({
-    name: "Dyl",
-    description:
-      "Dyl — Music NFTs. Onchain Music. Crypto Rich. Numbered, real editions of every track, on-chain, forever.",
-    image: `${SITE_URL}/brand/dyl-pfp-avatar.png`,
-    external_link: SITE_URL,
-    seller_fee_basis_points: 690,
-    fee_recipient: ADMIN_WALLET,
-  });
+  // Same reasoning as the per-tokenId route — static content, re-crawled
+  // constantly by marketplaces, previously never cached at the edge at all.
+  return NextResponse.json(
+    {
+      name: "Dyl",
+      description:
+        "Dyl — Music NFTs. Onchain Music. Crypto Rich. Numbered, real editions of every track, on-chain, forever.",
+      image: `${SITE_URL}/brand/dyl-pfp-avatar.png`,
+      external_link: SITE_URL,
+      seller_fee_basis_points: 690,
+      fee_recipient: ADMIN_WALLET,
+    },
+    { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" } }
+  );
 }
