@@ -67,9 +67,17 @@ export default function AlbumView({
   const sweepTracks = album.tracks.filter((t) => (minted[t.id] ?? 0) < t.editionCap);
   const sweepTotal = sweepTracks.reduce((sum, t) => sum + t.priceUsd, 0);
 
-  const totalMinted = album.tracks.reduce((sum, t) => sum + minted[t.id], 0);
+  // Same undefined-until-loaded gap as sweepTracks above — real incident:
+  // `minted[t.id]` being undefined mid-load turned this whole sum (and the
+  // "% sold" stat derived from it) into NaN, showing "NaN%" on screen
+  // instead of a real number for however long the fetch took. Defaulting
+  // to 0 here means the stat starts at a real, honest "0% sold" and
+  // corrects itself the moment real data arrives — never a fake loading
+  // state, per the same "nothing should sit there looking broken while it
+  // loads" rule already applied to the buy buttons.
+  const totalMinted = album.tracks.reduce((sum, t) => sum + (minted[t.id] ?? 0), 0);
   const totalCap = album.tracks.reduce((sum, t) => sum + t.editionCap, 0);
-  const soldPct = Math.round((totalMinted / totalCap) * 100);
+  const soldPct = totalCap === 0 ? 0 : Math.round((totalMinted / totalCap) * 100);
 
   // Buying the whole album now goes through the same Pay-With confirm
   // modal a single track uses (Dylan: "it still needs the buy button
@@ -268,7 +276,7 @@ export default function AlbumView({
           <TrackRow
             key={t.id}
             track={t}
-            minted={minted[t.id]}
+            minted={minted[t.id] ?? 0}
             ownedEditions={ownedEditions[t.id] ?? []}
             listings={listings[t.id] ?? {}}
             book={books[t.id] ?? []}
