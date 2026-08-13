@@ -113,6 +113,19 @@ export default function AlbumView({
           buyerAddress: walletAddress as Address,
           walletClient: freshClient,
         });
+        // Real reporting for the dashboard's global "Recent Transactions"/
+        // sales stats — was missing entirely for the real album-buy path
+        // (only the simulated branch below ever recorded anything, and
+        // only into the buyer's own localStorage). One entry per track,
+        // same granularity the simulated branch already uses. Best-effort,
+        // fire-and-forget — the real mints already succeeded regardless.
+        for (const t of sweepTracks) {
+          fetch("/api/activity", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type: "buy", chain, wallet: walletAddress, trackTitle: t.title, editionNumber: null, priceUsd: t.priceUsd }),
+          }).catch(() => {});
+        }
       } else {
         const isNative =
           payToken.chainId === commerce.defaultPayToken.chainId &&

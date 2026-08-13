@@ -1,8 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Album } from "@/lib/albums";
-import { platformOverview } from "@/lib/platformStats";
+import { fetchRealPlatformOverview, type PlatformOverview } from "@/lib/platformStats";
+
+const EMPTY_OVERVIEW: PlatformOverview = { perChain: [], totalMinted: 0, totalCap: 0, totalPct: 0 };
 
 export default function ConsolePanel({
   albums,
@@ -20,7 +22,18 @@ export default function ConsolePanel({
 
   const liveAlbum = albums[0];
   const liveCount = albums.filter((a) => !a.comingSoon).length;
-  const overview = platformOverview(liveAlbum);
+  const [overview, setOverview] = useState<PlatformOverview>(EMPTY_OVERVIEW);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRealPlatformOverview(liveAlbum).then((o) => {
+      if (!cancelled) setOverview(o);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveAlbum.slug]);
 
   function handleMove(e: React.PointerEvent<HTMLDivElement>) {
     const el = stageRef.current;

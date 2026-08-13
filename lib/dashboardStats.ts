@@ -2,7 +2,7 @@
 
 import { Album } from "./albums";
 import { getStreamCount } from "./streams";
-import { readRecentActivity } from "./activity";
+import type { RealActivityEntry } from "./activityStore";
 
 const DAYS = 14;
 
@@ -64,43 +64,69 @@ export interface SalesDayPoint {
   sells: number;
 }
 
-export function salesSeries(): {
+export interface RealSalesStats {
   series: SalesDayPoint[];
   avgBuyPrice: number;
   avgSellPrice: number;
   buysToday: number;
   sellsToday: number;
-} {
-  const activity = readRecentActivity(60);
+  totalVolumeUsd: number;
+  recent: RealActivityEntry[];
+}
 
-  const series: SalesDayPoint[] = [];
+export const EMPTY_SALES_STATS: RealSalesStats = {
+  series: Array.from({ length: DAYS }, (_, i) => ({ label: dayLabel(DAYS - 1 - i), buys: 0, sells: 0 })),
+  avgBuyPrice: 0,
+  avgSellPrice: 0,
+  buysToday: 0,
+  sellsToday: 0,
+  totalVolumeUsd: 0,
+  recent: [],
+};
+
+/**
+ * Real sales stats — replaces the old salesSeries()'s seeded-random 14-day
+ * trend (a fake shape "so it never looks dead," with only THIS browser's
+ * own local activity folded into "today"). Sourced entirely from
+ * /api/activity, the real cross-visitor buy/sell log (see
+ * lib/activityStore.ts). Days before real launch, or with no real
+ * activity, correctly show 0 — that's the honest truth for a platform that
+ * just went live, not a limitation to work around with a fake shape.
+ */
+export async function fetchRealSalesStats(): Promise<RealSalesStats> {
+  const res = await fetch("/api/activity?limit=500").catch(() => null);
+  const data = await res?.json().catch(() => null);
+  const activity: RealActivityEntry[] = data?.activity ?? [];
+  if (activity.length === 0) return EMPTY_SALES_STATS;
+
+  const now = new Date();
+  const todayKey = now.toDateString();
+  const dayKeys: string[] = [];
   for (let i = DAYS - 1; i >= 0; i--) {
-    const seedBuys = 3 + Math.floor(seededRand(i * 3.7 + 11) * 14);
-    const seedSells = 1 + Math.floor(seededRand(i * 5.2 + 23) * 6);
-    series.push({ label: dayLabel(i), buys: seedBuys, sells: seedSells });
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    dayKeys.push(d.toDateString());
   }
+  const series: SalesDayPoint[] = dayKeys.map((key, i) => {
+    const dayActivity = activity.filter((a) => new Date(a.ts).toDateString() === key);
+    return {
+      label: dayLabel(DAYS - 1 - i),
+      buys: dayActivity.filter((a) => a.type === "buy").length,
+      sells: dayActivity.filter((a) => a.type === "sell").length,
+    };
+  });
 
-  // fold in real local activity from this session into "today"
-  const today = series[series.length - 1];
-  const realBuys = activity.filter((a) => a.type === "buy").length;
-  const realSells = activity.filter((a) => a.type === "sell").length;
-  today.buys += realBuys;
-  today.sells += realSells;
-
+  const todayActivity = activity.filter((a) => new Date(a.ts).toDateString() === todayKey);
   const buyPrices = activity.filter((a) => a.type === "buy").map((a) => a.priceUsd);
   const sellPrices = activity.filter((a) => a.type === "sell").map((a) => a.priceUsd);
-  const avgBuyPrice = buyPrices.length
-    ? buyPrices.reduce((s, p) => s + p, 0) / buyPrices.length
-    : 0.99;
-  const avgSellPrice = sellPrices.length
-    ? sellPrices.reduce((s, p) => s + p, 0) / sellPrices.length
-    : 1.49;
 
   return {
     series,
-    avgBuyPrice,
-    avgSellPrice,
-    buysToday: today.buys,
-    sellsToday: today.sells,
+    avgBuyPrice: buyPrices.length ? buyPrices.reduce((s, p) => s + p, 0) / buyPrices.length : 0,
+    avgSellPrice: sellPrices.length ? sellPrices.reduce((s, p) => s + p, 0) / sellPrices.length : 0,
+    buysToday: todayActivity.filter((a) => a.type === "buy").length,
+    sellsToday: todayActivity.filter((a) => a.type === "sell").length,
+    totalVolumeUsd: buyPrices.reduce((s, p) => s + p, 0),
+    recent: activity.slice(0, 12),
   };
 }

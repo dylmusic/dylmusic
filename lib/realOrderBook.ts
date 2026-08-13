@@ -276,3 +276,41 @@ export function buildRealOrderBook(track: Track, allListings: RealListing[], min
   }
   return entries.sort((a, b) => a.priceUsd - b.priceUsd);
 }
+
+/**
+ * Real aggregate mint count + cap across every track on one chain — powers
+ * the dashboard's/console panel's platform-wide "editions minted" stat.
+ * lib/platformStats.ts previously computed this purely from simulated
+ * baseline+localStorage data for every chain including Robinhood, no real
+ * data at all (caught live showing "817 NFTs minted" against a real count
+ * of 190). Real zero for a chain with no deployed contract — solana is
+ * guarded explicitly rather than relying on `target()` happening to return
+ * null for it today, since a future Solana deploy's `address` won't be an
+ * EVM contract this function's readContract calls could use anyway.
+ */
+export async function fetchRealChainMinted(chainKey: ChainKey, tracks: Track[]): Promise<{ minted: number; cap: number }> {
+  if (chainKey === "solana") return { minted: 0, cap: 0 };
+  const t = target(chainKey);
+  if (!t || tracks.length === 0) return { minted: 0, cap: 0 };
+  const client = publicClientFor(t.chainId);
+  const editionsPerTrack = Number(
+    (await client.readContract({
+      address: t.address as Address,
+      abi: DylCollectionAbi,
+      functionName: "editionsPerTrack",
+    })) as bigint
+  );
+  const nextIndexes = await Promise.all(
+    tracks.map(
+      (track) =>
+        client.readContract({
+          address: t.address as Address,
+          abi: DylCollectionAbi,
+          functionName: "nextEditionIndex",
+          args: [BigInt(track.index)],
+        }) as Promise<bigint>
+    )
+  );
+  const minted = nextIndexes.reduce((sum, n) => sum + Number(n), 0);
+  return { minted, cap: editionsPerTrack * tracks.length };
+}

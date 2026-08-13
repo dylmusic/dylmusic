@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CHAINS } from "@/lib/albums";
-import { ActivityEntry, readRecentActivity } from "@/lib/activity";
+import type { RealActivityEntry } from "@/lib/activityStore";
 import { getNickname } from "@/lib/nicknames";
 import { resolveEnsName } from "@/lib/ens";
 
@@ -19,13 +19,8 @@ function timeAgo(ts: number) {
   return `${h}h ago`;
 }
 
-export default function RecentSales({ refreshKey }: { refreshKey: number }) {
-  const [entries, setEntries] = useState<ActivityEntry[]>([]);
+export default function RecentSales({ entries }: { entries: RealActivityEntry[] }) {
   const [names, setNames] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    setEntries(readRecentActivity(12));
-  }, [refreshKey]);
 
   useEffect(() => {
     let cancelled = false;

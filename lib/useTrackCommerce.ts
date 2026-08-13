@@ -359,6 +359,28 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     setPendingBuy(null);
   }
 
+  // Real buy/sell reporting — best-effort, fire-and-forget, same trust
+  // model as every other client-reported telemetry in this app. Was
+  // missing entirely for real buys (only the simulated fallback recorded
+  // anything, and only into the buyer's own localStorage) and only
+  // per-browser for real sells (setEditionPriceReal/SolanaReal already
+  // called the local recordActivity, but nothing server-side) — so
+  // "Recent Transactions"/dashboard sales stats could never show a real
+  // buy, and a real sell only ever showed up in the seller's own browser.
+  function reportRealActivity(entry: {
+    type: "buy" | "sell";
+    wallet: string;
+    trackTitle: string;
+    editionNumber: number | null;
+    priceUsd: number;
+  }) {
+    fetch("/api/activity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...entry, chain }),
+    }).catch(() => {});
+  }
+
   async function confirmPendingBuy(payToken: DylToken) {
     if (!pendingBuy || !walletAddress) return;
     const { track: t, entry, quantity } = pendingBuy;
@@ -418,6 +440,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
               ],
             }),
           }).catch(() => {});
+          reportRealActivity({ type: "buy", wallet: sol.address, trackTitle: t.title, editionNumber: result.editionNumber, priceUsd: entry.priceUsd });
         } else {
           const listing = entry.raw as RealSolanaListing;
           await fulfillSolanaResalePurchase({
@@ -426,6 +449,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
             buyerAddress: sol.address,
             listing: { buyer: sol.address, seller: listing.sellerAddress, tokenMint: listing.mint, priceSol: listing.priceSol, sellerExpiry: listing.expiry },
           });
+          reportRealActivity({ type: "buy", wallet: sol.address, trackTitle: t.title, editionNumber: entry.editionNumber ?? null, priceUsd: entry.priceUsd });
         }
       } else if (deployed) {
         const chainId = chainIdForKey(chain);
@@ -454,6 +478,18 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
             buyerAddress: walletAddress as Address,
             walletClient: freshClient,
           });
+          // A multi-edition mint doesn't cleanly map to one edition number
+          // (they're sequential on-chain but not worth decoding from the
+          // receipt just for a display log) — null editionNumber, real
+          // total price, same "one entry per real action" granularity as
+          // every other real report here.
+          reportRealActivity({
+            type: "buy",
+            wallet: walletAddress,
+            trackTitle: t.title,
+            editionNumber: quantity === 1 ? t.editionCap - (entry.remaining ?? 0) + 1 : null,
+            priceUsd: entry.priceUsd * quantity,
+          });
         } else if (entry.source === "opensea" && entry.raw) {
           await fulfillOpenSeaPurchase({
             chain,
@@ -461,6 +497,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
             buyerAddress: walletAddress as Address,
             walletClient: freshClient,
           });
+          reportRealActivity({ type: "buy", wallet: walletAddress, trackTitle: t.title, editionNumber: entry.editionNumber ?? null, priceUsd: entry.priceUsd });
         } else {
           await fulfillResalePurchase({
             chain,
@@ -476,6 +513,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
               body: JSON.stringify({ chainId: entry.chainId, tokenId: entry.tokenId }),
             }).catch(() => {}); // best-effort cache cleanup — the real sale already happened on-chain regardless
           }
+          reportRealActivity({ type: "buy", wallet: walletAddress, trackTitle: t.title, editionNumber: entry.editionNumber ?? null, priceUsd: entry.priceUsd });
         }
       } else {
         if (!isNativePayTokenLegacy(payToken, getNativeTokenForChain(chain))) {
@@ -563,7 +601,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
         }
       }
 
-      recordActivity({ type: "sell", chain, wallet: walletAddress, trackTitle: t.title, editionNumber, priceUsd: price });
+      reportRealActivity({ type: "sell", wallet: walletAddress, trackTitle: t.title, editionNumber, priceUsd: price });
       refresh();
     } catch (err) {
       setSellError(err instanceof Error ? err.message : "Listing failed — see console.");
@@ -615,7 +653,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ wallet: sol.address, mints: [{ ...record, listedPriceSol: priceSol }] }),
       }).catch(() => {});
-      recordActivity({ type: "sell", chain, wallet: sol.address, trackTitle: t.title, editionNumber, priceUsd: price });
+      reportRealActivity({ type: "sell", wallet: sol.address, trackTitle: t.title, editionNumber, priceUsd: price });
       refresh();
     } catch (err) {
       setSellError(err instanceof Error ? err.message : "Listing failed — see console.");

@@ -2,15 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { Album } from "@/lib/albums";
-import { platformOverview, usdToEth, historicalVolumeUsd } from "@/lib/platformStats";
-import { streamsSeries, salesSeries } from "@/lib/dashboardStats";
+import { fetchRealPlatformOverview, usdToEth, historicalVolumeUsd, type PlatformOverview } from "@/lib/platformStats";
+import { streamsSeries, fetchRealSalesStats, EMPTY_SALES_STATS, type RealSalesStats } from "@/lib/dashboardStats";
 import { formatStreams, useStreamCountsLoaded } from "@/lib/streams";
 import StreamsChart from "./StreamsChart";
 import SalesChart from "./SalesChart";
 import RecentSales from "./RecentSales";
 
+const EMPTY_OVERVIEW: PlatformOverview = { perChain: [], totalMinted: 0, totalCap: 0, totalPct: 0 };
+
 export default function MultichainOverview({ album }: { album: Album }) {
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [overview, setOverview] = useState<PlatformOverview>(EMPTY_OVERVIEW);
+  const [sales, setSales] = useState<RealSalesStats>(EMPTY_SALES_STATS);
   const [volumeView, setVolumeView] = useState<"total" | "v2">("total");
   const [burnedView, setBurnedView] = useState<"nfts" | "coin">("nfts");
   // Tooltip visibility is click-driven (not just CSS :hover/:focus) because
@@ -23,21 +26,34 @@ export default function MultichainOverview({ album }: { album: Album }) {
   // show the tip instead of doing nothing.
   const [showVolTip, setShowVolTip] = useState(false);
 
+  // Real platform stats (mint counts + sales/activity), fetched once on
+  // mount — replaces the old synchronous platformOverview()/salesSeries()
+  // calls, both entirely simulated before this. See lib/platformStats.ts
+  // and lib/dashboardStats.ts for what "real" means for each.
   useEffect(() => {
-    setRefreshKey((k) => k + 1);
-  }, []);
+    let cancelled = false;
+    fetchRealPlatformOverview(album).then((o) => {
+      if (!cancelled) setOverview(o);
+    });
+    fetchRealSalesStats().then((s) => {
+      if (!cancelled) setSales(s);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [album.slug]);
 
   useStreamCountsLoaded();
-  const overview = platformOverview(album);
   const streams = streamsSeries(album);
-  const sales = salesSeries();
 
   // "Total Volume" folds in real historical volume from Dyl's pre-v2
   // collections (see lib/platformStats.ts historicalVolumeUsd — exact
-  // figures Dylan supplied) on top of this v2 platform's own volume;
-  // "V2 Volume" is this platform alone, same number the tile always
-  // showed before this toggle existed.
-  const v2VolumeUsd = overview.totalVolumeUsd;
+  // figures Dylan supplied) on top of this v2 platform's own REAL volume
+  // (sum of actually-reported real buy transactions, not a mint-count
+  // multiply); "V2 Volume" is this platform alone, same number the tile
+  // always showed before this toggle existed.
+  const v2VolumeUsd = sales.totalVolumeUsd;
   const totalVolumeUsd = historicalVolumeUsd() + v2VolumeUsd;
   const volumeUsd = volumeView === "total" ? totalVolumeUsd : v2VolumeUsd;
   const volumeEth = usdToEth(volumeUsd);
@@ -209,7 +225,7 @@ export default function MultichainOverview({ album }: { album: Album }) {
         <div className="dash-section-head">
           <span className="dash-section-tag">Recent Transactions</span>
         </div>
-        <RecentSales refreshKey={refreshKey} />
+        <RecentSales entries={sales.recent} />
       </section>
 
       {/* ---------- Streaming ---------- */}
