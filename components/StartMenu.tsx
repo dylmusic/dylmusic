@@ -6,6 +6,7 @@ import { useTrackCommerce } from "@/lib/useTrackCommerce";
 import ListingsModal from "./ListingsModal";
 import OrderBookModal from "./OrderBookModal";
 import BuyConfirmModal from "./BuyConfirmModal";
+import MintSuccessModal from "./MintSuccessModal";
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -209,6 +210,10 @@ export default function StartMenu({
           onConfirm={commerce.confirmPendingBuy}
           onCancel={commerce.cancelPendingBuy}
         />
+      )}
+
+      {commerce.mintSuccess && (
+        <MintSuccessModal info={commerce.mintSuccess} onClose={() => commerce.setMintSuccess(null)} />
       )}
     </div>
   );

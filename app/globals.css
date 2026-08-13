@@ -6082,3 +6082,101 @@ body > div:has(> .landing-page) {
   line-height: 1.5;
   color: #45514a;
 }
+
+/* ---------- Mint success celebration ---------- */
+
+.mint-success-confetti {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+}
+
+.mint-success-backdrop {
+  z-index: 80;
+  cursor: default;
+}
+
+@keyframes mint-success-pop {
+  0% {
+    transform: scale(0.82) translateY(10px);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.04) translateY(-2px);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+  }
+}
+
+.mint-success-window {
+  width: 100%;
+  max-width: 360px;
+  margin: 0;
+  animation: mint-success-pop 0.38s cubic-bezier(0.2, 0.9, 0.35, 1.2);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 50px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.mint-success-body {
+  padding: 26px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+}
+
+.mint-success-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent), 0 8px 24px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.mint-success-heading {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #f4fff2;
+  margin: 0;
+}
+
+.mint-success-sub {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #a9b6ae;
+  margin: 4px 0 18px;
+}
+
+.mint-success-cta {
+  width: 100%;
+  padding: 12px;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: var(--accent);
+  color: #04140a;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.mint-success-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.mint-success-cta:active {
+  transform: translateY(0);
+}

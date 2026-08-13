@@ -35,6 +35,7 @@ import { getConnection } from "./solana";
 import { filterOwnedMints } from "./solanaAdmin";
 import { listEditionsOnMagicEden, cancelEditionsOnMagicEden } from "./magicEdenListing";
 import type { SolanaMintRecord } from "./solanaMintsStore";
+import type { MintSuccessInfo } from "@/components/MintSuccessModal";
 
 function isNativePayTokenLegacy(payToken: DylToken, nativeToken: DylToken): boolean {
   return payToken.chainId === nativeToken.chainId && payToken.address === nativeToken.address;
@@ -87,6 +88,12 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
   const [pendingBuy, setPendingBuy] = useState<PendingBuy | null>(null);
   const [buyStep, setBuyStep] = useState<PayStep>(null);
   const [buyError, setBuyError] = useState<string | null>(null);
+  // The celebratory "you minted!" popup — set on every successful buy
+  // (confirmPendingBuy below), also settable directly by a caller for a
+  // buy flow this hook doesn't own itself (AlbumView.tsx's whole-album
+  // buy, which uses fulfillAlbumMintPurchase directly rather than routing
+  // through confirmPendingBuy).
+  const [mintSuccess, setMintSuccess] = useState<MintSuccessInfo | null>(null);
 
   const deployed = isRealDeployed(chain);
 
@@ -535,6 +542,16 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
       setBusyKey(null);
       setBuyStep(null);
     }
+    setMintSuccess({
+      trackTitle: t.title,
+      editionNumber:
+        entry.type === "mint"
+          ? quantity === 1
+            ? t.editionCap - (entry.remaining ?? 0) + 1
+            : null
+          : (entry.editionNumber ?? null),
+      priceUsd: entry.priceUsd * quantity,
+    });
     setPendingBuy(null);
     refresh();
   }
@@ -751,6 +768,8 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     pendingBuy,
     buyStep,
     buyError,
+    mintSuccess,
+    setMintSuccess,
     sellBusy,
     sellError,
     realBooksLoading,

@@ -7,6 +7,7 @@ import { CURATED_TOKENS, PINNED_TOKENS, SWAP_CHAINS } from "@/lib/dylTokens";
 import type { DylToken } from "@/lib/dylTokens";
 import type { PayStep } from "@/lib/payWithAnyToken";
 import TokenPickerModal, { TokenIcon } from "./TokenPickerModal";
+import { unlockSuccessSound } from "@/lib/successSound";
 
 const ALL_PINNED = [...PINNED_TOKENS.robinhood, ...PINNED_TOKENS.base, ...PINNED_TOKENS.solana, ...PINNED_TOKENS.ethereum];
 
@@ -138,7 +139,18 @@ export default function BuyConfirmModal({
 
             {error && <div className="buy-confirm-error">{error}</div>}
 
-            <button className="buy-confirm-cta" disabled={busy} onClick={() => onConfirm(payToken)}>
+            <button
+              className="buy-confirm-cta"
+              disabled={busy}
+              onClick={() => {
+                // Must happen synchronously in this real click handler —
+                // the success chime plays later, after several async
+                // awaits, by which point browsers would otherwise block a
+                // freshly-created AudioContext. See lib/successSound.ts.
+                unlockSuccessSound();
+                onConfirm(payToken);
+              }}
+            >
               {busy ? "Confirming…" : "Confirm Buy"}
             </button>
           </div>

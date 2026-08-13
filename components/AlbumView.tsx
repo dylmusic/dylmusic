@@ -18,6 +18,7 @@ import TrackRow from "./TrackRow";
 import ListingsModal from "./ListingsModal";
 import OrderBookModal from "./OrderBookModal";
 import BuyConfirmModal from "./BuyConfirmModal";
+import MintSuccessModal from "./MintSuccessModal";
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
@@ -154,6 +155,12 @@ export default function AlbumView({
           }
         }
       }
+      commerce.setMintSuccess({
+        trackTitle: album.title,
+        editionNumber: null,
+        priceUsd: sweepTotal,
+        trackCount: sweepTracks.length,
+      });
     } catch (err) {
       setAlbumBuyError(err instanceof Error ? err.message : "Purchase failed — see console.");
       console.error("confirmBuyAlbum failed", err);
@@ -330,6 +337,10 @@ export default function AlbumView({
             if (!sweepBusy) setAlbumBuyOpen(false);
           }}
         />
+      )}
+
+      {commerce.mintSuccess && (
+        <MintSuccessModal info={commerce.mintSuccess} onClose={() => commerce.setMintSuccess(null)} />
       )}
     </div>
   );
