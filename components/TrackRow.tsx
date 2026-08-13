@@ -123,7 +123,41 @@ export default function TrackRow({
         <button className="btn-sell" onClick={walletConnected ? onOpenSellModal : onConnect}>
           Sell ${sellDisplayPrice.toFixed(2)}
         </button>
+
+        <MintRing pct={pct} />
       </div>
+    </div>
+  );
+}
+
+// Small radial "% minted" indicator — Dylan: a glowing "Minting" label
+// over a ring showing the same real mint % the row's own text already
+// computes, in the gap to the right of the Sell button. SVG stroke-
+// dasharray/dashoffset ring, not an image — scales cleanly, no asset to
+// ship. Clamped to [0,100] since `pct` is a plain percentage that could
+// theoretically round past 100 on the very last edition of a track.
+function MintRing({ pct }: { pct: number }) {
+  const clamped = Math.min(100, Math.max(0, pct));
+  const r = 15;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference * (1 - clamped / 100);
+  return (
+    <div className="mint-ring-wrap" title={`${clamped}% minted`}>
+      <span className="mint-ring-label">Minting</span>
+      <span className="mint-ring-circle">
+        <svg width="36" height="36" viewBox="0 0 36 36">
+          <circle className="mint-ring-track" cx="18" cy="18" r={r} />
+          <circle
+            className="mint-ring-fill"
+            cx="18"
+            cy="18"
+            r={r}
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+          />
+        </svg>
+        <span className="mint-ring-pct">{clamped}%</span>
+      </span>
     </div>
   );
 }

@@ -1965,6 +1965,73 @@ input {
   background: rgba(255, 176, 32, 0.18);
 }
 
+/* Per-track radial "% minted" indicator — small on purpose, sits in the
+   real trailing gap to the right of the Sell button rather than adding a
+   new column that would squeeze the row further. */
+.mint-ring-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.mint-ring-label {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  animation: mint-ring-glow 1.8s ease-in-out infinite;
+}
+
+@keyframes mint-ring-glow {
+  0%,
+  100% {
+    text-shadow: 0 0 3px color-mix(in srgb, var(--accent) 50%, transparent);
+  }
+  50% {
+    text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 95%, transparent);
+  }
+}
+
+.mint-ring-circle {
+  position: relative;
+  width: 36px;
+  height: 36px;
+}
+
+.mint-ring-circle svg {
+  transform: rotate(-90deg);
+}
+
+.mint-ring-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 3;
+}
+
+.mint-ring-fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.4s ease;
+}
+
+.mint-ring-pct {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: #eef2ee;
+}
+
 .btn-sell.listed {
   background: rgba(255, 176, 32, 0.16);
 }
