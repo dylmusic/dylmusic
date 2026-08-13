@@ -1,13 +1,23 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
+import { useAccount, useBalance } from "wagmi";
 import type { Track } from "@/lib/albums";
 import type { OrderBookEntry } from "@/lib/orderbook";
-import { CURATED_TOKENS, PINNED_TOKENS, SWAP_CHAINS } from "@/lib/dylTokens";
+import { CURATED_TOKENS, PINNED_TOKENS, SWAP_CHAINS, SOLANA_CHAIN_ID } from "@/lib/dylTokens";
 import type { DylToken } from "@/lib/dylTokens";
 import type { PayStep } from "@/lib/payWithAnyToken";
 import TokenPickerModal, { TokenIcon } from "./TokenPickerModal";
 import { unlockSuccessSound } from "@/lib/successSound";
+import { getTokenUsdPrice } from "@/lib/tokenUsdPrice";
+
+// Pure UI heads-up, not what the real tx amount is derived from (that's
+// still the contract's own live mintPriceWei / the listing's own priceWei)
+// — just enough to warn a buyer before they burn a MetaMask round trip on
+// a tx that's going to revert for insufficient funds. $0.50 covers this
+// chain's real gas cost (~$0.01 per the live confirm screen) with room to
+// spare for a slightly stale USD/ETH quote.
+const GAS_RESERVE_USD = 0.5;
 
 const ALL_PINNED = [...PINNED_TOKENS.robinhood, ...PINNED_TOKENS.base, ...PINNED_TOKENS.solana, ...PINNED_TOKENS.ethereum];
 
@@ -61,6 +71,41 @@ export default function BuyConfirmModal({
 
   const isNative =
     payToken.chainId === defaultPayToken.chainId && payToken.address === defaultPayToken.address;
+
+  const totalUsd = album ? album.totalUsd : entry ? entry.priceUsd * quantity : 0;
+
+  // Real bug (2026-08-13): a purchase that silently failed because the
+  // wallet just didn't have enough ETH looked identical to a broken
+  // checkout from the outside — nothing told the buyer why. Solana pay
+  // isn't covered (no EVM balance to read for it), only the EVM-native
+  // case this bug actually hit.
+  const isEvmNativePay = isNative && payToken.chainId !== SOLANA_CHAIN_ID;
+  const { address: evmAddress } = useAccount();
+  const { data: balanceData } = useBalance({
+    address: evmAddress,
+    chainId: payToken.chainId,
+    query: { enabled: isEvmNativePay && !!evmAddress },
+  });
+  const [payTokenUsd, setPayTokenUsd] = useState<number | null>(null);
+  useEffect(() => {
+    if (!isEvmNativePay) {
+      setPayTokenUsd(null);
+      return;
+    }
+    let cancelled = false;
+    getTokenUsdPrice(payToken).then((p) => {
+      if (!cancelled) setPayTokenUsd(p);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEvmNativePay, payToken.chainId, payToken.address]);
+
+  const requiredToken = payTokenUsd ? (totalUsd + GAS_RESERVE_USD) / payTokenUsd : null;
+  const balanceToken = balanceData ? Number(balanceData.formatted) : null;
+  const insufficientBalance =
+    isEvmNativePay && requiredToken !== null && balanceToken !== null && balanceToken < requiredToken;
 
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onCancel}>
@@ -138,10 +183,16 @@ export default function BuyConfirmModal({
             </div>
 
             {error && <div className="buy-confirm-error">{error}</div>}
+            {insufficientBalance && (
+              <div className="buy-confirm-error">
+                Not enough {payToken.symbol} — you have {balanceToken!.toFixed(4)}, need about{" "}
+                {requiredToken!.toFixed(4)} (incl. gas).
+              </div>
+            )}
 
             <button
               className="buy-confirm-cta"
-              disabled={busy}
+              disabled={busy || insufficientBalance}
               onClick={() => {
                 // Must happen synchronously in this real click handler —
                 // the success chime plays later, after several async
@@ -151,7 +202,7 @@ export default function BuyConfirmModal({
                 onConfirm(payToken);
               }}
             >
-              {busy ? "Confirming…" : "Confirm Buy"}
+              {insufficientBalance ? "Insufficient balance" : busy ? "Confirming…" : "Confirm Buy"}
             </button>
           </div>
         )}
