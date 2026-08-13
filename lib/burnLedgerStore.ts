@@ -21,6 +21,42 @@ const ledgerKey = (wallet: string) => `dylmusic:burn:ledger:${wallet.toLowerCase
 const pendingKey = (wallet: string) => `dylmusic:burn:pending:${wallet.toLowerCase()}`;
 const seenKey = (eventKey: string) => `dylmusic:burn:seen:${eventKey}`;
 const dylTierKey = (chain: string, wallet: string) => `dylmusic:burn:dyltier:${chain}:${wallet.toLowerCase()}`;
+const lockKey = (wallet: string) => `dylmusic:burn:lock:${wallet.toLowerCase()}`;
+
+/**
+ * Serializes "check spendable, then commit a reservation" per wallet — the
+ * read-then-write in reserveVoucherCredits below is otherwise a genuine
+ * TOCTOU race: two concurrent /api/burn/claim-voucher requests for the same
+ * wallet could both read the same spendable total, both pass the check, and
+ * both commit a pending voucher, over-granting real free mints beyond what
+ * was actually earned. Upstash's REST client has no MULTI/WATCH, so this
+ * uses a short-lived SET NX PX lock (a standard distributed-lock pattern)
+ * rather than a Lua script, to keep the fix self-contained and easy to
+ * reason about. A stuck/crashed holder can never wedge future claims
+ * permanently — the lock's own PX expiry releases it regardless.
+ */
+async function withWalletLock<T>(redis: Redis, wallet: string, fn: () => Promise<T>): Promise<T> {
+  const key = lockKey(wallet);
+  const token = `${Date.now()}:${Math.random()}`;
+  let acquired = false;
+  for (let i = 0; i < 40; i++) {
+    const res = await redis.set(key, token, { nx: true, px: 8000 });
+    if (res !== null) {
+      acquired = true;
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  if (!acquired) throw new Error("Ledger is busy — try again in a moment.");
+  try {
+    return await fn();
+  } finally {
+    // Only release if we still hold it — never clear a lock some other,
+    // later request has since acquired after ours expired.
+    const current = await redis.get<string>(key);
+    if (current === token) await redis.del(key);
+  }
+}
 
 export interface BurnLedger {
   earned: number;
@@ -137,13 +173,18 @@ export async function recordDylThresholdCredit(
 ): Promise<{ credited: number }> {
   const redis = getRedis();
   if (!redis) return { credited: 0 };
-  const key = dylTierKey(chain, wallet);
-  const prevMints = Number((await redis.get(key)) ?? 0);
-  if (currentMints <= prevMints) return { credited: 0 };
-  const delta = currentMints - prevMints;
-  await redis.set(key, currentMints);
-  await redis.hincrby(ledgerKey(wallet), "earned", delta);
-  return { credited: delta };
+  // Same read-then-write race as reserveVoucherCredits below — two
+  // concurrent checks crossing the same tier at once must never both
+  // credit the delta.
+  return withWalletLock(redis, wallet, async () => {
+    const key = dylTierKey(chain, wallet);
+    const prevMints = Number((await redis.get(key)) ?? 0);
+    if (currentMints <= prevMints) return { credited: 0 };
+    const delta = currentMints - prevMints;
+    await redis.set(key, currentMints);
+    await redis.hincrby(ledgerKey(wallet), "earned", delta);
+    return { credited: delta };
+  });
 }
 
 /**
@@ -161,10 +202,12 @@ export async function reserveVoucherCredits(
 ): Promise<boolean> {
   const redis = getRedis();
   if (!redis || amount <= 0) return false;
-  const ledger = await getLedger(wallet);
-  if (amount > ledger.spendable) return false;
-  await redis.zadd(pendingKey(wallet), { score: expiryUnixSec, member: `${claimId}|${amount}` });
-  return true;
+  return withWalletLock(redis, wallet, async () => {
+    const ledger = await getLedger(wallet);
+    if (amount > ledger.spendable) return false;
+    await redis.zadd(pendingKey(wallet), { score: expiryUnixSec, member: `${claimId}|${amount}` });
+    return true;
+  });
 }
 
 export function burnLedgerConfigured(): boolean {
