@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { Album } from "@/lib/albums";
-import { fetchRealPlatformOverview, fetchRealHoldersCount, usdToEth, historicalVolumeUsd, type PlatformOverview } from "@/lib/platformStats";
+import {
+  fetchRealPlatformOverview,
+  fetchRealHoldersCount,
+  fetchRealFullSetHolders,
+  usdToEth,
+  historicalVolumeUsd,
+  type PlatformOverview,
+} from "@/lib/platformStats";
 import { streamsSeries, fetchRealSalesStats, EMPTY_SALES_STATS, type RealSalesStats } from "@/lib/dashboardStats";
 import { formatStreams, useStreamCountsLoaded } from "@/lib/streams";
 import StreamsChart from "./StreamsChart";
@@ -15,6 +22,7 @@ export default function MultichainOverview({ album }: { album: Album }) {
   const [overview, setOverview] = useState<PlatformOverview>(EMPTY_OVERVIEW);
   const [sales, setSales] = useState<RealSalesStats>(EMPTY_SALES_STATS);
   const [holders, setHolders] = useState(0);
+  const [fullSetHolders, setFullSetHolders] = useState(0);
   const [volumeView, setVolumeView] = useState<"total" | "v2">("total");
   const [burnedView, setBurnedView] = useState<"nfts" | "coin">("nfts");
   // Tooltip visibility is click-driven (not just CSS :hover/:focus) because
@@ -41,6 +49,9 @@ export default function MultichainOverview({ album }: { album: Album }) {
     });
     fetchRealHoldersCount().then((h) => {
       if (!cancelled) setHolders(h);
+    });
+    fetchRealFullSetHolders(album).then((n) => {
+      if (!cancelled) setFullSetHolders(n);
     });
     return () => {
       cancelled = true;
@@ -133,14 +144,12 @@ export default function MultichainOverview({ album }: { album: Album }) {
           <span className="dash-quick-num">{holders.toLocaleString()}</span>
           <span className="dash-quick-label">Holders</span>
         </div>
-        {/* Real zero, not a placeholder — same honesty rule as the tile
-            above. Ownership is tracked per browser in localStorage (see
-            lib/holdings.ts), there is no shared backend that knows what
-            any OTHER wallet holds yet, so this has no real data source to
-            read from right now. Real once either a global holdings index
-            or the live on-chain contracts exist. */}
+        {/* Real platform-wide audit, not a placeholder — how many distinct
+            wallets currently hold at least one edition of every track
+            (see fetchRealFullSetHolders: intersects real per-track owner
+            sets from Blockscout's own instance data). */}
         <div className="dash-quick-tile">
-          <span className="dash-quick-num">0</span>
+          <span className="dash-quick-num">{fullSetHolders.toLocaleString()}</span>
           <span className="dash-quick-label">Full Albums Collected</span>
         </div>
         {/* Real zero either way, not a placeholder — burning isn't wired up

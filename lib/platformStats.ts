@@ -3,6 +3,7 @@
 import { Album, CHAINS, ChainInfo } from "./albums";
 import { fetchRealChainMinted } from "./realOrderBook";
 import { CONTRACT_TARGETS } from "./admin";
+import { decodeTokenId } from "./tokenIdScheme";
 
 export interface SoldStat {
   minted: number;
@@ -63,6 +64,78 @@ export async function fetchRealHoldersCount(): Promise<number> {
   } catch {
     return 0;
   }
+}
+
+interface BlockscoutOwnedInstance {
+  id: string;
+  owner?: { hash?: string | null } | null;
+}
+
+interface BlockscoutInstancesPage {
+  items: BlockscoutOwnedInstance[];
+  next_page_params: Record<string, string | number> | null;
+}
+
+/**
+ * Real platform-wide audit: how many distinct wallets currently hold at
+ * least one edition of EVERY track in the album — a genuine full-set
+ * collector count, not a per-wallet "did I collect it" flag (Dylan: "a
+ * platform wide audit of how many wallets hold full album sets").
+ *
+ * Walks Blockscout's paginated `/tokens/{address}/instances` endpoint
+ * (same real, no-API-key, CORS-open source lib/tieredCollectionCheck.ts
+ * already proved out) once for the whole collection — every instance
+ * comes back with its CURRENT owner inline, so this is one paginated
+ * sweep (real total here: ~204 instances, ~5 pages) rather than 200+
+ * individual ownerOf() calls. Each instance's tokenId decodes to a
+ * trackId via the same encoding scheme every mint/buy already uses
+ * (lib/tokenIdScheme.ts) — group owners per track, then intersect every
+ * track's owner set. A wallet only survives every intersection if it
+ * owns at least one edition of all N tracks.
+ *
+ * Real zero on any fetch failure, same "don't blank the dashboard over a
+ * nice-to-have stat" rule as fetchRealHoldersCount above.
+ */
+export async function fetchRealFullSetHolders(album: Album): Promise<number> {
+  const address = CONTRACT_TARGETS.find((t) => t.key === "robinhood")?.address;
+  if (!address || album.tracks.length === 0) return 0;
+
+  const ownersByTrack = new Map<number, Set<string>>();
+  for (const t of album.tracks) ownersByTrack.set(t.index, new Set());
+
+  try {
+    let params: Record<string, string | number> | null = {};
+    for (;;) {
+      const qs = new URLSearchParams(
+        Object.fromEntries(Object.entries(params ?? {}).map(([k, v]) => [k, String(v)]))
+      ).toString();
+      const res = await fetch(
+        `https://robinhoodchain.blockscout.com/api/v2/tokens/${address}/instances${qs ? `?${qs}` : ""}`,
+        { cache: "no-store" }
+      );
+      if (!res.ok) break;
+      const page: BlockscoutInstancesPage = await res.json();
+      for (const item of page.items) {
+        const owner = item.owner?.hash?.toLowerCase();
+        if (!owner) continue;
+        const { trackId } = decodeTokenId(Number(item.id));
+        ownersByTrack.get(trackId)?.add(owner);
+      }
+      if (!page.next_page_params) break;
+      params = page.next_page_params;
+    }
+  } catch {
+    return 0;
+  }
+
+  const trackSets = Array.from(ownersByTrack.values());
+  if (trackSets.some((s) => s.size === 0)) return 0; // at least one track has zero holders — no set can be complete
+  let intersection = trackSets[0];
+  for (let i = 1; i < trackSets.length && intersection.size > 0; i++) {
+    const next = trackSets[i];
+    intersection = new Set(Array.from(intersection).filter((w) => next.has(w)));
+  }
+  return intersection.size;
 }
 
 // Rough, display-only conversion rates — not a live price feed. Good enough
