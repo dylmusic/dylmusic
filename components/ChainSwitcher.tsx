@@ -11,7 +11,7 @@ export default function ChainSwitcher({
 }) {
   return (
     <div className="chain-switch nav-chain-switch" role="tablist" aria-label="Select chain">
-      {CHAINS.map((c) => (
+      {CHAINS.filter((c) => c.live).map((c) => (
         <button
           key={c.key}
           role="tab"

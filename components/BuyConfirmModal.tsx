@@ -10,16 +10,12 @@ import TokenPickerModal, { TokenIcon } from "./TokenPickerModal";
 
 const ALL_PINNED = [...PINNED_TOKENS.robinhood, ...PINNED_TOKENS.base, ...PINNED_TOKENS.solana, ...PINNED_TOKENS.ethereum];
 
-// "Buy" no longer purchases instantly — this confirms which currency to pay
-// with (defaulting to the chain's native asset) before doing so, letting the
-// buyer switch to any chain/token the real Swap page itself supports. Until
-// real NFT contracts are live, none of this actually moves funds — choosing
-// a non-native currency just plays a cosmetic "swap, then buy" step
-// animation instead of a real swap-then-purchase. The REAL engine for this
-// (lib/payWithAnyToken.ts, same shape as HOODPrinter's relay-to-print: any
-// token → native ETH/SOL on the target chain → our own final leg) is fully
-// built and ready — see the comment on the Confirm Buy button below for
-// exactly what changes when it's time to go live.
+// "Buy" confirms which currency to pay with (defaulting to the chain's
+// native asset) before doing so, letting the buyer switch to any chain/token
+// the real Swap page itself supports. Choosing a non-native currency runs
+// the real swap-then-purchase engine (lib/payWithAnyToken.ts's
+// runPayWithAnyToken, already wired into lib/useTrackCommerce.ts's
+// confirmPendingBuy) before the final mint/buy call.
 
 export default function BuyConfirmModal({
   track,
@@ -50,22 +46,13 @@ export default function BuyConfirmModal({
   buyStep: PayStep;
   busy: boolean;
   // Real purchase failure (lib/useTrackCommerce.ts / AlbumView.tsx's
-  // confirmBuyAlbum) — only ever populated once the gate below is
-  // eventually removed and onConfirm actually runs; harmless/unused while
-  // "Not live yet" still fires first.
+  // confirmBuyAlbum).
   error?: string | null;
   onConfirm: (payToken: DylToken) => void;
   onCancel: () => void;
 }) {
   const [payToken, setPayToken] = useState<DylToken>(defaultPayToken);
   const [pickerOpen, setPickerOpen] = useState(false);
-  // Beta is live now (Dylan: "if anyone clicks confirm buy or confirm sell
-  // on the NFTs, tell them its not live yet... let them see all the
-  // interface, but at the last step let them know it doesnt work"). The
-  // whole flow — Pay With, token picker, price — stays fully explorable;
-  // only this final click is gated, and onConfirm (the actual simulated
-  // mint) is never reached anymore.
-  const [notLive, setNotLive] = useState(false);
 
   useEffect(() => {
     setPayToken(defaultPayToken);
@@ -77,19 +64,7 @@ export default function BuyConfirmModal({
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onCancel}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        {notLive ? (
-          <div className="modal-not-live">
-            <div className="modal-not-live-icon">🚧</div>
-            <h3>Not live yet</h3>
-            <p>
-              NFT buying is not live yet — you are looking at the real beta interface, but the
-              contracts behind it are not deployed. Nothing was charged.
-            </p>
-            <button className="buy-confirm-cta" onClick={onCancel}>
-              Got it
-            </button>
-          </div>
-        ) : buyStep !== null ? (
+        {buyStep !== null ? (
           <div className="buy-confirm-waiting">
             <div className="buy-confirm-ring" />
             <div className="buy-confirm-waiting-title">
@@ -163,21 +138,7 @@ export default function BuyConfirmModal({
 
             {error && <div className="buy-confirm-error">{error}</div>}
 
-            {/* Temporarily gated for beta (see notLive above) — onConfirm
-                still receives the real simulated-purchase callback from
-                every caller, just not invoked from here right now.
-                Re-enabling later, once real NFT contracts are deployed, is
-                a one-line swap: replace `setNotLive(true)` with
-                `onConfirm(payToken)`. The real swap/bridge engine that
-                should run before that final purchase step
-                (lib/payWithAnyToken.ts's runPayWithAnyToken — same shape
-                as HOODPrinter's relay-to-print) is fully built, but is
-                deliberately NOT called from here yet: real fees/gas
-                should never be spent on a purchase that cannot actually
-                complete. The caller (AlbumView.tsx / wherever onConfirm is
-                defined) is where runPayWithAnyToken should be invoked
-                ahead of the real mint call once that's ready. */}
-            <button className="buy-confirm-cta" disabled={busy} onClick={() => setNotLive(true)}>
+            <button className="buy-confirm-cta" disabled={busy} onClick={() => onConfirm(payToken)}>
               {busy ? "Confirming…" : "Confirm Buy"}
             </button>
           </div>

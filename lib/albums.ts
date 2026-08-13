@@ -20,11 +20,17 @@ export interface ChainInfo {
 // distinct chain. Reads as a calmer, more "established chain" tone next
 // to Robinhood's neon green / Base's electric blue / Solana's vivid
 // purple, deliberately distinct from all three.
+// `live` gates real buying — see ChainSwitcher.tsx/useChain.ts. Only
+// Robinhood Chain has deployed contracts (2026-08-13); Base/Solana/Ethereum
+// stay `live: false` until each one is actually deployed, so the buy UI
+// can't offer a chain that would silently fall through to the simulated
+// fake-success flow. Flip to `true` once a chain's collection + AlbumBuyer
+// are deployed and committed into lib/admin.ts CONTRACT_TARGETS.
 export const CHAINS: ChainInfo[] = [
   { key: "robinhood", label: "Robinhood", shortLabel: "Robinhood", color: "#CCFF00", live: true },
-  { key: "base", label: "Base", shortLabel: "Base", color: "#0052FF", live: true },
-  { key: "solana", label: "Solana", shortLabel: "Solana", color: "#9945FF", live: true },
-  { key: "ethereum", label: "Ethereum", shortLabel: "ETH", color: "#8B8FA8", live: true },
+  { key: "base", label: "Base", shortLabel: "Base", color: "#0052FF", live: false },
+  { key: "solana", label: "Solana", shortLabel: "Solana", color: "#9945FF", live: false },
+  { key: "ethereum", label: "Ethereum", shortLabel: "ETH", color: "#8B8FA8", live: false },
 ];
 
 export interface Track {

@@ -19,10 +19,7 @@ export default function ListingsModal({
 }: {
   track: Track;
   editions: EditionRow[];
-  // Real list/cancel state (lib/useTrackCommerce.ts's sellBusy/sellError)
-  // — only ever populated once the gate below is removed and
-  // onSetPrice/onCancelListing actually run; harmless/unused while
-  // "Not live yet" still fires first, same as BuyConfirmModal's `error`.
+  // Real list/cancel state (lib/useTrackCommerce.ts's sellBusy/sellError).
   busy?: boolean;
   error?: string | null;
   onSetPrice: (editionNumber: number, price: number) => void;
@@ -30,12 +27,6 @@ export default function ListingsModal({
   onClose: () => void;
 }) {
   const [drafts, setDrafts] = useState<Record<number, string>>({});
-  // Beta is live now (Dylan: "if anyone clicks confirm buy or confirm sell
-  // on the NFTs, tell them its not live yet... let them see all the
-  // interface, but at the last step let them know it doesnt work"). The
-  // price input stays fully editable; only the final List click is gated,
-  // and onSetPrice (the real simulated listing) is never reached anymore.
-  const [notLive, setNotLive] = useState(false);
 
   function draftFor(row: EditionRow) {
     return drafts[row.editionNumber] ?? (row.listedPrice ?? track.priceUsd).toFixed(2);
@@ -44,20 +35,6 @@ export default function ListingsModal({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        {notLive ? (
-          <div className="modal-not-live">
-            <div className="modal-not-live-icon">🚧</div>
-            <h3>Not live yet</h3>
-            <p>
-              Listing NFTs for sale is not live yet — you are looking at the real beta
-              interface, but the contracts behind it are not deployed. Nothing was listed.
-            </p>
-            <button className="buy-confirm-cta" onClick={onClose}>
-              Got it
-            </button>
-          </div>
-        ) : (
-        <>
         <div className="modal-head">
           <div>
             <div className="modal-eyebrow">List for sale</div>
@@ -111,7 +88,7 @@ export default function ListingsModal({
                       disabled={busy}
                       onClick={() => {
                         const p = parseFloat(draftFor(row));
-                        if (!isNaN(p) && p > 0) setNotLive(true);
+                        if (!isNaN(p) && p > 0) onSetPrice(row.editionNumber, p);
                       }}
                     >
                       {busy ? "…" : "List"}
@@ -121,8 +98,6 @@ export default function ListingsModal({
               </div>
             ))}
           </div>
-        )}
-        </>
         )}
       </div>
     </div>
