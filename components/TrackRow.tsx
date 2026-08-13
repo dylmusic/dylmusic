@@ -137,7 +137,14 @@ export default function TrackRow({
 // ship. Clamped to [0,100] since `pct` is a plain percentage that could
 // theoretically round past 100 on the very last edition of a track.
 function MintRing({ pct }: { pct: number }) {
-  const clamped = Math.min(100, Math.max(0, pct));
+  // Floored at 10, not 0 — every real track always has its first 10
+  // editions admin-preminted before public mint ever opens (DylCollection.
+  // sol's adminMint/ADMIN_RESERVED_EDITIONS), so a live track's true % is
+  // never actually below this. Doubles as the loading-state default: before
+  // the real on-chain minted count has loaded, `pct` computes from an unset
+  // `minted` (0), which would otherwise render a misleading "0% minted"
+  // flash instead of this floor.
+  const clamped = Math.min(100, Math.max(10, pct));
   const r = 15;
   const circumference = 2 * Math.PI * r;
   const offset = circumference * (1 - clamped / 100);

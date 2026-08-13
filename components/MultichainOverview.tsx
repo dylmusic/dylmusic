@@ -12,6 +12,7 @@ import {
 } from "@/lib/platformStats";
 import { streamsSeries, fetchRealSalesStats, EMPTY_SALES_STATS, type RealSalesStats } from "@/lib/dashboardStats";
 import { formatStreams, useStreamCountsLoaded } from "@/lib/streams";
+import { readCachedNumber, writeCachedNumber, readCachedJson, writeCachedJson } from "@/lib/localCache";
 import StreamsChart from "./StreamsChart";
 import SalesChart from "./SalesChart";
 import RecentSales from "./RecentSales";
@@ -19,10 +20,15 @@ import RecentSales from "./RecentSales";
 const EMPTY_OVERVIEW: PlatformOverview = { perChain: [], totalMinted: 0, totalCap: 0, totalPct: 0 };
 
 export default function MultichainOverview({ album }: { album: Album }) {
-  const [overview, setOverview] = useState<PlatformOverview>(EMPTY_OVERVIEW);
+  const [overview, setOverview] = useState<PlatformOverview>(
+    () => readCachedJson<PlatformOverview>("platformOverview") ?? EMPTY_OVERVIEW
+  );
   const [sales, setSales] = useState<RealSalesStats>(EMPTY_SALES_STATS);
-  const [holders, setHolders] = useState(0);
-  const [fullSetHolders, setFullSetHolders] = useState(0);
+  // Seeded from the last real read this browser saw (see lib/localCache.ts)
+  // so these tiles show a real last-known number instead of "0" on every
+  // dashboard load while the real Blockscout reads below are still running.
+  const [holders, setHolders] = useState(() => readCachedNumber("holders") ?? 0);
+  const [fullSetHolders, setFullSetHolders] = useState(() => readCachedNumber("fullSetHolders") ?? 0);
   const [volumeView, setVolumeView] = useState<"total" | "v2">("total");
   const [burnedView, setBurnedView] = useState<"nfts" | "coin">("nfts");
   // Tooltip visibility is click-driven (not just CSS :hover/:focus) because
@@ -43,15 +49,18 @@ export default function MultichainOverview({ album }: { album: Album }) {
     let cancelled = false;
     fetchRealPlatformOverview(album).then((o) => {
       if (!cancelled) setOverview(o);
+      writeCachedJson("platformOverview", o);
     });
     fetchRealSalesStats().then((s) => {
       if (!cancelled) setSales(s);
     });
     fetchRealHoldersCount().then((h) => {
       if (!cancelled) setHolders(h);
+      writeCachedNumber("holders", h);
     });
     fetchRealFullSetHolders(album).then((n) => {
       if (!cancelled) setFullSetHolders(n);
+      writeCachedNumber("fullSetHolders", n);
     });
     return () => {
       cancelled = true;

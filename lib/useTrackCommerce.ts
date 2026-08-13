@@ -22,6 +22,7 @@ import { getOpenSeaSdk, isOpenSeaListable, createOpenSeaListings } from "./openS
 import { createSiteListings, cancelSiteListing, type StoredListing } from "./siteListing";
 import { getTokenUsdPrice } from "./tokenUsdPrice";
 import { encodeTokenId, decodeTokenId } from "./tokenIdScheme";
+import { readCachedJson, writeCachedJson } from "./localCache";
 import {
   fetchRealSolanaListings,
   buildRealSolanaOrderBook,
@@ -96,9 +97,18 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
 
   const deployed = isRealDeployed(chain);
 
+  const mintedCacheKey = `minted:${chain}`;
+
   const [realListings, setRealListings] = useState<RealListing[]>([]);
   const [realBooks, setRealBooks] = useState<Record<string, OrderBookEntry[]>>({});
-  const [realMinted, setRealMinted] = useState<Record<string, number>>({});
+  // Seeded from the last real read this browser ever saw for this chain
+  // (see lib/localCache.ts) — avoids the "0/100 minted · Sold Out" flash on
+  // every page load while the real on-chain sweep above is still running in
+  // the background. Only ever a starting point: the fetch effect below
+  // always still runs and overwrites this with fresh data once it resolves.
+  const [realMinted, setRealMinted] = useState<Record<string, number>>(
+    () => readCachedJson<Record<string, number>>(mintedCacheKey) ?? {}
+  );
   const [realBooksLoading, setRealBooksLoading] = useState(false);
   const [solanaMintRecords, setSolanaMintRecords] = useState<SolanaMintRecord[]>([]);
 
@@ -132,6 +142,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
           setRealBooks(nextBooks);
           setRealMinted(nextMinted);
           setRealBooksLoading(false);
+          writeCachedJson(mintedCacheKey, { ...readCachedJson<Record<string, number>>(mintedCacheKey), ...nextMinted });
         }
         return;
       }
@@ -172,6 +183,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
         setRealBooks(nextBooks);
         setRealMinted(nextMinted);
         setRealBooksLoading(false);
+        writeCachedJson(mintedCacheKey, { ...readCachedJson<Record<string, number>>(mintedCacheKey), ...nextMinted });
       }
     })();
     return () => {
