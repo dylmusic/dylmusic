@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount, useSendTransaction, useSwitchChain, ConnectorChainMismatchError } from "wagmi";
-import { getWalletClient, getPublicClient } from "wagmi/actions";
+import { useAccount, useSendTransaction, useSwitchChain } from "wagmi";
+import { getPublicClient } from "wagmi/actions";
 import { encodeFunctionData, type Address } from "viem";
 import { LEGACY_ASSETS, LegacyAsset } from "@/lib/legacyCollections";
 import BurnWalletChecker from "@/components/BurnWalletChecker";
@@ -13,6 +13,7 @@ import MintSuccessModal, { type MintSuccessInfo } from "@/components/MintSuccess
 import { CONTRACT_TARGETS } from "@/lib/admin";
 import { BurnClaimRedeemerAbi } from "@/lib/contractDeploy";
 import { wagmiConfig } from "@/lib/web3";
+import { ensureEvmChain as ensureEvmChainShared } from "@/lib/evmChainSwitch";
 
 function truncate(addr: string, head = 8, tail = 6) {
   if (addr.length <= head + tail + 1) return addr;
@@ -93,17 +94,9 @@ export default function BurnPageClient() {
       // Fresh wallet client, switched to Robinhood Chain — same "stale
       // reactive client can't be trusted after a mid-handler chain switch"
       // discipline used everywhere else real EVM txs get sent in this app.
-      await switchChainAsync({ chainId: voucher.chainId });
-      let walletClient;
-      for (let attempt = 0; ; attempt++) {
-        try {
-          walletClient = await getWalletClient(wagmiConfig, { chainId: voucher.chainId });
-          break;
-        } catch (e) {
-          if (attempt >= 5 || !(e instanceof ConnectorChainMismatchError)) throw e;
-          await new Promise((r) => setTimeout(r, 250));
-        }
-      }
+      // See lib/evmChainSwitch.ts for why this also has to survive mobile
+      // MetaMask's own ~1s chain-switch race condition.
+      const walletClient = await ensureEvmChainShared(switchChainAsync, voucher.chainId);
 
       const calldata = encodeFunctionData({
         abi: BurnClaimRedeemerAbi,

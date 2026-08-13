@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useAccount, useSendTransaction, useSwitchChain, ConnectorChainMismatchError } from "wagmi";
-import { getWalletClient, getPublicClient } from "wagmi/actions";
+import { useAccount, useSendTransaction, useSwitchChain } from "wagmi";
+import { getPublicClient } from "wagmi/actions";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { createPublicClient, http, getAddress, formatUnits, parseUnits, type Chain, type Address } from "viem";
 import { mainnet, base, polygon } from "viem/chains";
@@ -11,6 +11,7 @@ import { CARD_TIER_MINTS, VIP_MINTS_ESTIMATE, dylMintsForBalance } from "@/lib/b
 import { fetchTieredCollectionBreakdown, TierBreakdown, TieredItem } from "@/lib/tieredCollectionCheck";
 import { buildEvmNftBurnTx, buildEvmDylBurnTx } from "@/lib/burnActions";
 import { wagmiConfig } from "@/lib/web3";
+import { ensureEvmChain as ensureEvmChainShared } from "@/lib/evmChainSwitch";
 
 const ERC721_BALANCE_ABI = [
   { name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] },
@@ -110,16 +111,8 @@ export default function BurnWalletChecker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address]);
 
-  async function ensureEvmChainLocal(chainId: number) {
-    await switchChainAsync({ chainId });
-    for (let attempt = 0; ; attempt++) {
-      try {
-        return await getWalletClient(wagmiConfig, { chainId });
-      } catch (e) {
-        if (attempt >= 5 || !(e instanceof ConnectorChainMismatchError)) throw e;
-        await new Promise((r) => setTimeout(r, 250));
-      }
-    }
+  function ensureEvmChainLocal(chainId: number) {
+    return ensureEvmChainShared(switchChainAsync, chainId);
   }
 
   async function burnTieredItem(item: TieredItem) {

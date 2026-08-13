@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useAccount, useWalletClient, useSwitchChain, ConnectorChainMismatchError } from "wagmi";
-import { getWalletClient } from "wagmi/actions";
+import { useAccount, useWalletClient, useSwitchChain } from "wagmi";
 import type { WalletClient, Address } from "viem";
+import { ensureEvmChain as ensureEvmChainShared } from "./evmChainSwitch";
 import type { Listing } from "@opensea/sdk";
 import { Track, ChainKey, baselineMinted } from "./albums";
 import { localMintedCount, recordMint, setListingForEdition, buyListedEdition } from "./holdings";
@@ -15,7 +15,6 @@ import { runPayWithAnyToken, isNativePayToken, type PayStep } from "./payWithAny
 import { adaptDylEvmWallet, adaptDylSolanaWallet } from "./dylSwap";
 import { useSolanaWallet } from "./solana";
 import { viemWalletClientToEthersSigner } from "./ethersSigner";
-import { wagmiConfig } from "./web3";
 import { CONTRACT_TARGETS } from "./admin";
 import { fetchRealEvmListings, buildRealOrderBook, fetchRealMintRow, fetchRealOwnedTokenIds, type RealListing } from "./realOrderBook";
 import { fulfillMintPurchase, fulfillResalePurchase, fulfillOpenSeaPurchase } from "./nftPurchase";
@@ -263,20 +262,12 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
   // ---- Real-execution helpers, shared with AlbumView.tsx's whole-album
   // buy (a separate call site — batches across N tracks via AlbumBuyer,
   // genuinely different semantics from a single mint/resale purchase, but
-  // needs the exact same chain-switching/wallet-adapting machinery). Same
-  // proven switchChainAsync -> retry-on-ConnectorChainMismatchError shape
-  // already used by /swap's own ensureEvmChain (components/SwapCard.tsx).
-
-  async function ensureEvmChain(chainId: number): Promise<WalletClient> {
-    await switchChainAsync({ chainId });
-    for (let attempt = 0; ; attempt++) {
-      try {
-        return await getWalletClient(wagmiConfig, { chainId });
-      } catch (e) {
-        if (attempt >= 5 || !(e instanceof ConnectorChainMismatchError)) throw e;
-        await new Promise((r) => setTimeout(r, 250));
-      }
-    }
+  // needs the exact same chain-switching/wallet-adapting machinery).
+  // See lib/evmChainSwitch.ts for why this also has to survive mobile
+  // MetaMask's own ~1s chain-switch race condition, not just the
+  // ConnectorChainMismatchError case.
+  function ensureEvmChain(chainId: number): Promise<WalletClient> {
+    return ensureEvmChainShared(switchChainAsync, chainId);
   }
 
   function getSolanaWalletForPay() {

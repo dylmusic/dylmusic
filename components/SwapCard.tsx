@@ -1,8 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
-import { useAccount, useBalance, useSwitchChain, useWalletClient, ConnectorChainMismatchError } from "wagmi";
-import { getWalletClient } from "wagmi/actions";
+import { useAccount, useBalance, useSwitchChain, useWalletClient } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import type { Execute } from "@reservoir0x/relay-sdk";
 import {
@@ -35,7 +34,7 @@ import {
 } from "@/lib/dylSwap";
 import { getTokenUsdPrice } from "@/lib/tokenUsdPrice";
 import { useSolanaWallet, getSolanaBalance } from "@/lib/solana";
-import { wagmiConfig } from "@/lib/web3";
+import { ensureEvmChain as ensureEvmChainShared } from "@/lib/evmChainSwitch";
 import TokenPickerModal, { TokenIcon } from "./TokenPickerModal";
 
 // Brought up to parity with HOODPrinter's own /swap upgrade (2026-07-28):
@@ -466,25 +465,15 @@ export default function SwapCard() {
   }
 
   // Switches the EVM wallet to `chainId` and returns a FRESH wallet client
-  // scoped to it. Two real bugs found live while porting this from
-  // HOODPrinter's own swap made both steps necessary:
-  // 1) switchChainAsync's own promise can resolve before the injected
-  //    wallet's real eth_chainId has caught up — retrying getWalletClient
-  //    on ConnectorChainMismatchError absorbs that race.
-  // 2) the walletClient object from useWalletClient() is a plain snapshot
-  //    captured once per render — it does NOT reflect a switch made earlier
-  //    in the SAME function call, so every send after a switch must use a
-  //    freshly-fetched client, never the outer hook value.
-  async function ensureEvmChain(chainId: number) {
-    await switchChainAsync({ chainId });
-    for (let attempt = 0; ; attempt++) {
-      try {
-        return await getWalletClient(wagmiConfig, { chainId });
-      } catch (e) {
-        if (attempt >= 5 || !(e instanceof ConnectorChainMismatchError)) throw e;
-        await new Promise((r) => setTimeout(r, 250));
-      }
-    }
+  // scoped to it — the walletClient object from useWalletClient() is a
+  // plain snapshot captured once per render, so it does NOT reflect a
+  // switch made earlier in the SAME function call; every send after a
+  // switch must use a freshly-fetched client, never the outer hook value.
+  // See lib/evmChainSwitch.ts for the retry logic itself (both the
+  // ConnectorChainMismatchError race and mobile MetaMask's own ~1s
+  // chain-switch race condition).
+  function ensureEvmChain(chainId: number) {
+    return ensureEvmChainShared(switchChainAsync, chainId);
   }
 
   async function doSwap() {
