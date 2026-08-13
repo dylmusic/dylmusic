@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { useAccount, useSwitchChain } from "wagmi";
 import type { Track } from "@/lib/albums";
 import type { OrderBookEntry } from "@/lib/orderbook";
 import { CURATED_TOKENS, PINNED_TOKENS, SWAP_CHAINS } from "@/lib/dylTokens";
@@ -9,7 +8,6 @@ import type { DylToken } from "@/lib/dylTokens";
 import type { PayStep } from "@/lib/payWithAnyToken";
 import TokenPickerModal, { TokenIcon } from "./TokenPickerModal";
 import { unlockSuccessSound } from "@/lib/successSound";
-import { ensureEvmChain } from "@/lib/evmChainSwitch";
 
 const ALL_PINNED = [...PINNED_TOKENS.robinhood, ...PINNED_TOKENS.base, ...PINNED_TOKENS.solana, ...PINNED_TOKENS.ethereum];
 
@@ -63,40 +61,6 @@ export default function BuyConfirmModal({
 
   const isNative =
     payToken.chainId === defaultPayToken.chainId && payToken.address === defaultPayToken.address;
-
-  // Mobile MetaMask real bug (2026-08-13): the actual purchase tx needs its
-  // own deep-link/app-switch to MetaMask for signing, same as the network
-  // switch does — but iOS Safari silently drops an app-switch that isn't a
-  // direct continuation of a real tap. Chaining "switch chain" then
-  // immediately "send transaction" inside one async handler (the old
-  // behavior, buried inside confirmPendingBuy) put the SECOND deep link
-  // several real-world seconds (and one full MetaMask-app round trip) past
-  // the original tap — nothing silently happened. Splitting this into two
-  // separate, freshly-tapped buttons fixes it: switching networks is its
-  // own genuine user gesture, and once wagmi's reactive `chainId` reflects
-  // the switch, "Confirm Buy" becomes its own genuine user gesture too —
-  // every deep-link-triggering wallet call now starts from a real tap.
-  // Only applies to the native-pay path; the non-native swap path already
-  // manages its own per-leg chain switches inside runPayWithAnyToken.
-  const { chainId: walletChainId, isConnected } = useAccount();
-  const { switchChainAsync } = useSwitchChain();
-  const [switching, setSwitching] = useState(false);
-  const [switchError, setSwitchError] = useState<string | null>(null);
-  const needsNetworkSwitch =
-    isNative && isConnected && walletChainId !== undefined && walletChainId !== defaultPayToken.chainId;
-  const targetChainName = SWAP_CHAINS.find((c) => c.id === defaultPayToken.chainId)?.name ?? "the right network";
-
-  async function handleSwitchNetwork() {
-    setSwitching(true);
-    setSwitchError(null);
-    try {
-      await ensureEvmChain(switchChainAsync, defaultPayToken.chainId);
-    } catch (e) {
-      setSwitchError(e instanceof Error ? e.message : "Couldn't switch network — try again.");
-    } finally {
-      setSwitching(false);
-    }
-  }
 
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onCancel}>
@@ -174,28 +138,21 @@ export default function BuyConfirmModal({
             </div>
 
             {error && <div className="buy-confirm-error">{error}</div>}
-            {switchError && <div className="buy-confirm-error">{switchError}</div>}
 
-            {needsNetworkSwitch ? (
-              <button className="buy-confirm-cta" disabled={switching} onClick={handleSwitchNetwork}>
-                {switching ? "Switching network…" : `Switch to ${targetChainName}`}
-              </button>
-            ) : (
-              <button
-                className="buy-confirm-cta"
-                disabled={busy}
-                onClick={() => {
-                  // Must happen synchronously in this real click handler —
-                  // the success chime plays later, after several async
-                  // awaits, by which point browsers would otherwise block a
-                  // freshly-created AudioContext. See lib/successSound.ts.
-                  unlockSuccessSound();
-                  onConfirm(payToken);
-                }}
-              >
-                {busy ? "Confirming…" : "Confirm Buy"}
-              </button>
-            )}
+            <button
+              className="buy-confirm-cta"
+              disabled={busy}
+              onClick={() => {
+                // Must happen synchronously in this real click handler —
+                // the success chime plays later, after several async
+                // awaits, by which point browsers would otherwise block a
+                // freshly-created AudioContext. See lib/successSound.ts.
+                unlockSuccessSound();
+                onConfirm(payToken);
+              }}
+            >
+              {busy ? "Confirming…" : "Confirm Buy"}
+            </button>
           </div>
         )}
       </div>

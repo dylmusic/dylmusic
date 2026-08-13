@@ -451,6 +451,7 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
         }
       } else if (deployed) {
         const chainId = chainIdForKey(chain);
+        let freshClient: WalletClient;
         if (!isNativePayToken(payToken, chain)) {
           const result = await runPayWithAnyToken({
             payToken,
@@ -463,11 +464,23 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
             evmAddress: evmAddress ?? null,
           });
           if (!result.ok) throw new Error("Swap did not complete — try again.");
+          freshClient = await ensureEvmChain(chainId);
         } else {
           setBuyStep({ part: 1, total: 1, label: "Confirm purchase" });
+          // Send straight to the wallet for approval — no explicit
+          // switchChainAsync call first. Real mobile bug (2026-08-13): a
+          // pre-emptive chain switch is its own MetaMask deep-link round
+          // trip, and chaining it directly into the transaction's own
+          // deep link proved unreliable on iOS Safari — Dylan's call was
+          // "just send the transaction to metamask to approve directly,
+          // dont worry about switching chain for now." fulfillMintPurchase
+          // already sends with `chain: null`, so viem doesn't assert the
+          // walletClient's chain matches `chainId` — it just uses whatever
+          // chain the wallet is actually active on, same as any wallet's
+          // own raw eth_sendTransaction always has.
+          if (!walletClient) throw new Error("Wallet not ready yet — try again in a moment.");
+          freshClient = walletClient;
         }
-
-        const freshClient = await ensureEvmChain(chainId);
         if (entry.type === "mint") {
           await fulfillMintPurchase({
             chain,
