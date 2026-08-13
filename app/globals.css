@@ -3151,7 +3151,39 @@ input {
   .track-actions {
     grid-column: 1 / -1;
     justify-content: flex-start;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    gap: 5px;
+  }
+
+  /* Same items as desktop, just narrower — keeps everything on the one
+     row Dylan confirmed he wants (the "Bad Hair" row in his screenshot),
+     instead of the ring wrapping to its own line at 393px. */
+  .track-streams {
+    margin-right: 0;
+  }
+
+  .track-actions .btn-buy,
+  .track-actions .btn-sell {
+    padding: 7px 9px;
+    font-size: 11px;
+  }
+
+  .track-actions .btn-buy-expand {
+    width: 18px;
+  }
+
+  .mint-ring-label {
+    font-size: 7px;
+  }
+
+  .mint-ring-circle,
+  .mint-ring-circle svg {
+    width: 26px;
+    height: 26px;
+  }
+
+  .mint-ring-pct {
+    font-size: 8px;
   }
 
   .app-header-left {
