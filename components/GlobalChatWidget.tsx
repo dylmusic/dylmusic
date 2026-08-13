@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { ALBUMS } from "@/lib/albums";
-import { ownsAnyEdition } from "@/lib/holdings";
+import { useOwnsAnyEdition } from "@/lib/useOwnsAnyEdition";
 import { getNickname } from "@/lib/nicknames";
 import { isAdminWallet } from "@/lib/admin";
 import { useResolvedNames, truncateAddress } from "@/lib/useResolvedNames";
@@ -43,7 +43,8 @@ export default function GlobalChatWidget() {
   const logRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = isAdminWallet(address);
-  const canPost = !!address && (isAdmin || ownsAnyEdition("robinhood", address, ALL_TRACK_IDS));
+  const ownsEdition = useOwnsAnyEdition("robinhood", address ?? null, ALL_TRACK_IDS);
+  const canPost = !!address && (isAdmin || ownsEdition);
   const names = useResolvedNames(messages.map((m) => m.wallet));
 
   async function load() {

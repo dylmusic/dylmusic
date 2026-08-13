@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { ALBUMS } from "@/lib/albums";
-import { ownsAnyEdition } from "@/lib/holdings";
+import { useOwnsAnyEdition } from "@/lib/useOwnsAnyEdition";
 import { getNickname } from "@/lib/nicknames";
 import { isAdminWallet } from "@/lib/admin";
 import { useResolvedNames, truncateAddress } from "@/lib/useResolvedNames";
@@ -30,7 +30,8 @@ export default function ChatPageClient() {
   const logRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = isAdminWallet(walletAddress);
-  const canPost = !!walletAddress && (isAdmin || ownsAnyEdition(chain, walletAddress, ALL_TRACK_IDS));
+  const ownsEdition = useOwnsAnyEdition(chain, walletAddress, ALL_TRACK_IDS);
+  const canPost = !!walletAddress && (isAdmin || ownsEdition);
   const names = useResolvedNames(messages.map((m) => m.wallet));
 
   async function load() {

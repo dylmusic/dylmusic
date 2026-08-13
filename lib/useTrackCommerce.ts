@@ -6,15 +6,8 @@ import { getWalletClient } from "wagmi/actions";
 import type { WalletClient, Address } from "viem";
 import type { Listing } from "@opensea/sdk";
 import { Track, ChainKey, baselineMinted } from "./albums";
-import {
-  getOwnedEditions,
-  getListings,
-  localMintedCount,
-  recordMint,
-  setListingForEdition,
-  buyListedEdition,
-} from "./holdings";
-import { buildOrderBook, OrderBookEntry } from "./orderbook";
+import { localMintedCount, recordMint, setListingForEdition, buyListedEdition } from "./holdings";
+import type { OrderBookEntry } from "./orderbook";
 import { recordActivity } from "./activity";
 import { getNativeTokenForChain, chainIdForKey } from "./dylTokens";
 import type { DylToken } from "./dylTokens";
@@ -216,39 +209,37 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deployed, chain, tracks, walletAddress, tick, solanaMintRecords]);
 
-  const simulatedMinted = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const t of tracks) m[t.id] = baselineMinted(t, chain) + localMintedCount(chain, t.id);
-    return m;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tracks, chain, tick]);
-
-  const simulatedOwnedEditions = useMemo(() => {
-    if (!walletAddress) return {};
-    const h: Record<string, number[]> = {};
-    for (const t of tracks) h[t.id] = getOwnedEditions(chain, walletAddress, t.id);
-    return h;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tracks, chain, walletAddress, tick]);
-
-  const listings = useMemo(() => {
+  // Real per-wallet "which of MY editions are listed, and at what price" —
+  // built from realListings (already fetched for the order book above),
+  // filtered to listings this wallet itself created. Was missing entirely
+  // until now: `books`/`minted`/`ownedEditions` all got the real-vs-
+  // simulated switch, but this one didn't, so ListingsModal always read
+  // the simulated (never-populated-for-a-real-listing) map and showed
+  // every already-listed edition as available to list again instead of
+  // "Listed at $X" + Cancel. EVM-only for now (realListings only ever
+  // holds EVM data — Solana isn't a live chain yet, see lib/albums.ts).
+  const realListingsByWallet = useMemo(() => {
     if (!walletAddress) return {};
     const l: Record<string, Record<number, number>> = {};
-    for (const t of tracks) l[t.id] = getListings(chain, walletAddress, t.id);
+    for (const t of tracks) l[t.id] = {};
+    for (const listing of realListings) {
+      if (listing.sellerAddress.toLowerCase() !== walletAddress.toLowerCase()) continue;
+      const track = tracks.find((t) => t.index === listing.trackId);
+      if (track) l[track.id][listing.editionNumber] = listing.priceUsd;
+    }
     return l;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tracks, chain, walletAddress, tick]);
+  }, [realListings, tracks, walletAddress]);
 
-  const simulatedBooks = useMemo(() => {
-    const b: Record<string, OrderBookEntry[]> = {};
-    for (const t of tracks) b[t.id] = buildOrderBook(t, chain);
-    return b;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tracks, chain, tick]);
-
-  const minted = deployed ? realMinted : simulatedMinted;
-  const books = deployed ? realBooks : simulatedBooks;
-  const ownedEditions = deployed ? realOwnedEditions : simulatedOwnedEditions;
+  // A chain with no deployed contract has no real activity at all — empty
+  // is the correct real state, not holdings.ts's simulated localStorage
+  // demo data (removed here; Dylan, live: "remove simulated data for Base,
+  // SOL, ETH, move it to the real info which is zero" — Robinhood is the
+  // only chain that's ever real+nonempty today, and any future chain
+  // reads real zero from the moment it's added, before it's deployed).
+  const minted = deployed ? realMinted : {};
+  const books = deployed ? realBooks : {};
+  const ownedEditions = deployed ? realOwnedEditions : {};
+  const listings = deployed && chain !== "solana" ? realListingsByWallet : {};
 
   function refresh() {
     setTick((n) => n + 1);
