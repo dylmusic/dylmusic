@@ -107,12 +107,12 @@ function normalizeOpenSeaListing(chainId: number, collectionAddress: string, lis
  */
 export async function fetchRealEvmListings(
   chainKey: ChainKey,
-  sdkForSlugLookup: OpenSeaSDK | null
+  sdkForSlugLookup: OpenSeaSDK | null,
+  nativeUsd?: number
 ): Promise<RealListing[]> {
   const t = target(chainKey);
   if (!t) return [];
-  const nativeToken = getNativeTokenForChain(chainKey);
-  const nativeUsd = (await getTokenUsdPrice(nativeToken)) ?? 0;
+  const usd = nativeUsd ?? (await getTokenUsdPrice(getNativeTokenForChain(chainKey))) ?? 0;
 
   const siteRes = await fetch(`/api/listings?chainId=${t.chainId}`);
   const siteData = await siteRes.json().catch(() => ({ listings: [] as StoredListing[] }));
@@ -128,7 +128,7 @@ export async function fetchRealEvmListings(
       trackId,
       editionNumber,
       priceWei,
-      priceUsd: (Number(priceWei) / 1e18) * nativeUsd,
+      priceUsd: (Number(priceWei) / 1e18) * usd,
       sellerAddress: l.sellerAddress,
       raw: l,
     };
@@ -153,7 +153,7 @@ export async function fetchRealEvmListings(
         next = page.next;
       } while (next);
       openSea = all
-        .map((l) => normalizeOpenSeaListing(t.chainId, t.address, l, nativeUsd))
+        .map((l) => normalizeOpenSeaListing(t.chainId, t.address, l, usd))
         .filter((l): l is RealListing => l !== null);
     }
   }
@@ -218,8 +218,19 @@ export interface RealMintRow {
   remaining: number;
 }
 
-/** Real on-chain read of a track's live mint price + remaining editions — replaces the simulated baselineMinted/localMintedCount math once a chain is deployed. */
-export async function fetchRealMintRow(chainKey: ChainKey, track: Track): Promise<RealMintRow | null> {
+/**
+ * Real on-chain read of a track's live mint price + remaining editions —
+ * replaces the simulated baselineMinted/localMintedCount math once a chain
+ * is deployed. Accepts an optional pre-fetched `nativeUsd` — this used to
+ * always fetch its own price from DexScreener, and was being called TWICE
+ * per track (once here directly, once again inside buildRealOrderBook's
+ * own internal call), so a 19-track album triggered ~38 fully sequential
+ * external network calls before any buy button rendered, showing "Sold
+ * Out" (an empty order book, indistinguishable from real data) for
+ * literally minutes. Callers should fetch nativeUsd ONCE and pass it to
+ * every track instead of leaving each one to fetch it independently.
+ */
+export async function fetchRealMintRow(chainKey: ChainKey, track: Track, nativeUsd?: number): Promise<RealMintRow | null> {
   const t = target(chainKey);
   if (!t) return null;
   const client = publicClientFor(t.chainId);
@@ -230,20 +241,21 @@ export async function fetchRealMintRow(chainKey: ChainKey, track: Track): Promis
   ]);
   const remaining = Number(editionsPerTrack - nextEditionIndex);
   if (remaining <= 0) return { priceWei: mintPriceWei, priceUsd: 0, remaining: 0 };
-  const nativeToken = getNativeTokenForChain(chainKey);
-  const nativeUsd = (await getTokenUsdPrice(nativeToken)) ?? 0;
-  const priceUsd = (Number(mintPriceWei) / 1e18) * nativeUsd;
+  const usd = nativeUsd ?? (await getTokenUsdPrice(getNativeTokenForChain(chainKey))) ?? 0;
+  const priceUsd = (Number(mintPriceWei) / 1e18) * usd;
   return { priceWei: mintPriceWei, priceUsd, remaining };
 }
 
-/** Combines the real mint row + real merged listings for ONE track into the same OrderBookEntry[] shape lib/orderbook.ts's simulated buildOrderBook already produces. */
-export async function buildRealOrderBook(
-  chainKey: ChainKey,
-  track: Track,
-  allListings: RealListing[]
-): Promise<OrderBookEntry[]> {
+/**
+ * Combines an already-fetched mint row + real merged listings for ONE
+ * track into the same OrderBookEntry[] shape lib/orderbook.ts's simulated
+ * buildOrderBook already produces. Takes `mintRow` directly rather than
+ * fetching it itself — see fetchRealMintRow's comment on why the old
+ * fetch-it-yourself version caused a severe, real-launch-blocking loading
+ * bug.
+ */
+export function buildRealOrderBook(track: Track, allListings: RealListing[], mintRow: RealMintRow | null): OrderBookEntry[] {
   const entries: OrderBookEntry[] = [];
-  const mintRow = await fetchRealMintRow(chainKey, track);
   if (mintRow && mintRow.remaining > 0) {
     entries.push({ type: "mint", priceUsd: mintRow.priceUsd, remaining: mintRow.remaining });
   }

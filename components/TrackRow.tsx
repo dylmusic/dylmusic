@@ -10,6 +10,7 @@ export default function TrackRow({
   ownedEditions,
   listings,
   book,
+  loading,
   walletConnected,
   busy,
   isPlaying,
@@ -25,6 +26,11 @@ export default function TrackRow({
   ownedEditions: number[];
   listings: Record<number, number>;
   book: OrderBookEntry[];
+  // Real on-chain data is fetched async and starts as an empty book —
+  // indistinguishable from a genuine sellout without this flag. Caused a
+  // real incident: every track showed "Sold Out" while data was still
+  // loading, with nothing telling the difference.
+  loading?: boolean;
   walletConnected: boolean;
   busy: boolean;
   isPlaying: boolean;
@@ -90,7 +96,11 @@ export default function TrackRow({
           {formatStreams(getStreamCount(track))}
         </span>
 
-        {!floor ? (
+        {loading ? (
+          <button className="btn-buy" disabled>
+            Loading…
+          </button>
+        ) : !floor ? (
           <button className="btn-buy" disabled>
             Sold Out
           </button>

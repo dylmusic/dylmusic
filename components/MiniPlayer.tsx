@@ -238,7 +238,11 @@ export default function MiniPlayer({
       </div>
 
       <div className="mini-player-actions">
-        {!floor ? (
+        {commerce.deployed && commerce.realBooksLoading ? (
+          <button className="btn-buy" disabled>
+            Loading…
+          </button>
+        ) : !floor ? (
           <button className="btn-buy" disabled>
             Sold Out
           </button>

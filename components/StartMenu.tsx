@@ -120,7 +120,11 @@ export default function StartMenu({
                 </div>
 
                 <div className="start-menu-actions">
-                  {!floor ? (
+                  {commerce.deployed && commerce.realBooksLoading ? (
+                    <button className="btn-buy" disabled>
+                      Loading…
+                    </button>
+                  ) : !floor ? (
                     <button className="btn-buy" disabled>
                       Sold Out
                     </button>

@@ -143,17 +143,25 @@ export function useTrackCommerce(tracks: Track[], chain: ChainKey, walletAddress
           sdk = null;
         }
       }
-      const listings = await fetchRealEvmListings(chain, sdk);
+      // Fetched ONCE and threaded through every track below — this used to
+      // be fetched fresh per track (twice per track, in fact), turning a
+      // 19-track album into ~38 fully sequential external network calls
+      // before any buy button could render (minutes of "Sold Out" — an
+      // empty order book looks identical to a real sellout with no
+      // separate loading state). See fetchRealMintRow's comment.
+      const nativeUsd = (await getTokenUsdPrice(getNativeTokenForChain(chain))) ?? 0;
+      const listings = await fetchRealEvmListings(chain, sdk, nativeUsd);
       if (cancelled) return;
       setRealListings(listings);
 
+      const mintRows = await Promise.all(tracks.map((t) => fetchRealMintRow(chain, t, nativeUsd)));
       const nextBooks: Record<string, OrderBookEntry[]> = {};
       const nextMinted: Record<string, number> = {};
-      for (const t of tracks) {
-        nextBooks[t.id] = await buildRealOrderBook(chain, t, listings);
-        const mintRow = await fetchRealMintRow(chain, t);
+      tracks.forEach((t, i) => {
+        const mintRow = mintRows[i];
+        nextBooks[t.id] = buildRealOrderBook(t, listings, mintRow);
         nextMinted[t.id] = mintRow ? t.editionCap - mintRow.remaining : 0;
-      }
+      });
       if (!cancelled) {
         setRealBooks(nextBooks);
         setRealMinted(nextMinted);

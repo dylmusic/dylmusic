@@ -248,6 +248,7 @@ export default function AlbumView({
             ownedEditions={ownedEditions[t.id] ?? []}
             listings={listings[t.id] ?? {}}
             book={books[t.id] ?? []}
+            loading={commerce.deployed && commerce.realBooksLoading}
             walletConnected={!!walletAddress}
             busy={commerce.busyKey?.startsWith(`${t.id}:`) ?? false}
             isPlaying={playingTrackId === t.id && isPlaying}
