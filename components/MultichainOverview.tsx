@@ -59,14 +59,17 @@ export default function MultichainOverview({ album }: { album: Album }) {
       writeCachedJson("platformOverview", o);
     });
     fetchRealSalesStats().then((s) => {
+      if (s === null) return; // fetch failed — keep showing the last cached value, try again next mount
       if (!cancelled) setSales(s);
       writeCachedJson("salesStats", s);
     });
     fetchRealHoldersCount().then((h) => {
+      if (h === null) return;
       if (!cancelled) setHolders(h);
       writeCachedNumber("holders", h);
     });
     fetchRealFullSetHolders(album).then((n) => {
+      if (n === null) return;
       if (!cancelled) setFullSetHolders(n);
       writeCachedNumber("fullSetHolders", n);
     });

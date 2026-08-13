@@ -50,19 +50,24 @@ export async function fetchRealPlatformOverview(album: Album): Promise<PlatformO
  * (`holders_count`) — Robinhood Chain only, the one chain with a real
  * deployed collection today (same "Robinhood is the only chain that's ever
  * real+nonempty" rule fetchRealPlatformOverview above already follows).
- * Real zero on a fetch failure rather than throwing and blanking the whole
- * dashboard — this is a "nice to have" stat, not load-bearing.
+ * Returns `null` on a fetch failure rather than a fake `0` — a transient
+ * Blockscout hiccup is not the same fact as "genuinely zero holders," and
+ * the caller (MultichainOverview) leaves the last cached value on screen
+ * when it sees `null` instead of overwriting a real cached number (and the
+ * cache itself) with a false zero. This is a "nice to have" stat, not
+ * load-bearing, so a failed read just means "try again next mount," not
+ * "blank the dashboard."
  */
-export async function fetchRealHoldersCount(): Promise<number> {
+export async function fetchRealHoldersCount(): Promise<number | null> {
   const address = CONTRACT_TARGETS.find((t) => t.key === "robinhood")?.address;
   if (!address) return 0;
   try {
     const res = await fetch(`https://robinhoodchain.blockscout.com/api/v2/tokens/${address}`);
-    if (!res.ok) return 0;
+    if (!res.ok) return null;
     const data = await res.json();
     return Number(data?.holders_count) || 0;
   } catch {
-    return 0;
+    return null;
   }
 }
 
@@ -99,16 +104,24 @@ interface BlockscoutInstancesPage {
  * every track (the number of complete sets that wallet can assemble) and
  * sum that across all wallets.
  *
- * Real zero on any fetch failure, same "don't blank the dashboard over a
- * nice-to-have stat" rule as fetchRealHoldersCount above.
+ * Returns `null` (not `0`) on any fetch failure — this walk makes several
+ * sequential paginated requests to compute one number, so a single
+ * transient Blockscout hiccup mid-sweep is real surface area, and treating
+ * that the same as "genuinely zero complete sets" was exactly what caused
+ * the dashboard tile to flash back to 0 on refresh: the failure got written
+ * into both React state AND the localStorage cache, poisoning the "last
+ * known good" value until the next successful run happened to overwrite it
+ * again. `null` tells the caller "couldn't determine this time" so it
+ * leaves the last real cached number on screen instead.
  */
-export async function fetchRealFullSetHolders(album: Album): Promise<number> {
+export async function fetchRealFullSetHolders(album: Album): Promise<number | null> {
   const address = CONTRACT_TARGETS.find((t) => t.key === "robinhood")?.address;
   if (!address || album.tracks.length === 0) return 0;
 
   const heldPerTrack = new Map<number, Map<string, number>>();
   for (const t of album.tracks) heldPerTrack.set(t.index, new Map());
 
+  let failed = false;
   try {
     let params: Record<string, string | number> | null = {};
     for (;;) {
@@ -119,7 +132,10 @@ export async function fetchRealFullSetHolders(album: Album): Promise<number> {
         `https://robinhoodchain.blockscout.com/api/v2/tokens/${address}/instances${qs ? `?${qs}` : ""}`,
         { cache: "no-store" }
       );
-      if (!res.ok) break;
+      if (!res.ok) {
+        failed = true;
+        break;
+      }
       const page: BlockscoutInstancesPage = await res.json();
       for (const item of page.items) {
         const owner = item.owner?.hash?.toLowerCase();
@@ -133,11 +149,17 @@ export async function fetchRealFullSetHolders(album: Album): Promise<number> {
       params = page.next_page_params;
     }
   } catch {
-    return 0;
+    failed = true;
   }
 
+  // A page genuinely failed mid-sweep — the maps built so far are a partial,
+  // misleading picture (could read as a false 0 OR a false lower number
+  // than reality), not a real result. Bail out with "couldn't determine"
+  // rather than reporting whatever partial data happened to accumulate.
+  if (failed) return null;
+
   const perTrackMaps = Array.from(heldPerTrack.values());
-  if (perTrackMaps.some((m) => m.size === 0)) return 0; // at least one track has zero holders — no set can be complete
+  if (perTrackMaps.some((m) => m.size === 0)) return 0; // every page succeeded and a track genuinely has zero holders — no set can be complete
 
   const allWallets = new Set<string>();
   for (const m of perTrackMaps) for (const w of m.keys()) allWallets.add(w);

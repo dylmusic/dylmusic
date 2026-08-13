@@ -93,11 +93,20 @@ export const EMPTY_SALES_STATS: RealSalesStats = {
  * activity, correctly show 0 — that's the honest truth for a platform that
  * just went live, not a limitation to work around with a fake shape.
  */
-export async function fetchRealSalesStats(): Promise<RealSalesStats> {
+// Returns `null` (not EMPTY_SALES_STATS) when the fetch itself failed —
+// a network error or bad response is a different fact than "the API really
+// has zero activity records," and conflating them was the same class of bug
+// fixed in fetchRealFullSetHolders/fetchRealHoldersCount above: a transient
+// failure would overwrite the cached (and possibly real, non-zero) volume
+// with a fake empty result. `null` tells the caller to leave the last
+// cached value alone instead.
+export async function fetchRealSalesStats(): Promise<RealSalesStats | null> {
   const res = await fetch("/api/activity?limit=500").catch(() => null);
-  const data = await res?.json().catch(() => null);
+  if (!res || !res.ok) return null;
+  const data = await res.json().catch(() => null);
+  if (data === null) return null;
   const activity: RealActivityEntry[] = data?.activity ?? [];
-  if (activity.length === 0) return EMPTY_SALES_STATS;
+  if (activity.length === 0) return EMPTY_SALES_STATS; // genuinely fetched, genuinely empty — a real zero
 
   const now = new Date();
   const todayKey = now.toDateString();
