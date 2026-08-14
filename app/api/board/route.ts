@@ -12,7 +12,20 @@ import { isAdminWallet } from "@/lib/admin";
 
 // Polled every 8s by BulletinBoard — same edge-cache-collapses-concurrent-
 // polls reasoning as /api/chat.
+//
+// Kill switch, defaulted off — same reasoning as /api/chat and
+// /api/listings: this is cached, so an in-function rate limit can't stop
+// a runaway caller. Ready to flip GET_BOARD_DISABLED without an emergency
+// patch if this route is ever the one getting hammered.
+const GET_BOARD_DISABLED = false;
+
 export async function GET() {
+  if (GET_BOARD_DISABLED) {
+    return NextResponse.json(
+      { configured: true, notes: [] },
+      { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" } }
+    );
+  }
   if (!boardConfigured()) {
     return NextResponse.json({ configured: false, notes: [] });
   }

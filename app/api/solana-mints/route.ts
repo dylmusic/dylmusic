@@ -45,7 +45,18 @@ async function walletHoldsMint(wallet: string, mint: string): Promise<boolean> {
   }
 }
 
+// Kill switch, defaulted off — same reasoning as the other cached GET
+// routes. Ready to flip GET_SOLANA_MINTS_DISABLED without an emergency
+// patch if this route is ever the one getting hammered.
+const GET_SOLANA_MINTS_DISABLED = false;
+
 export async function GET() {
+  if (GET_SOLANA_MINTS_DISABLED) {
+    return NextResponse.json(
+      { mints: [] },
+      { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" } }
+    );
+  }
   const mints = await getAllSolanaMints();
   return NextResponse.json({ mints }, { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=60" } });
 }

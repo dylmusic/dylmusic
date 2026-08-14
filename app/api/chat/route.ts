@@ -9,7 +9,23 @@ import { isAdminWallet } from "@/lib/admin";
 // tightest real poll interval, 5s) — it just collapses however many
 // concurrent pollers there are into ~1 real read per window, the same
 // pattern already proven for hoodprinter's /api/stats.
+//
+// Kill switch, defaulted off (2026-08-14, after /api/listings had to get
+// one under pressure): this route is cached, which means a rate limit
+// placed inside the function can't stop a runaway/broken caller — most
+// repeat requests never reach this code at all, they're served straight
+// from the CDN cache. If this endpoint is ever the one getting hammered,
+// flip GET_CHAT_DISABLED to short-circuit to a free static response
+// instead of writing an emergency patch live.
+const GET_CHAT_DISABLED = false;
+
 export async function GET() {
+  if (GET_CHAT_DISABLED) {
+    return NextResponse.json(
+      { configured: true, messages: [] },
+      { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" } }
+    );
+  }
   if (!chatConfigured()) {
     return NextResponse.json({ configured: false, messages: [] });
   }

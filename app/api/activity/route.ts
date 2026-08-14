@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { recordRealActivity, readRealActivity, activityStoreConfigured } from "@/lib/activityStore";
 
+// Kill switch, defaulted off — same reasoning as /api/chat, /api/board,
+// /api/listings: cached GET means an in-function rate limit can't stop a
+// runaway caller. Ready to flip GET_ACTIVITY_DISABLED without an
+// emergency patch if this route is ever the one getting hammered.
+const GET_ACTIVITY_DISABLED = false;
+
 export async function GET(req: NextRequest) {
+  if (GET_ACTIVITY_DISABLED) {
+    return NextResponse.json(
+      { configured: true, activity: [] },
+      { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" } }
+    );
+  }
   if (!activityStoreConfigured()) {
     return NextResponse.json({ configured: false, activity: [] });
   }
