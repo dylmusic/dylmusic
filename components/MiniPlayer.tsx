@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChainKey, Track } from "@/lib/albums";
 import { useTrackCommerce } from "@/lib/useTrackCommerce";
 import ListingsModal from "./ListingsModal";
@@ -123,7 +123,18 @@ export default function MiniPlayer({
     }
   }
 
-  const commerce = useTrackCommerce([track], chain, walletAddress);
+  // `track` changes only when the playing song actually changes, but a
+  // literal `[track]` here is a brand-new array on every render — and this
+  // component re-renders continuously during playback (currentTime updates
+  // many times a second from the <audio> element). Each of those renders
+  // was passing a new array reference into useTrackCommerce's effect deps,
+  // re-triggering its full listings/order-book fetch (GET /api/listings,
+  // real on-chain reads) every render — confirmed live via Vercel request
+  // logs showing /api/listings being hit dozens of times per second the
+  // whole time a track played. useMemo keyed on track.id keeps the array
+  // reference stable across re-renders unless the track itself changes.
+  const memoTracks = useMemo(() => [track], [track.id]);
+  const commerce = useTrackCommerce(memoTracks, chain, walletAddress);
   const { minted, ownedEditions, listings, books } = commerce;
   const trackMinted = minted[track.id] ?? 0;
   const trackOwned = ownedEditions[track.id] ?? [];
