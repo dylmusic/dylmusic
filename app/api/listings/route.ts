@@ -35,6 +35,20 @@ import { checkRateLimit, clientIp } from "@/lib/rateLimit";
 // sale genuinely happened, not just a guessed tokenId.
 
 export async function GET(req: NextRequest) {
+  // Hard backstop, independent of any client-side bug — a stale browser
+  // tab (or anything else) hammering this endpoint has no way to know the
+  // server changed and will keep calling at whatever rate its own broken
+  // code runs at, forever, no matter how many times we redeploy. This caps
+  // the actual work done per source regardless of why it's happening.
+  // Generous limit (this is legitimately polled) — this is a ceiling
+  // against a runaway/malicious source, not a normal-usage throttle.
+  const allowed = await checkRateLimit(`dylmusic:rl:listingsget:${clientIp(req)}`, 120, 60);
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Too many requests." },
+      { status: 429, headers: { "Cache-Control": "public, s-maxage=5, stale-while-revalidate=30" } }
+    );
+  }
   const chainId = Number(req.nextUrl.searchParams.get("chainId"));
   if (!chainId) {
     return NextResponse.json({ error: "Missing chainId." }, { status: 400 });
