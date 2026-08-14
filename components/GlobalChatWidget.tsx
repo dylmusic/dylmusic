@@ -74,6 +74,16 @@ export default function GlobalChatWidget() {
     const text = draft.trim();
     if (!text || !address || sending) return;
     setSending(true);
+    setDraft("");
+    // Optimistic append — was waiting on a full POST round-trip AND then a
+    // full GET reload of all 100 messages before the sender's own message
+    // ever appeared, which is what made posting feel "extremely slow."
+    // Show it immediately with a temp id, then reconcile with the real
+    // server-created message (POST already returns it) once that resolves
+    // in the background — no second fetch needed on the happy path.
+    const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const optimisticMessage: ChatMessage = { id: optimisticId, wallet: address, chain: "robinhood", text, ts: Date.now() };
+    setMessages((prev) => [...prev, optimisticMessage]);
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -81,11 +91,19 @@ export default function GlobalChatWidget() {
         body: JSON.stringify({ wallet: address, chain: "robinhood", text }),
       });
       if (res.ok) {
-        setDraft("");
-        await load();
+        const data = await res.json().catch(() => null);
+        const real: ChatMessage | undefined = data?.message;
+        if (real) setMessages((prev) => prev.map((m) => (m.id === optimisticId ? real : m)));
+      } else {
+        // Actually rejected (banned wallet, message too long, etc.) — don't
+        // leave a message on screen that was never really posted, and give
+        // the text back so nothing the user typed is lost.
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+        setDraft(text);
       }
     } catch {
-      // best-effort
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+      setDraft(text);
     } finally {
       setSending(false);
     }

@@ -65,6 +65,14 @@ export default function ChatPageClient() {
     const text = draft.trim();
     if (!text || !walletAddress || sending) return;
     setSending(true);
+    setDraft("");
+    // Optimistic append — see GlobalChatWidget.tsx's send() for the full
+    // reasoning. Show the message immediately with a temp id, reconcile
+    // with the real server-created message (POST already returns it) once
+    // that resolves, instead of waiting on POST + a full reload.
+    const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const optimisticMessage: ChatMessage = { id: optimisticId, wallet: walletAddress, chain, text, ts: Date.now() };
+    setMessages((prev) => [...prev, optimisticMessage]);
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -72,11 +80,16 @@ export default function ChatPageClient() {
         body: JSON.stringify({ wallet: walletAddress, chain, text }),
       });
       if (res.ok) {
-        setDraft("");
-        await load();
+        const data = await res.json().catch(() => null);
+        const real: ChatMessage | undefined = data?.message;
+        if (real) setMessages((prev) => prev.map((m) => (m.id === optimisticId ? real : m)));
+      } else {
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+        setDraft(text);
       }
     } catch {
-      // best-effort — same tolerance as the rest of this prototype's telemetry
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+      setDraft(text);
     } finally {
       setSending(false);
     }
