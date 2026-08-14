@@ -6,6 +6,7 @@ import { CONTRACT_TARGETS } from "@/lib/admin";
 import { DylCollectionAbi } from "@/lib/contractDeploy";
 import { ROBINHOOD_CHAIN_SERVER, ROBINHOOD_RPC_URL } from "@/lib/robinhoodChainServer";
 import { ALBUMS } from "@/lib/albums";
+import { checkRateLimit, clientIp } from "@/lib/rateLimit";
 
 const VOUCHER_TTL_SECONDS = 30 * 60; // 30 minutes — matches the pending-credit rollback window
 
@@ -49,6 +50,15 @@ function assignRandomEditions(count: number, remainingByTrack: Map<number, numbe
 export async function POST(req: NextRequest) {
   if (!burnLedgerConfigured()) {
     return NextResponse.json({ error: "Burn ledger isn't set up yet." }, { status: 503 });
+  }
+  // Same reasoning as /api/burn/verify: this does a real RPC read (live
+  // per-track availability) plus a real EIP-712 signing operation on every
+  // call, and a worthless/empty wallet still costs a full ledger read
+  // before it's rejected — nothing else stops a scripted loop from hitting
+  // this repeatedly. Throttle by IP, fails open if Redis isn't configured.
+  const allowed = await checkRateLimit(`dylmusic:rl:claimvoucher:${clientIp(req)}`, 20, 60);
+  if (!allowed) {
+    return NextResponse.json({ error: "Too many requests — try again in a minute." }, { status: 429 });
   }
   const body = await req.json().catch(() => null);
   const wallet = typeof body?.wallet === "string" ? body.wallet.trim() : "";

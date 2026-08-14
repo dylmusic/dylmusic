@@ -4,6 +4,7 @@ import { saveSiteListings, getSiteListingsForChain, getSiteListing, removeSiteLi
 import { serverPublicClientFor } from "@/lib/serverEvmClient";
 import { DylCollectionAbi } from "@/lib/contractDeploy";
 import type { StoredListing } from "@/lib/siteListing";
+import { checkRateLimit, clientIp } from "@/lib/rateLimit";
 
 // Persists real, signed 0%-fee Seaport listings — the signing happens
 // client-side (whichever wallet owns the token), this just stores the
@@ -65,6 +66,14 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  // The non-seller ("proven sale") branch below does a real on-chain
+  // ownerOf() read — a scripted loop hitting this with a non-matching
+  // wallet and arbitrary tokenIds would force a real RPC call on every
+  // request with nothing else stopping it. Throttle by IP.
+  const allowed = await checkRateLimit(`dylmusic:rl:listingsdelete:${clientIp(req)}`, 30, 60);
+  if (!allowed) {
+    return NextResponse.json({ error: "Too many requests — try again in a minute." }, { status: 429 });
+  }
   const body = await req.json().catch(() => null);
   const chainId = Number(body?.chainId);
   const tokenId = Number(body?.tokenId);

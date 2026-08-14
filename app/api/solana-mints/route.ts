@@ -3,6 +3,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import { getAssociatedTokenAddress, getAccount, TokenAccountNotFoundError, TokenInvalidAccountOwnerError } from "@solana/spl-token";
 import { saveSolanaMints, getAllSolanaMints, type SolanaMintRecord } from "@/lib/solanaMintsStore";
 import { isAdminWallet } from "@/lib/admin";
+import { checkRateLimit, clientIp } from "@/lib/rateLimit";
 
 // Persists which editions map to which real mint address. Originally
 // admin-only (deployTrackAndMintAdmin's own premint records); opened up
@@ -50,6 +51,14 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  // walletHoldsMint below fires a real Solana RPC call per submitted mint
+  // for any non-admin wallet — an attacker resubmitting a large mints[]
+  // array repeatedly has nothing else stopping them from running up real
+  // RPC/function-duration usage. Throttle by IP.
+  const allowed = await checkRateLimit(`dylmusic:rl:solanamints:${clientIp(req)}`, 20, 60);
+  if (!allowed) {
+    return NextResponse.json({ error: "Too many requests — try again in a minute." }, { status: 429 });
+  }
   const body = await req.json().catch(() => null);
   const wallet = typeof body?.wallet === "string" ? body.wallet : "";
   const mints = Array.isArray(body?.mints) ? (body.mints as SolanaMintRecord[]) : [];
