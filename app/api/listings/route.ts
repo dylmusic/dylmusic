@@ -38,13 +38,12 @@ import { checkRateLimit, clientIp } from "@/lib/rateLimit";
 // at 20-30+ req/sec regardless of two rounds of fixes (a real client-side
 // render-loop bug, then a server-side rate limit) — the rate limit couldn't
 // touch it because most of that traffic was CDN cache HITs that never reach
-// this function at all. Minting is live and is what matters right now;
-// secondary-market listings are not, and we barely have any yet. Short-
-// circuited to a static empty response with a long cache so this path is
-// maximally cheap regardless of how hard anything hits it, with zero Redis
-// work. Flip GET_LISTINGS_DISABLED back to false to restore real listings
-// once the source is confirmed stopped (or Firewall rate-limiting is on).
-const GET_LISTINGS_DISABLED = true;
+// this function at all. Re-enabled once the underlying render-loop bug was
+// confirmed fixed (MiniPlayer.tsx) and the request rate had visibly settled
+// — see the cache-window change below for the real structural fix, not just
+// waiting it out. Flip back to true instantly if this ever needs to happen
+// again; zero other code changes required.
+const GET_LISTINGS_DISABLED = false;
 
 export async function GET(req: NextRequest) {
   if (GET_LISTINGS_DISABLED) {
@@ -72,11 +71,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing chainId." }, { status: 400 });
   }
   const listings = await getSiteListingsForChain(chainId);
-  // Short edge cache only — a stale listing here can never cause a bad
-  // purchase (Seaport itself refuses to fulfill an already-sold/cancelled
-  // order, per the design note above), it just collapses repeat reads from
-  // concurrent visitors browsing the same track list within a few seconds.
-  return NextResponse.json({ listings }, { headers: { "Cache-Control": "public, s-maxage=5, stale-while-revalidate=30" } });
+  // Raised from s-maxage=5 to 60 (2026-08-14, after the kill-switch
+  // incident above): a stale listing here can never cause a bad purchase
+  // (Seaport itself refuses to fulfill an already-sold/cancelled order,
+  // per the design note above) — 60s of staleness is invisible to a real
+  // visitor browsing a track list. The actual reason this matters: this is
+  // a real structural ceiling, not just a wider cache window. Whatever hit
+  // this endpoint 20-30x/sec could still only force ONE real Redis read
+  // every 60 seconds this way (down from every 5), a ~12x cut to the
+  // worst-case real cost of a repeat of exactly what just happened —
+  // independent of whether the specific bug that caused it recurs, and on
+  // top of the per-IP rate limit above as a second layer.
+  return NextResponse.json({ listings }, { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } });
 }
 
 export async function POST(req: NextRequest) {
