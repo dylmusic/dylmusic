@@ -34,7 +34,25 @@ import { checkRateLimit, clientIp } from "@/lib/rateLimit";
 // CURRENT owner no longer matches the stored listing's seller — proof a
 // sale genuinely happened, not just a guessed tokenId.
 
+// KILL SWITCH (2026-08-14): a stale/runaway client kept hammering this GET
+// at 20-30+ req/sec regardless of two rounds of fixes (a real client-side
+// render-loop bug, then a server-side rate limit) — the rate limit couldn't
+// touch it because most of that traffic was CDN cache HITs that never reach
+// this function at all. Minting is live and is what matters right now;
+// secondary-market listings are not, and we barely have any yet. Short-
+// circuited to a static empty response with a long cache so this path is
+// maximally cheap regardless of how hard anything hits it, with zero Redis
+// work. Flip GET_LISTINGS_DISABLED back to false to restore real listings
+// once the source is confirmed stopped (or Firewall rate-limiting is on).
+const GET_LISTINGS_DISABLED = true;
+
 export async function GET(req: NextRequest) {
+  if (GET_LISTINGS_DISABLED) {
+    return NextResponse.json(
+      { listings: [] },
+      { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" } }
+    );
+  }
   // Hard backstop, independent of any client-side bug — a stale browser
   // tab (or anything else) hammering this endpoint has no way to know the
   // server changed and will keep calling at whatever rate its own broken
